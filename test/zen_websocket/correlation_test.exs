@@ -6,6 +6,7 @@ defmodule ZenWebsocket.CorrelationTest do
   use ExUnit.Case, async: false
 
   alias ZenWebsocket.Client
+  alias ZenWebsocket.Test.Support.MockWebSockServer
 
   @deribit_test_url "wss://test.deribit.com/ws/api/v2"
 
@@ -30,23 +31,45 @@ defmodule ZenWebsocket.CorrelationTest do
     end
 
     test "returns timeout error when response doesn't arrive" do
-      {:ok, client} = Client.connect(@deribit_test_url, request_timeout: 50)
+      # Use mock server that doesn't respond to test timeout
+      {:ok, server, port} = MockWebSockServer.start_link()
 
-      # To test timeout, we need a request that Deribit won't respond to
-      # We can achieve this by sending a malformed request that will be ignored
+      # Set handler to ignore messages with ID 2 (don't respond)
+      MockWebSockServer.set_handler(server, fn
+        {:text, msg} ->
+          case Jason.decode(msg) do
+            {:ok, %{"id" => 2}} ->
+              # Ignore this request - don't respond
+              :ok
+
+            {:ok, _other} ->
+              # Respond to other requests normally
+              {:reply, {:text, Jason.encode!(%{"id" => 1, "result" => "ok"})}}
+
+            _ ->
+              :ok
+          end
+
+        _ ->
+          :ok
+      end)
+
+      url = "ws://localhost:#{port}/ws"
+      {:ok, client} = Client.connect(url, request_timeout: 100)
+
       request =
         Jason.encode!(%{
           "jsonrpc" => "2.0",
-          "method" => "private/get_account_summary",
-          "params" => %{"currency" => "BTC"},
+          "method" => "test",
+          "params" => %{},
           "id" => 2
         })
 
-      # Since we set a very short timeout (50ms) and Deribit will respond with auth error
-      # We expect a timeout before the response arrives
+      # Server ignores ID 2, so we should get timeout
       assert {:error, :timeout} = Client.send_message(client, request)
 
       Client.close(client)
+      MockWebSockServer.stop(server)
     end
 
     test "handles non-JSON messages without correlation" do

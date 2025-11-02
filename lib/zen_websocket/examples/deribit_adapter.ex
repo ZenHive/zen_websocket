@@ -73,16 +73,11 @@ defmodule ZenWebsocket.Examples.DeribitAdapter do
   def authenticate(%__MODULE__{client_id: nil}), do: {:error, :missing_credentials}
 
   def authenticate(%__MODULE__{client: client} = adapter) do
-    request = DeribitRpc.auth_request(adapter.client_id, adapter.client_secret)
-
-    case send_json_rpc(client, request) do
-      {:ok, %{"result" => %{"access_token" => _}}} ->
-        # Set up heartbeat after authentication
-        send_json_rpc(client, DeribitRpc.set_heartbeat(30))
-        {:ok, %{adapter | authenticated: true}}
-
-      error ->
-        error
+    with {:ok, auth_req} <- DeribitRpc.auth_request(adapter.client_id, adapter.client_secret),
+         {:ok, %{"result" => %{"access_token" => _}}} <- send_json_rpc(client, auth_req),
+         {:ok, hb_req} <- DeribitRpc.set_heartbeat(30),
+         {:ok, _} <- send_json_rpc(client, hb_req) do
+      {:ok, %{adapter | authenticated: true}}
     end
   end
 
@@ -91,13 +86,10 @@ defmodule ZenWebsocket.Examples.DeribitAdapter do
   """
   @spec subscribe(t(), list(String.t())) :: {:ok, t()} | {:error, term()}
   def subscribe(%__MODULE__{client: client, subscriptions: subs} = adapter, channels) do
-    case send_json_rpc(client, DeribitRpc.subscribe(channels)) do
-      {:ok, %{"result" => _}} ->
-        new_subs = Enum.reduce(channels, subs, &MapSet.put(&2, &1))
-        {:ok, %{adapter | subscriptions: new_subs}}
-
-      error ->
-        error
+    with {:ok, request} <- DeribitRpc.subscribe(channels),
+         {:ok, %{"result" => _}} <- send_json_rpc(client, request) do
+      new_subs = Enum.reduce(channels, subs, &MapSet.put(&2, &1))
+      {:ok, %{adapter | subscriptions: new_subs}}
     end
   end
 
@@ -106,13 +98,10 @@ defmodule ZenWebsocket.Examples.DeribitAdapter do
   """
   @spec unsubscribe(t(), list(String.t())) :: {:ok, t()} | {:error, term()}
   def unsubscribe(%__MODULE__{client: client, subscriptions: subs} = adapter, channels) do
-    case send_json_rpc(client, DeribitRpc.unsubscribe(channels)) do
-      {:ok, %{"result" => _}} ->
-        new_subs = Enum.reduce(channels, subs, &MapSet.delete(&2, &1))
-        {:ok, %{adapter | subscriptions: new_subs}}
-
-      error ->
-        error
+    with {:ok, request} <- DeribitRpc.unsubscribe(channels),
+         {:ok, %{"result" => _}} <- send_json_rpc(client, request) do
+      new_subs = Enum.reduce(channels, subs, &MapSet.delete(&2, &1))
+      {:ok, %{adapter | subscriptions: new_subs}}
     end
   end
 
@@ -121,15 +110,17 @@ defmodule ZenWebsocket.Examples.DeribitAdapter do
   """
   @spec send_request(t(), String.t(), map()) :: {:ok, term()} | {:error, term()}
   def send_request(%__MODULE__{client: client}, method, params \\ %{}) do
-    request = DeribitRpc.build_request(method, params)
-    send_json_rpc(client, request)
+    with {:ok, request} <- DeribitRpc.build_request(method, params) do
+      send_json_rpc(client, request)
+    end
   end
 
   # Private helper to send JSON-RPC requests
   defp send_json_rpc(client, request) do
     case Client.send_message(client, Jason.encode!(request)) do
       {:ok, response} -> {:ok, response}
-      error -> error
+      :ok -> {:ok, %{}}
+      {:error, reason} -> {:error, reason}
     end
   end
 end

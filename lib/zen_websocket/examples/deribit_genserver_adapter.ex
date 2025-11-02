@@ -125,36 +125,35 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
         {:reply, {:error, :missing_credentials}, state}
 
       {:authenticate, %{client: client}} ->
-        req = DeribitRpc.auth_request(state.client_id, state.client_secret)
-
-        case Client.send_message(client, Jason.encode!(req)) do
-          {:ok, %{"result" => %{"access_token" => _}}} ->
-            Client.send_message(client, Jason.encode!(DeribitRpc.set_heartbeat(30)))
-            {:reply, :ok, %{state | authenticated: true, was_authenticated: true}}
-
-          error ->
-            {:reply, error, state}
+        with {:ok, auth_req} <- DeribitRpc.auth_request(state.client_id, state.client_secret),
+             {:ok, %{"result" => %{"access_token" => _}}} <- send_json_rpc(client, auth_req),
+             {:ok, hb_req} <- DeribitRpc.set_heartbeat(30),
+             {:ok, _} <- send_json_rpc(client, hb_req) do
+          {:reply, :ok, %{state | authenticated: true, was_authenticated: true}}
+        else
+          error -> {:reply, error, state}
         end
 
       {{:subscribe, _}, %{client: nil}} ->
         {:reply, {:error, :not_connected}, state}
 
       {{:subscribe, channels}, %{client: client}} ->
-        case Client.send_message(client, Jason.encode!(DeribitRpc.subscribe(channels))) do
-          {:ok, %{"result" => _}} ->
-            new_subs = Enum.reduce(channels, state.subscriptions, &MapSet.put(&2, &1))
-            {:reply, :ok, %{state | subscriptions: new_subs}}
-
-          error ->
-            {:reply, error, state}
+        with {:ok, req} <- DeribitRpc.subscribe(channels),
+             {:ok, %{"result" => _}} <- send_json_rpc(client, req) do
+          new_subs = Enum.reduce(channels, state.subscriptions, &MapSet.put(&2, &1))
+          {:reply, :ok, %{state | subscriptions: new_subs}}
+        else
+          error -> {:reply, error, state}
         end
 
       {{:send_request, _, _}, %{client: nil}} ->
         {:reply, {:error, :not_connected}, state}
 
       {{:send_request, method, params}, %{client: client}} ->
-        req = DeribitRpc.build_request(method, params)
-        {:reply, Client.send_message(client, Jason.encode!(req)), state}
+        case DeribitRpc.build_request(method, params) do
+          {:ok, req} -> {:reply, send_json_rpc(client, req), state}
+          error -> {:reply, error, state}
+        end
 
       {:get_state, _} ->
         {:reply, {:ok, state}, state}
@@ -222,4 +221,13 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
 
   @impl true
   def handle_info(_msg, state), do: {:noreply, state}
+
+  # Private helper to send JSON-RPC requests
+  defp send_json_rpc(client, request) do
+    case Client.send_message(client, Jason.encode!(request)) do
+      {:ok, response} -> {:ok, response}
+      :ok -> {:ok, %{}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
 end

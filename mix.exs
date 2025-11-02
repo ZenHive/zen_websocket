@@ -13,17 +13,6 @@ defmodule ZenWebsocket.MixProject do
       deps: deps(),
       dialyzer: dialyzer(),
       aliases: aliases(),
-      preferred_cli_env: [
-        dialyzer: :dev,
-        credo: :dev,
-        sobelow: :dev,
-        lint: :dev,
-        typecheck: :dev,
-        security: :dev,
-        coverage: :test,
-        check: :dev,
-        docs: :dev
-      ],
 
       # Hex Package metadata
       description: description(),
@@ -64,6 +53,22 @@ defmodule ZenWebsocket.MixProject do
         ],
         source_url: "https://github.com/ZenHive/zen_websocket",
         source_ref: "v#{@version}"
+      ]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
+        dialyzer: :dev,
+        credo: :dev,
+        sobelow: :dev,
+        lint: :dev,
+        typecheck: :dev,
+        security: :dev,
+        coverage: :test,
+        check: :dev,
+        docs: :dev
       ]
     ]
   end

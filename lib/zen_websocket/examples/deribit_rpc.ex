@@ -4,25 +4,28 @@ defmodule ZenWebsocket.Examples.DeribitRpc do
 
   This module centralizes all Deribit RPC method definitions
   to avoid duplication across adapter examples.
+
+  Uses `ZenWebsocket.JsonRpc.build_request/2` and returns the
+  standard `{:ok, map()}` tuple for consistency with library conventions.
   """
+
+  alias ZenWebsocket.JsonRpc
+
+  # Generic Request Builder
+
   @doc """
-  Builds a JSON-RPC request for the given method and params.
+  Builds a generic JSON-RPC request for any Deribit method.
 
   ## Parameters
-  - `method` - The JSON-RPC method name
-  - `params` - Optional parameters map (defaults to empty map)
+  - `method` - The RPC method name
+  - `params` - Method parameters (default: %{})
 
   ## Returns
-  A map containing the complete JSON-RPC request structure.
+  `{:ok, request}` tuple with JSON-RPC request map.
   """
-  @spec build_request(String.t(), map()) :: map()
+  @spec build_request(String.t(), map()) :: {:ok, map()}
   def build_request(method, params \\ %{}) do
-    %{
-      jsonrpc: "2.0",
-      id: System.unique_integer([:positive]),
-      method: method,
-      params: params
-    }
+    JsonRpc.build_request(method, params)
   end
 
   # Authentication & Session
@@ -35,11 +38,11 @@ defmodule ZenWebsocket.Examples.DeribitRpc do
   - `client_secret` - Your Deribit API client secret
 
   ## Returns
-  A JSON-RPC request map for authentication.
+  `{:ok, request}` tuple with JSON-RPC request map for authentication.
   """
-  @spec auth_request(String.t(), String.t()) :: map()
+  @spec auth_request(String.t(), String.t()) :: {:ok, map()}
   def auth_request(client_id, client_secret) do
-    build_request("public/auth", %{
+    JsonRpc.build_request("public/auth", %{
       grant_type: "client_credentials",
       client_id: client_id,
       client_secret: client_secret
@@ -53,22 +56,22 @@ defmodule ZenWebsocket.Examples.DeribitRpc do
   - `interval` - Heartbeat interval in seconds (default: 30)
 
   ## Returns
-  A JSON-RPC request map for setting heartbeat.
+  `{:ok, request}` tuple with JSON-RPC request map for setting heartbeat.
   """
-  @spec set_heartbeat(integer()) :: map()
+  @spec set_heartbeat(integer()) :: {:ok, map()}
   def set_heartbeat(interval \\ 30) do
-    build_request("public/set_heartbeat", %{interval: interval})
+    JsonRpc.build_request("public/set_heartbeat", %{interval: interval})
   end
 
   @doc """
   Builds a test request to verify the connection is alive.
 
   ## Returns
-  A JSON-RPC request map for connection testing.
+  `{:ok, request}` tuple with JSON-RPC request map for connection testing.
   """
-  @spec test_request() :: map()
+  @spec test_request() :: {:ok, map()}
   def test_request do
-    build_request("public/test", %{})
+    JsonRpc.build_request("public/test", %{})
   end
 
   # Subscriptions
@@ -83,11 +86,11 @@ defmodule ZenWebsocket.Examples.DeribitRpc do
       subscribe(["book.BTC-PERPETUAL.raw", "ticker.ETH-PERPETUAL.raw"])
 
   ## Returns
-  A JSON-RPC request map for subscription.
+  `{:ok, request}` tuple with JSON-RPC request map for subscription.
   """
-  @spec subscribe(list(String.t())) :: map()
+  @spec subscribe(list(String.t())) :: {:ok, map()}
   def subscribe(channels) when is_list(channels) do
-    build_request("public/subscribe", %{channels: channels})
+    JsonRpc.build_request("public/subscribe", %{channels: channels})
   end
 
   @doc """
@@ -97,11 +100,11 @@ defmodule ZenWebsocket.Examples.DeribitRpc do
   - `channels` - List of channel names to unsubscribe from
 
   ## Returns
-  A JSON-RPC request map for unsubscription.
+  `{:ok, request}` tuple with JSON-RPC request map for unsubscription.
   """
-  @spec unsubscribe(list(String.t())) :: map()
+  @spec unsubscribe(list(String.t())) :: {:ok, map()}
   def unsubscribe(channels) when is_list(channels) do
-    build_request("public/unsubscribe", %{channels: channels})
+    JsonRpc.build_request("public/unsubscribe", %{channels: channels})
   end
 
   # Market Data
@@ -113,11 +116,11 @@ defmodule ZenWebsocket.Examples.DeribitRpc do
   - `currency` - Currency code (e.g., "BTC", "ETH")
 
   ## Returns
-  A JSON-RPC request map for retrieving instruments.
+  `{:ok, request}` tuple with JSON-RPC request map for retrieving instruments.
   """
-  @spec get_instruments(String.t()) :: map()
+  @spec get_instruments(String.t()) :: {:ok, map()}
   def get_instruments(currency) do
-    build_request("public/get_instruments", %{currency: currency})
+    JsonRpc.build_request("public/get_instruments", %{currency: currency})
   end
 
   @doc """
@@ -128,11 +131,11 @@ defmodule ZenWebsocket.Examples.DeribitRpc do
   - `depth` - Order book depth (default: 10)
 
   ## Returns
-  A JSON-RPC request map for order book data.
+  `{:ok, request}` tuple with JSON-RPC request map for order book data.
   """
-  @spec get_order_book(String.t(), integer()) :: map()
+  @spec get_order_book(String.t(), integer()) :: {:ok, map()}
   def get_order_book(instrument, depth \\ 10) do
-    build_request("public/get_order_book", %{
+    JsonRpc.build_request("public/get_order_book", %{
       instrument_name: instrument,
       depth: depth
     })
@@ -145,11 +148,11 @@ defmodule ZenWebsocket.Examples.DeribitRpc do
   - `instrument` - Instrument name (e.g., "BTC-PERPETUAL")
 
   ## Returns
-  A JSON-RPC request map for ticker data.
+  `{:ok, request}` tuple with JSON-RPC request map for ticker data.
   """
-  @spec ticker(String.t()) :: map()
+  @spec ticker(String.t()) :: {:ok, map()}
   def ticker(instrument) do
-    build_request("public/ticker", %{instrument_name: instrument})
+    JsonRpc.build_request("public/ticker", %{instrument_name: instrument})
   end
 
   # Trading (Private)
@@ -163,9 +166,9 @@ defmodule ZenWebsocket.Examples.DeribitRpc do
   - `opts` - Additional order options (type, price, etc.)
 
   ## Returns
-  A JSON-RPC request map for buy order.
+  `{:ok, request}` tuple with JSON-RPC request map for buy order.
   """
-  @spec buy(String.t(), number(), map()) :: map()
+  @spec buy(String.t(), number(), map()) :: {:ok, map()}
   def buy(instrument, amount, opts \\ %{}) do
     params =
       Map.merge(
@@ -176,7 +179,7 @@ defmodule ZenWebsocket.Examples.DeribitRpc do
         opts
       )
 
-    build_request("private/buy", params)
+    JsonRpc.build_request("private/buy", params)
   end
 
   @doc """
@@ -188,9 +191,9 @@ defmodule ZenWebsocket.Examples.DeribitRpc do
   - `opts` - Additional order options (type, price, etc.)
 
   ## Returns
-  A JSON-RPC request map for sell order.
+  `{:ok, request}` tuple with JSON-RPC request map for sell order.
   """
-  @spec sell(String.t(), number(), map()) :: map()
+  @spec sell(String.t(), number(), map()) :: {:ok, map()}
   def sell(instrument, amount, opts \\ %{}) do
     params =
       Map.merge(
@@ -201,7 +204,7 @@ defmodule ZenWebsocket.Examples.DeribitRpc do
         opts
       )
 
-    build_request("private/sell", params)
+    JsonRpc.build_request("private/sell", params)
   end
 
   @doc """
@@ -211,11 +214,11 @@ defmodule ZenWebsocket.Examples.DeribitRpc do
   - `order_id` - The order ID to cancel
 
   ## Returns
-  A JSON-RPC request map for order cancellation.
+  `{:ok, request}` tuple with JSON-RPC request map for order cancellation.
   """
-  @spec cancel(String.t()) :: map()
+  @spec cancel(String.t()) :: {:ok, map()}
   def cancel(order_id) do
-    build_request("private/cancel", %{order_id: order_id})
+    JsonRpc.build_request("private/cancel", %{order_id: order_id})
   end
 
   @doc """
@@ -225,10 +228,10 @@ defmodule ZenWebsocket.Examples.DeribitRpc do
   - `opts` - Optional filters (instrument, type, etc.)
 
   ## Returns
-  A JSON-RPC request map for retrieving open orders.
+  `{:ok, request}` tuple with JSON-RPC request map for retrieving open orders.
   """
-  @spec get_open_orders(map()) :: map()
+  @spec get_open_orders(map()) :: {:ok, map()}
   def get_open_orders(opts \\ %{}) do
-    build_request("private/get_open_orders", opts)
+    JsonRpc.build_request("private/get_open_orders", opts)
   end
 end
