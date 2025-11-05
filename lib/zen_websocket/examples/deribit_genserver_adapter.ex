@@ -150,10 +150,8 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
         {:reply, {:error, :not_connected}, state}
 
       {{:send_request, method, params}, %{client: client}} ->
-        case DeribitRpc.build_request(method, params) do
-          {:ok, req} -> {:reply, send_json_rpc(client, req), state}
-          error -> {:reply, error, state}
-        end
+        {:ok, req} = DeribitRpc.build_request(method, params)
+        {:reply, send_json_rpc(client, req), state}
 
       {:get_state, _} ->
         {:reply, {:ok, state}, state}

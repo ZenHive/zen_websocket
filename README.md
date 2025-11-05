@@ -80,14 +80,17 @@ config = %{
   ["book.BTC-PERPETUAL.raw", "trades.BTC-PERPETUAL.raw"]
 )
 
-# Place an order
-{:ok, order} = ZenWebsocket.Examples.DeribitGenServerAdapter.place_order(adapter, %{
-  instrument_name: "BTC-PERPETUAL",
-  amount: 10,
-  type: "limit",
-  price: 50000,
-  direction: "buy"
-})
+# Send a custom JSON-RPC request (e.g., place an order)
+{:ok, response} = ZenWebsocket.Examples.DeribitGenServerAdapter.send_request(
+  adapter,
+  "private/buy",
+  %{
+    instrument_name: "BTC-PERPETUAL",
+    amount: 10,
+    type: "limit",
+    price: 50000
+  }
+)
 ```
 
 ## Architecture
@@ -174,4 +177,4 @@ This project is licensed under the MIT License.
 
 ## Acknowledgments
 
-Built with d for the Elixir community by [ZenHive](https://github.com/ZenHive).
+Built for the Elixir community by [ZenHive](https://github.com/ZenHive).

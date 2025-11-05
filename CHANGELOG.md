@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2025-11-05
+
+### Changed
+- **Breaking**: DeribitRpc functions now return `{:ok, map()}` tuples instead of bare maps for consistency with library conventions
+- Updated Erlang from 27.3.4 to 28.1.1
+- Updated Elixir from 1.18.4 to 1.19.1-otp-28
+
+### Improved
+- DeribitAdapter and DeribitGenServerAdapter updated to use `with` statements for better error handling
+- Correlation test improved with MockWebSockServer usage
+- Test helper configuration cleaned up for better readability
+
 ## [0.1.3] - 2025-08-11
 
 ### Fixed
@@ -53,7 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Real-world tested against live WebSocket endpoints
 - Strict code quality standards (max 5 functions per module, 15 lines per function)
 
-[Unreleased]: https://github.com/ZenHive/zen_websocket/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/ZenHive/zen_websocket/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/ZenHive/zen_websocket/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/ZenHive/zen_websocket/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/ZenHive/zen_websocket/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ZenHive/zen_websocket/releases/tag/v0.1.1
