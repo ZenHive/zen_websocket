@@ -1,5 +1,7 @@
+bandit
 bunt
 certifi
+circular_buffer
 cowlib
 credo
 decimal
@@ -8,6 +10,7 @@ doctor
 earmark_parser
 erlex
 ex_doc
+ex_unit_json
 file_system
 finch
 glob_ex
@@ -25,6 +28,8 @@ nimble_options
 nimble_parsec
 nimble_pool
 owl
+plug
+plug_crypto
 req
 rewrite
 sobelow
@@ -35,4 +40,8 @@ styler
 task_validator
 telemetry
 text_diff
+thousand_island
+tidewave
 usage_rules
+websock
+websock_adapter

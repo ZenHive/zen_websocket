@@ -22,8 +22,7 @@ defmodule ZenWebsocket.Reconnection do
   and automatic reconnection.
   """
   alias ZenWebsocket.Config
-
-  require Logger
+  alias ZenWebsocket.Debug
 
   @doc """
   Attempt to establish a Gun connection with the given configuration.
@@ -38,41 +37,43 @@ defmodule ZenWebsocket.Reconnection do
     uri = URI.parse(config.url)
     port = uri.port || if uri.scheme == "wss", do: 443, else: 80
 
-    Logger.debug("🔫 [GUN OPEN] #{DateTime.to_string(DateTime.utc_now())}")
-    Logger.debug("   🌐 Host: #{uri.host}")
-    Logger.debug("   🔌 Port: #{port}")
-    Logger.debug("   📋 Scheme: #{uri.scheme}")
-    Logger.debug("   📍 Path: #{uri.path || "/"}")
-    Logger.debug("   🔄 Opening Gun connection...")
+    Debug.log(config, "🔫 [GUN OPEN] #{DateTime.to_string(DateTime.utc_now())}")
+    Debug.log(config, "   🌐 Host: #{uri.host}")
+    Debug.log(config, "   🔌 Port: #{port}")
+    Debug.log(config, "   📋 Scheme: #{uri.scheme}")
+    Debug.log(config, "   📍 Path: #{uri.path || "/"}")
+    Debug.log(config, "   🔄 Opening Gun connection...")
 
     # Gun sends messages to the calling process (Client GenServer)
-    case :gun.open(to_charlist(uri.host), port, %{protocols: [:http]}) do
+    gun_opts = build_gun_opts(uri)
+
+    case :gun.open(to_charlist(uri.host), port, gun_opts) do
       {:ok, gun_pid} ->
-        Logger.debug("   ✅ Gun connection opened successfully")
-        Logger.debug("   🔧 Gun PID: #{inspect(gun_pid)}")
-        Logger.debug("   👁️  Setting up process monitor...")
+        Debug.log(config, "   ✅ Gun connection opened successfully")
+        Debug.log(config, "   🔧 Gun PID: #{inspect(gun_pid)}")
+        Debug.log(config, "   👁️  Setting up process monitor...")
 
         monitor_ref = Process.monitor(gun_pid)
-        Logger.debug("   📍 Monitor Ref: #{inspect(monitor_ref)}")
-        Logger.debug("   ⏳ Awaiting Gun up (timeout: #{config.timeout}ms)...")
+        Debug.log(config, "   📍 Monitor Ref: #{inspect(monitor_ref)}")
+        Debug.log(config, "   ⏳ Awaiting Gun up (timeout: #{config.timeout}ms)...")
 
         case :gun.await_up(gun_pid, config.timeout) do
           {:ok, protocol} ->
-            Logger.debug("   ✅ Gun connection up")
-            Logger.debug("   🌐 Protocol: #{inspect(protocol)}")
-            Logger.debug("   🔄 Upgrading to WebSocket...")
-            Logger.debug("   📋 Headers: #{inspect(config.headers)}")
+            Debug.log(config, "   ✅ Gun connection up")
+            Debug.log(config, "   🌐 Protocol: #{inspect(protocol)}")
+            Debug.log(config, "   🔄 Upgrading to WebSocket...")
+            Debug.log(config, "   📋 Headers: #{inspect(config.headers)}")
 
             stream_ref = :gun.ws_upgrade(gun_pid, uri.path || "/", config.headers)
-            Logger.debug("   📡 WebSocket upgrade initiated")
-            Logger.debug("   📡 Stream Ref: #{inspect(stream_ref)}")
-            Logger.debug("   ✅ Connection establishment complete")
+            Debug.log(config, "   📡 WebSocket upgrade initiated")
+            Debug.log(config, "   📡 Stream Ref: #{inspect(stream_ref)}")
+            Debug.log(config, "   ✅ Connection establishment complete")
 
             {:ok, gun_pid, stream_ref, monitor_ref}
 
           {:error, reason} ->
-            Logger.debug("   ❌ Gun await_up failed: #{inspect(reason)}")
-            Logger.debug("   🧹 Cleaning up monitor and closing Gun...")
+            Debug.log(config, "   ❌ Gun await_up failed: #{inspect(reason)}")
+            Debug.log(config, "   🧹 Cleaning up monitor and closing Gun...")
 
             Process.demonitor(monitor_ref, [:flush])
             :gun.close(gun_pid)
@@ -80,9 +81,33 @@ defmodule ZenWebsocket.Reconnection do
         end
 
       {:error, reason} ->
-        Logger.debug("   ❌ Gun open failed: #{inspect(reason)}")
+        Debug.log(config, "   ❌ Gun open failed: #{inspect(reason)}")
         {:error, reason}
     end
+  end
+
+  @doc """
+  Build Gun connection options for the given URI.
+
+  For WSS connections, configures TLS ALPN to force HTTP/1.1 negotiation.
+  Without this, Cloudflare-fronted servers negotiate HTTP/2 via ALPN,
+  which strips Connection: Upgrade headers and breaks WebSocket upgrades.
+  """
+  @spec build_gun_opts(URI.t()) :: map()
+  def build_gun_opts(%URI{scheme: "wss"}) do
+    %{
+      protocols: [:http],
+      transport: :tls,
+      tls_opts: [
+        verify: :verify_peer,
+        cacerts: :public_key.cacerts_get(),
+        alpn_advertised_protocols: ["http/1.1"]
+      ]
+    }
+  end
+
+  def build_gun_opts(%URI{}) do
+    %{protocols: [:http]}
   end
 
   @doc """
@@ -139,19 +164,24 @@ defmodule ZenWebsocket.Reconnection do
 
   This should be called after the WebSocket upgrade is complete and the
   connection is ready to receive subscription messages.
+
+  Accepts a Config struct or state map for conditional debug logging.
   """
   @spec restore_subscriptions(
           gun_pid :: pid(),
           stream_ref :: reference(),
-          subscriptions :: [String.t()]
+          subscriptions :: [String.t()],
+          config_or_state :: Config.t() | map()
         ) :: :ok
-  def restore_subscriptions(_gun_pid, _stream_ref, []), do: :ok
+  def restore_subscriptions(gun_pid, stream_ref, subscriptions, config_or_state \\ %{})
 
-  def restore_subscriptions(gun_pid, stream_ref, subscriptions) when is_list(subscriptions) do
-    Logger.debug("📡 [RESTORE SUBSCRIPTIONS] #{DateTime.to_string(DateTime.utc_now())}")
-    Logger.debug("   🔧 Gun PID: #{inspect(gun_pid)}")
-    Logger.debug("   📡 Stream Ref: #{inspect(stream_ref)}")
-    Logger.debug("   📋 Subscriptions: #{inspect(subscriptions)}")
+  def restore_subscriptions(_gun_pid, _stream_ref, [], _config_or_state), do: :ok
+
+  def restore_subscriptions(gun_pid, stream_ref, subscriptions, config_or_state) when is_list(subscriptions) do
+    Debug.log(config_or_state, "📡 [RESTORE SUBSCRIPTIONS] #{DateTime.to_string(DateTime.utc_now())}")
+    Debug.log(config_or_state, "   🔧 Gun PID: #{inspect(gun_pid)}")
+    Debug.log(config_or_state, "   📡 Stream Ref: #{inspect(stream_ref)}")
+    Debug.log(config_or_state, "   📋 Subscriptions: #{inspect(subscriptions)}")
 
     message =
       Jason.encode!(%{
@@ -161,9 +191,10 @@ defmodule ZenWebsocket.Reconnection do
         "id" => System.unique_integer([:positive])
       })
 
-    Logger.debug("   📤 Sending subscription restore message...")
+    Debug.log(config_or_state, "   📤 Sending subscription restore message...")
     :gun.ws_send(gun_pid, stream_ref, {:text, message})
-    Logger.debug("   ✅ Subscription restoration complete")
+    Debug.log(config_or_state, "   ✅ Subscription restoration complete")
+
     :ok
   end
 end

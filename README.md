@@ -121,13 +121,27 @@ See `lib/zen_websocket/examples/deribit_adapter.ex` for a complete example.
 
 ## Configuration Options
 
-- `url` - WebSocket endpoint URL
-- `headers` - Custom headers for connection
-- `timeout` - Connection timeout in milliseconds (default: 5000)
-- `retry_count` - Maximum reconnection attempts (default: 3)
-- `retry_delay` - Initial retry delay in milliseconds (default: 1000)
-- `heartbeat_interval` - Ping interval in milliseconds (default: 30000)
-- `reconnect_on_error` - Enable automatic reconnection (default: true)
+| Option | Description | Default |
+|--------|-------------|---------|
+| `url` | WebSocket endpoint URL | required |
+| `headers` | Custom headers for connection | `[]` |
+| `timeout` | Connection timeout in milliseconds | `5000` |
+| `retry_count` | Maximum reconnection attempts | `3` |
+| `retry_delay` | Initial retry delay in milliseconds | `1000` |
+| `heartbeat_interval` | Ping interval in milliseconds | `30000` |
+| `reconnect_on_error` | Enable automatic reconnection | `true` |
+| `debug` | Enable verbose debug logging | `false` |
+
+### Debug Logging
+
+Debug logging is disabled by default to keep library output quiet. Enable it for troubleshooting connection issues:
+
+```elixir
+# Enable debug logging for troubleshooting
+{:ok, client} = ZenWebsocket.Client.connect("wss://example.com", debug: true)
+```
+
+When enabled, you'll see detailed logs for connection establishment, WebSocket upgrades, frame handling, heartbeats, and reconnection attempts.
 
 ## Testing Philosophy
 

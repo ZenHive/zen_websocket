@@ -14,6 +14,7 @@ defmodule ZenWebsocket.Config do
   - `:reconnect_on_error` - Whether to auto-reconnect on connection errors (default: true)
   - `:restore_subscriptions` - Whether to restore subscriptions after reconnect (default: true)
   - `:request_timeout` - Timeout for correlated requests in ms (default: 30000)
+  - `:debug` - Enable verbose debug logging (default: false)
 
   ## Examples
 
@@ -44,7 +45,8 @@ defmodule ZenWebsocket.Config do
     max_backoff: 30_000,
     reconnect_on_error: true,
     restore_subscriptions: true,
-    request_timeout: 30_000
+    request_timeout: 30_000,
+    debug: false
   ]
 
   @type t :: %__MODULE__{
@@ -57,7 +59,8 @@ defmodule ZenWebsocket.Config do
           max_backoff: pos_integer(),
           reconnect_on_error: boolean(),
           restore_subscriptions: boolean(),
-          request_timeout: pos_integer()
+          request_timeout: pos_integer(),
+          debug: boolean()
         }
 
   @doc """

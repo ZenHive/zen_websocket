@@ -5,8 +5,6 @@ defmodule ZenWebsocket.Examples.Docs.SubscriptionManagement do
 
   alias ZenWebsocket.Client
 
-  require Logger
-
   @doc """
   Subscribe to multiple data streams using echo server.
   """

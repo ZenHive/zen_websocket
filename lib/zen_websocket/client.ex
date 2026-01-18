@@ -70,6 +70,7 @@ defmodule ZenWebsocket.Client do
 
   use GenServer
 
+  alias ZenWebsocket.Debug
   alias ZenWebsocket.Helpers.Deribit
 
   require Logger
@@ -326,19 +327,19 @@ defmodule ZenWebsocket.Client do
 
   @impl true
   def handle_continue(:connect, %{config: config} = state) do
-    Logger.debug("🔌 [GUN CONNECT] #{DateTime.to_string(DateTime.utc_now())}")
-    Logger.debug("   🌐 URL: #{config.url}")
-    Logger.debug("   ⏱️  Timeout: #{config.timeout}ms")
-    Logger.debug("   🔄 Establishing connection...")
+    Debug.log(state, "🔌 [GUN CONNECT] #{DateTime.to_string(DateTime.utc_now())}")
+    Debug.log(state, "   🌐 URL: #{config.url}")
+    Debug.log(state, "   ⏱️  Timeout: #{config.timeout}ms")
+    Debug.log(state, "   🔄 Establishing connection...")
 
     case ZenWebsocket.Reconnection.establish_connection(config) do
       {:ok, gun_pid, stream_ref, monitor_ref} ->
-        Logger.debug("   ✅ Gun connection established")
-        Logger.debug("   🔧 Gun PID: #{inspect(gun_pid)}")
-        Logger.debug("   📡 Stream Ref: #{inspect(stream_ref)}")
-        Logger.debug("   👁️  Monitor Ref: #{inspect(monitor_ref)}")
-        Logger.debug("   🔄 State: :disconnected → :connecting")
-        Logger.debug("   ⏰ Timeout scheduled: #{config.timeout}ms")
+        Debug.log(state, "   ✅ Gun connection established")
+        Debug.log(state, "   🔧 Gun PID: #{inspect(gun_pid)}")
+        Debug.log(state, "   📡 Stream Ref: #{inspect(stream_ref)}")
+        Debug.log(state, "   👁️  Monitor Ref: #{inspect(monitor_ref)}")
+        Debug.log(state, "   🔄 State: :disconnected → :connecting")
+        Debug.log(state, "   ⏰ Timeout scheduled: #{config.timeout}ms")
 
         # Gun will send all messages to this GenServer process (self())
         # because we opened the connection from this process
@@ -348,8 +349,8 @@ defmodule ZenWebsocket.Client do
         {:noreply, %{state | gun_pid: gun_pid, stream_ref: stream_ref, state: :connecting, monitor_ref: monitor_ref}}
 
       {:error, reason} ->
-        Logger.debug("   ❌ Gun connection failed: #{inspect(reason)}")
-        Logger.debug("   🔄 State: → :disconnected")
+        Debug.log(state, "   ❌ Gun connection failed: #{inspect(reason)}")
+        Debug.log(state, "   🔄 State: → :disconnected")
         {:noreply, %{state | state: :disconnected}, {:continue, {:connection_failed, reason}}}
     end
   end
@@ -362,28 +363,28 @@ defmodule ZenWebsocket.Client do
   def handle_continue(:reconnect, %{config: config} = state) do
     current_attempt = Map.get(state, :retry_count, 0)
 
-    Logger.debug("🔄 [GUN RECONNECT] #{DateTime.to_string(DateTime.utc_now())}")
-    Logger.debug("   🔢 Attempt: #{current_attempt + 1}")
-    Logger.debug("   🌐 URL: #{config.url}")
-    Logger.debug("   🔄 Re-establishing connection...")
+    Debug.log(state, "🔄 [GUN RECONNECT] #{DateTime.to_string(DateTime.utc_now())}")
+    Debug.log(state, "   🔢 Attempt: #{current_attempt + 1}")
+    Debug.log(state, "   🌐 URL: #{config.url}")
+    Debug.log(state, "   🔄 Re-establishing connection...")
 
     # Reconnect from within the GenServer to maintain Gun ownership
     # This ensures the new Gun connection sends messages to this GenServer
     case ZenWebsocket.Reconnection.establish_connection(config) do
       {:ok, gun_pid, stream_ref, monitor_ref} ->
-        Logger.debug("   ✅ Gun reconnection successful")
-        Logger.debug("   🔧 New Gun PID: #{inspect(gun_pid)}")
-        Logger.debug("   📡 New Stream Ref: #{inspect(stream_ref)}")
-        Logger.debug("   👁️  New Monitor Ref: #{inspect(monitor_ref)}")
-        Logger.debug("   🔄 State: :disconnected → :connecting")
-        Logger.debug("   ⏰ Timeout scheduled: #{config.timeout}ms")
+        Debug.log(state, "   ✅ Gun reconnection successful")
+        Debug.log(state, "   🔧 New Gun PID: #{inspect(gun_pid)}")
+        Debug.log(state, "   📡 New Stream Ref: #{inspect(stream_ref)}")
+        Debug.log(state, "   👁️  New Monitor Ref: #{inspect(monitor_ref)}")
+        Debug.log(state, "   🔄 State: :disconnected → :connecting")
+        Debug.log(state, "   ⏰ Timeout scheduled: #{config.timeout}ms")
 
         # New Gun connection will send messages to this GenServer
         Process.send_after(self(), {:connection_timeout, config.timeout}, config.timeout)
         {:noreply, %{state | gun_pid: gun_pid, stream_ref: stream_ref, state: :connecting, monitor_ref: monitor_ref}}
 
       {:error, reason} ->
-        Logger.debug("   ❌ Gun reconnection failed: #{inspect(reason)}")
+        Debug.log(state, "   ❌ Gun reconnection failed: #{inspect(reason)}")
 
         # Schedule retry with exponential backoff
         retry_delay =
@@ -393,7 +394,7 @@ defmodule ZenWebsocket.Client do
             config.max_backoff
           )
 
-        Logger.debug("   ⏳ Scheduling retry in #{retry_delay}ms (attempt #{current_attempt + 1})")
+        Debug.log(state, "   ⏳ Scheduling retry in #{retry_delay}ms (attempt #{current_attempt + 1})")
         Process.send_after(self(), :retry_reconnect, retry_delay)
         {:noreply, %{state | state: :disconnected, retry_count: current_attempt + 1}}
     end
@@ -490,19 +491,19 @@ defmodule ZenWebsocket.Client do
         {:gun_upgrade, gun_pid, stream_ref, ["websocket"], headers},
         %{gun_pid: gun_pid, stream_ref: stream_ref} = state
       ) do
-    Logger.debug("🔗 [GUN UPGRADE] #{DateTime.to_string(DateTime.utc_now())}")
-    Logger.debug("   ✅ WebSocket connection upgraded successfully")
-    Logger.debug("   🔧 Gun PID: #{inspect(gun_pid)}")
-    Logger.debug("   📡 Stream Ref: #{inspect(stream_ref)}")
-    Logger.debug("   📋 Headers: #{inspect(headers, pretty: true)}")
+    Debug.log(state, "🔗 [GUN UPGRADE] #{DateTime.to_string(DateTime.utc_now())}")
+    Debug.log(state, "   ✅ WebSocket connection upgraded successfully")
+    Debug.log(state, "   🔧 Gun PID: #{inspect(gun_pid)}")
+    Debug.log(state, "   📡 Stream Ref: #{inspect(stream_ref)}")
+    Debug.log(state, "   📋 Headers: #{inspect(headers, pretty: true)}")
 
     # Start heartbeat timer if configured
     new_state = maybe_start_heartbeat_timer(%{state | state: :connected})
 
-    Logger.debug("   🔄 State: :connecting → :connected")
+    Debug.log(state, "   🔄 State: :connecting → :connected")
 
     if Map.get(state, :heartbeat_config) != :disabled do
-      Logger.debug("   💓 Heartbeat timer started")
+      Debug.log(state, "   💓 Heartbeat timer started")
     end
 
     if Map.has_key?(state, :awaiting_connection) do
@@ -514,32 +515,32 @@ defmodule ZenWebsocket.Client do
   end
 
   def handle_info({:gun_error, gun_pid, stream_ref, reason}, %{gun_pid: gun_pid, stream_ref: stream_ref} = state) do
-    Logger.debug("❌ [GUN ERROR] #{DateTime.to_string(DateTime.utc_now())}")
-    Logger.debug("   🔧 Gun PID: #{inspect(gun_pid)}")
-    Logger.debug("   📡 Stream Ref: #{inspect(stream_ref)}")
-    Logger.debug("   💥 Reason: #{inspect(reason)}")
-    Logger.debug("   🔄 Triggering connection error handling...")
+    Debug.log(state, "❌ [GUN ERROR] #{DateTime.to_string(DateTime.utc_now())}")
+    Debug.log(state, "   🔧 Gun PID: #{inspect(gun_pid)}")
+    Debug.log(state, "   📡 Stream Ref: #{inspect(stream_ref)}")
+    Debug.log(state, "   💥 Reason: #{inspect(reason)}")
+    Debug.log(state, "   🔄 Triggering connection error handling...")
 
     handle_connection_error(state, {:gun_error, gun_pid, stream_ref, reason})
   end
 
   def handle_info({:gun_down, gun_pid, protocol, reason, killed_streams}, %{gun_pid: gun_pid} = state) do
-    Logger.debug("📉 [GUN DOWN] #{DateTime.to_string(DateTime.utc_now())}")
-    Logger.debug("   🔧 Gun PID: #{inspect(gun_pid)}")
-    Logger.debug("   🌐 Protocol: #{inspect(protocol)}")
-    Logger.debug("   💥 Reason: #{inspect(reason)}")
-    Logger.debug("   🚫 Killed Streams: #{inspect(killed_streams)}")
-    Logger.debug("   🔄 Connection lost, triggering error handling...")
+    Debug.log(state, "📉 [GUN DOWN] #{DateTime.to_string(DateTime.utc_now())}")
+    Debug.log(state, "   🔧 Gun PID: #{inspect(gun_pid)}")
+    Debug.log(state, "   🌐 Protocol: #{inspect(protocol)}")
+    Debug.log(state, "   💥 Reason: #{inspect(reason)}")
+    Debug.log(state, "   🚫 Killed Streams: #{inspect(killed_streams)}")
+    Debug.log(state, "   🔄 Connection lost, triggering error handling...")
 
     handle_connection_error(state, {:gun_down, gun_pid, protocol, reason, killed_streams})
   end
 
   def handle_info({:DOWN, ref, :process, gun_pid, reason}, %{gun_pid: gun_pid, monitor_ref: ref} = state) do
-    Logger.debug("💀 [PROCESS DOWN] #{DateTime.to_string(DateTime.utc_now())}")
-    Logger.debug("   🔧 Gun PID: #{inspect(gun_pid)} (monitored process)")
-    Logger.debug("   📍 Monitor Ref: #{inspect(ref)}")
-    Logger.debug("   💥 Exit Reason: #{inspect(reason)}")
-    Logger.debug("   🔄 Process terminated, triggering connection error handling...")
+    Debug.log(state, "💀 [PROCESS DOWN] #{DateTime.to_string(DateTime.utc_now())}")
+    Debug.log(state, "   🔧 Gun PID: #{inspect(gun_pid)} (monitored process)")
+    Debug.log(state, "   📍 Monitor Ref: #{inspect(ref)}")
+    Debug.log(state, "   💥 Exit Reason: #{inspect(reason)}")
+    Debug.log(state, "   🔄 Process terminated, triggering connection error handling...")
 
     handle_connection_error(state, {:connection_down, reason})
   end
@@ -548,28 +549,28 @@ defmodule ZenWebsocket.Client do
     # Log WebSocket frame details
     case frame do
       {:text, _} ->
-        Logger.debug("📨 [GUN WS TEXT] #{DateTime.to_string(DateTime.utc_now())}")
+        Debug.log(state, "📨 [GUN WS TEXT] #{DateTime.to_string(DateTime.utc_now())}")
 
       {:binary, data} ->
-        Logger.debug("📦 [GUN WS BINARY] #{DateTime.to_string(DateTime.utc_now())}")
-        Logger.debug("   📏 Size: #{byte_size(data)} bytes")
+        Debug.log(state, "📦 [GUN WS BINARY] #{DateTime.to_string(DateTime.utc_now())}")
+        Debug.log(state, "   📏 Size: #{byte_size(data)} bytes")
 
       {:ping, payload} ->
-        Logger.debug("🏓 [GUN WS PING] #{DateTime.to_string(DateTime.utc_now())}")
-        Logger.debug("   📦 Payload: #{inspect(payload)}")
+        Debug.log(state, "🏓 [GUN WS PING] #{DateTime.to_string(DateTime.utc_now())}")
+        Debug.log(state, "   📦 Payload: #{inspect(payload)}")
 
       {:pong, payload} ->
-        Logger.debug("🏓 [GUN WS PONG] #{DateTime.to_string(DateTime.utc_now())}")
-        Logger.debug("   📦 Payload: #{inspect(payload)}")
+        Debug.log(state, "🏓 [GUN WS PONG] #{DateTime.to_string(DateTime.utc_now())}")
+        Debug.log(state, "   📦 Payload: #{inspect(payload)}")
 
       {:close, code, reason} ->
-        Logger.debug("🔒 [GUN WS CLOSE] #{DateTime.to_string(DateTime.utc_now())}")
-        Logger.debug("   🔢 Code: #{code}")
-        Logger.debug("   📝 Reason: #{inspect(reason)}")
+        Debug.log(state, "🔒 [GUN WS CLOSE] #{DateTime.to_string(DateTime.utc_now())}")
+        Debug.log(state, "   🔢 Code: #{code}")
+        Debug.log(state, "   📝 Reason: #{inspect(reason)}")
 
       other ->
-        Logger.debug("❓ [GUN WS OTHER] #{DateTime.to_string(DateTime.utc_now())}")
-        Logger.debug("   🔍 Frame: #{inspect(other)}")
+        Debug.log(state, "❓ [GUN WS OTHER] #{DateTime.to_string(DateTime.utc_now())}")
+        Debug.log(state, "   🔍 Frame: #{inspect(other)}")
     end
 
     # Route WebSocket frames through MessageHandler
@@ -590,10 +591,10 @@ defmodule ZenWebsocket.Client do
   end
 
   def handle_info({:connection_timeout, timeout}, %{state: :connecting} = state) do
-    Logger.debug("⏰ [CONNECTION TIMEOUT] #{DateTime.to_string(DateTime.utc_now())}")
-    Logger.debug("   ⏱️  Timeout: #{timeout}ms")
-    Logger.debug("   🔄 State: :connecting (timeout)")
-    Logger.debug("   🔄 Triggering connection error handling...")
+    Debug.log(state, "⏰ [CONNECTION TIMEOUT] #{DateTime.to_string(DateTime.utc_now())}")
+    Debug.log(state, "   ⏱️  Timeout: #{timeout}ms")
+    Debug.log(state, "   🔄 State: :connecting (timeout)")
+    Debug.log(state, "   🔄 Triggering connection error handling...")
 
     handle_connection_error(state, :timeout)
   end
@@ -608,16 +609,16 @@ defmodule ZenWebsocket.Client do
   def handle_info(:retry_reconnect, %{config: config} = state) do
     current_retries = Map.get(state, :retry_count, 0)
 
-    Logger.debug("🔄 [RETRY RECONNECT] #{DateTime.to_string(DateTime.utc_now())}")
-    Logger.debug("   🔢 Current Retries: #{current_retries}")
-    Logger.debug("   🔢 Max Retries: #{config.retry_count}")
+    Debug.log(state, "🔄 [RETRY RECONNECT] #{DateTime.to_string(DateTime.utc_now())}")
+    Debug.log(state, "   🔢 Current Retries: #{current_retries}")
+    Debug.log(state, "   🔢 Max Retries: #{config.retry_count}")
 
     if ZenWebsocket.Reconnection.max_retries_exceeded?(current_retries, config.retry_count) do
-      Logger.debug("   🚫 Max reconnection attempts exceeded")
-      Logger.debug("   🛑 Stopping GenServer with reason: :max_reconnection_attempts")
+      Debug.log(state, "   🚫 Max reconnection attempts exceeded")
+      Debug.log(state, "   🛑 Stopping GenServer with reason: :max_reconnection_attempts")
       {:stop, :max_reconnection_attempts, state}
     else
-      Logger.debug("   ✅ Retries within limit, attempting reconnection...")
+      Debug.log(state, "   ✅ Retries within limit, attempting reconnection...")
       {:noreply, state, {:continue, :reconnect}}
     end
   end
@@ -717,8 +718,8 @@ defmodule ZenWebsocket.Client do
         case Jason.decode(json_data) do
           {:ok, %{"method" => "heartbeat"} = msg} ->
             # Handle heartbeat directly
-            Logger.debug("💓 [HEARTBEAT DETECTED] #{DateTime.to_string(DateTime.utc_now())}")
-            Logger.debug("   Heartbeat message: #{inspect(msg, pretty: true)}")
+            Debug.log(state, "💓 [HEARTBEAT DETECTED] #{DateTime.to_string(DateTime.utc_now())}")
+            Debug.log(state, "   Heartbeat message: #{inspect(msg, pretty: true)}")
             handle_heartbeat_message(msg, state)
 
           {:ok, %{"method" => "subscription"} = msg} ->

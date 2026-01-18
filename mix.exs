@@ -68,7 +68,8 @@ defmodule ZenWebsocket.MixProject do
         security: :dev,
         coverage: :test,
         check: :dev,
-        docs: :dev
+        docs: :dev,
+        "test.json": :test
       ]
     ]
   end
@@ -94,13 +95,20 @@ defmodule ZenWebsocket.MixProject do
       {:certifi, "~> 2.5"},
 
       # Development and test dependencies
+      # AI-friendly test output
+      {:ex_unit_json, "~> 0.1.0", only: [:dev, :test], runtime: false},
+
+      # Tidewave for Claude Code MCP integration (non-Phoenix needs bandit)
+      {:tidewave, "~> 0.5", only: :dev},
+      {:bandit, "~> 1.6", only: :dev},
+
       # Static code analysis
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
 
       # Documentation
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
-      {:doctor, "~> 0.22.0", only: :dev},
+      {:doctor, "~> 0.22.0", only: :dev, runtime: false},
       # Tasks
       {:task_validator, "~> 0.9.5", only: [:dev, :test], runtime: false},
       # Usage rules for AI agents and documentation
@@ -113,9 +121,9 @@ defmodule ZenWebsocket.MixProject do
       # Used for mock WebSocket server in tests
       {:cowboy, "~> 2.10", only: :test},
 
-      # WebSock for standardized WebSocket handling
-      {:websock, "~> 0.5", only: :test},
-      {:websock_adapter, "~> 0.5", only: :test},
+      # WebSock for standardized WebSocket handling (also needed by bandit/tidewave in dev)
+      {:websock, "~> 0.5", only: [:dev, :test]},
+      {:websock_adapter, "~> 0.5", only: [:dev, :test]},
 
       # Required for Plug.Cowboy.http/3
       {:plug_cowboy, "~> 2.6", only: :test},
@@ -152,7 +160,11 @@ defmodule ZenWebsocket.MixProject do
         "security",
         "coverage"
       ],
-      rebuild: ["deps.clean --all", "clean", "deps.get", "compile", "dialyzer", "credo --strict"]
+      rebuild: ["deps.clean --all", "clean", "deps.get", "compile", "dialyzer", "credo --strict"],
+      # Tidewave MCP server for Claude Code integration (non-Phoenix)
+      tidewave: [
+        "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4001) end)'"
+      ]
     ]
   end
 

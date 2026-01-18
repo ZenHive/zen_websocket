@@ -9,8 +9,6 @@ defmodule ZenWebsocket.Examples.DeribitAdapter do
   alias ZenWebsocket.Client
   alias ZenWebsocket.Examples.DeribitRpc
 
-  require Logger
-
   defstruct [:client, :authenticated, :subscriptions, :client_id, :client_secret]
 
   @type t :: %__MODULE__{

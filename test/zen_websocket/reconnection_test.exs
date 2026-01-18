@@ -3,6 +3,35 @@ defmodule ZenWebsocket.ReconnectionTest do
 
   alias ZenWebsocket.Reconnection
 
+  describe "build_gun_opts/1" do
+    test "WSS connections include TLS transport and ALPN for HTTP/1.1" do
+      uri = URI.parse("wss://ws.okx.com:8443/ws/v5/public")
+      opts = Reconnection.build_gun_opts(uri)
+
+      assert opts[:protocols] == [:http]
+      assert opts[:transport] == :tls
+      assert opts[:tls_opts][:alpn_advertised_protocols] == ["http/1.1"]
+      assert opts[:tls_opts][:verify] == :verify_peer
+      assert is_list(opts[:tls_opts][:cacerts])
+    end
+
+    test "WS connections do not include TLS options" do
+      uri = URI.parse("ws://localhost:8080/ws")
+      opts = Reconnection.build_gun_opts(uri)
+
+      assert opts == %{protocols: [:http]}
+      refute Map.has_key?(opts, :tls_opts)
+    end
+
+    test "WSS on standard port includes TLS ALPN" do
+      uri = URI.parse("wss://test.deribit.com/ws/api/v2")
+      opts = Reconnection.build_gun_opts(uri)
+
+      assert opts[:protocols] == [:http]
+      assert opts[:tls_opts][:alpn_advertised_protocols] == ["http/1.1"]
+    end
+  end
+
   describe "calculate_backoff/3" do
     test "returns base delay for first attempt" do
       assert Reconnection.calculate_backoff(0, 1000) == 1000

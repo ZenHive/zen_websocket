@@ -2,6 +2,7 @@
 
 @include ~/.claude/includes/across-instances.md
 @include ~/.claude/includes/critical-rules.md
+@include ~/.claude/includes/skills-awareness.md
 @include ~/.claude/includes/task-prioritization.md
 @include ~/.claude/includes/task-writing.md
 @include ~/.claude/includes/web-command.md
@@ -11,6 +12,8 @@
 @include ~/.claude/includes/api-integration.md
 @include ~/.claude/includes/development-commands.md
 @include ~/.claude/includes/elixir-patterns.md
+@include ~/.claude/includes/elixir-setup.md
+@include ~/.claude/includes/ex-unit-json.md
 @include ~/.claude/includes/library-design.md
 
 ---
