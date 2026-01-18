@@ -1,7 +1,7 @@
 defmodule ZenWebsocket.MixProject do
   use Mix.Project
 
-  @version "0.1.4"
+  @version "0.1.5"
 
   def project do
     [
@@ -96,7 +96,7 @@ defmodule ZenWebsocket.MixProject do
 
       # Development and test dependencies
       # AI-friendly test output
-      {:ex_unit_json, "~> 0.1.0", only: [:dev, :test], runtime: false},
+      {:ex_unit_json, "~> 0.2.0", only: [:dev, :test], runtime: false},
 
       # Tidewave for Claude Code MCP integration (non-Phoenix needs bandit)
       {:tidewave, "~> 0.5", only: :dev},
