@@ -4,6 +4,8 @@ defmodule ZenWebsocket.Examples.SubscriptionManagementTest do
   alias ZenWebsocket.Client
   alias ZenWebsocket.Examples.Docs.SubscriptionManagement
 
+  @moduletag :integration
+
   @echo_server "wss://echo.websocket.org"
 
   describe "multi_channel_subscription/0" do

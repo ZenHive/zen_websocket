@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configurable `max_queue_size` option for RateLimiter (default: 100) (R005)
 - Telemetry events for rate limiter: `:consume`, `:queue`, `:queue_full`, `:refill` (R005)
 - Memory characteristics documentation in RateLimiter @moduledoc (R005)
+- Test tagging conventions documentation in test_helper.exs (R015)
 
 ### Changed
 - Extracted heartbeat logic from Client.ex to HeartbeatManager (789 lines from 870) (R001)
@@ -27,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flaky tests: migrated from unreliable echo.websocket.org to local MockWebSockServer
 - Race conditions in ErrorHandlingTest with proper `wait_for_connection/1` polling
 - MockWebSockServer now raises clear error when TLS certificates unavailable
+- Test tagging: 7 integration test files now properly tagged with `@moduletag :integration` (R015)
+  - `mix test` now runs 141 unit tests (~5 seconds vs ~93 seconds for full suite)
+  - Removed incorrect `@moduletag :integration` from `platform_adapter_template_test.exs` (pure unit tests)
+  - Removed module-level tag from `rate_limiting_test.exs` (uses `@describetag` for integration blocks only)
 
 ## [0.1.4] - 2025-11-05
 

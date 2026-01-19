@@ -32,14 +32,16 @@ mix credo --strict           # 1 TODO tag (passes)
 mix hex.publish --dry-run    # Verify before publishing
 ```
 
-### ⚠️ Test Suite Alert
+### ✅ Test Suite Status
 
-**Current status:** 205 tests, 32 failures (timeout-related)
+**Current status:** 233 tests total, properly organized
 
-The failures are `{:error, :timeout}` errors connecting to `echo.websocket.org`. This external service is unreliable. Consider:
-- Using `test.deribit.com` as primary test target (project standard)
-- Adding retry logic for flaky external services
-- Running `mix test --only deribit` for reliable integration tests
+| Command | Tests | Duration |
+|---------|-------|----------|
+| `mix test` (unit only) | 141 passed | ~5 seconds |
+| `mix test --include integration` | 232 passed, 1 skipped | ~93 seconds |
+
+Test tagging completed (R015) - integration tests now excluded by default for fast iteration.
 
 ---
 
@@ -336,26 +338,30 @@ Add tests for edge cases and error scenarios.
 
 ---
 
-### Task R015: Test Tagging Audit `[P]`
+### Task R015: Test Tagging Audit ✅ COMPLETE
 
 **[D:2/B:5 → Priority:2.5]** 🎯
 
+**Completed:** January 2026
+
 Audit test files and properly tag integration tests that depend on external services.
 
-**Current issue:** Many tests use MockWebSockServer or external APIs but aren't tagged as `:integration`. This makes `mix test` slower than necessary and can cause flaky results when network is unavailable.
-
-**Criteria for `:integration` tag:**
-- Tests that connect to external services (Deribit testnet, etc.)
-- Tests that require network connectivity
-- Tests with timeouts > 5 seconds
-- Tests using real WebSocket connections (even to localhost MockWebSockServer)
-
 **Success criteria:**
-- [ ] All tests audited for proper tagging
-- [ ] Unit tests (pure logic, no I/O) run without `:integration` tag
-- [ ] `mix test` completes in < 30 seconds
-- [ ] `mix test --include integration` runs full suite
-- [ ] Document tagging conventions in test_helper.exs
+- [x] All tests audited for proper tagging
+- [x] Unit tests (pure logic, no I/O) run without `:integration` tag
+- [x] `mix test` completes in < 30 seconds (actual: ~5 seconds)
+- [x] `mix test --include integration` runs full suite (232 tests)
+- [x] Document tagging conventions in test_helper.exs
+
+**What was done:**
+- Added `@moduletag :integration` to 7 test files using MockWebSockServer or external APIs:
+  - `client_test.exs`, `client_reconnect_test.exs`, `correlation_test.exs`
+  - `supervised_client_test.exs`, `supervised_connection_test.exs`
+  - `subscription_management_test.exs`, `error_handling_test.exs`
+- `rate_limiting_test.exs` uses `@describetag :integration` only on network-dependent describe blocks
+- `platform_adapter_template_test.exs` left as unit test (pure function tests, no network)
+- Added tagging convention documentation to `test/test_helper.exs`
+- Result: 141 unit tests (~5s), 92 integration tests excluded by default
 
 ---
 
@@ -451,6 +457,7 @@ Move Deribit-specific business logic to market_maker project (per WNX0028 analys
 |------|----------|--------|--------|
 | R006: Monitor Cleanup | 🎯 3.0 | D:2 | ✅ Complete |
 | R005: RateLimiter ETS Cleanup | 🎯 2.7 | D:3 | ✅ Complete |
+| R015: Test Tagging Audit | 🎯 2.5 | D:2 | ✅ Complete |
 | R007: Fix Credo Warnings | 🎯 2.5 | D:2 | ✅ Complete |
 | R008: Replace Magic Numbers | 🎯 2.0 | D:2 | ✅ Complete |
 | R001: Extract HeartbeatManager | 🎯 2.0 | D:4 | ✅ Complete |

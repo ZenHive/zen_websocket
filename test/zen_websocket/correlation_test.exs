@@ -8,6 +8,8 @@ defmodule ZenWebsocket.CorrelationTest do
   alias ZenWebsocket.Client
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
+  @moduletag :integration
+
   @deribit_test_url "wss://test.deribit.com/ws/api/v2"
 
   describe "request/response correlation" do

@@ -5,6 +5,8 @@ defmodule ZenWebsocket.ClientTest do
   alias ZenWebsocket.Config
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
+  @moduletag :integration
+
   @deribit_test_url "wss://test.deribit.com/ws/api/v2"
 
   test "connect to test.deribit.com with URL string" do

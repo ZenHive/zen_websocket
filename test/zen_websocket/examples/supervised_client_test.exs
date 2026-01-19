@@ -5,6 +5,8 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
   alias ZenWebsocket.Examples.SupervisedClient
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
+  @moduletag :integration
+
   setup do
     # Start the ClientSupervisor
     {:ok, _sup_pid} = start_supervised({ClientSupervisor, []})

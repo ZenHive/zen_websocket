@@ -5,6 +5,8 @@ defmodule ZenWebsocket.ClientReconnectTest do
 
   require Logger
 
+  @moduletag :integration
+
   describe "reconnect_on_error configuration" do
     test "client stops cleanly when reconnect_on_error is false" do
       # Start a client with reconnect_on_error: false

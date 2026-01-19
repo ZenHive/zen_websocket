@@ -5,6 +5,8 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
   alias ZenWebsocket.ClientSupervisor
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
+  @moduletag :integration
+
   @deribit_testnet "wss://test.deribit.com/ws/api/v2"
 
   setup do

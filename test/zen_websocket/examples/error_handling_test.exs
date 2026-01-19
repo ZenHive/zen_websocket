@@ -7,6 +7,8 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
   alias ZenWebsocket.Examples.Docs.ErrorHandling
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
+  @moduletag :integration
+
   @invalid_url "wss://invalid.websocket.test"
 
   @doc false
