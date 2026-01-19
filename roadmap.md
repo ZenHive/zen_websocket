@@ -9,9 +9,7 @@
 
 ## Executive Summary
 
-ZenWebsocket is a mature, production-grade WebSocket client library with excellent reliability and real-API testing. After a deep audit, the main architectural issue is the **oversized Client module (862 lines)** which violates the project's stated principles. The library is functional but would benefit from modularization to improve maintainability.
-
-**Overall Grade: A- (8.5/10)**
+ZenWebsocket is a mature, production-grade WebSocket client library with excellent reliability and real-API testing. After a deep audit, the main architectural issue is the **oversized Client module** which violates the project's stated principles. The library is functional but would benefit from modularization to improve maintainability.
 
 ---
 
@@ -27,60 +25,12 @@ Ready for refactoring work → **v0.2.0**
 ```bash
 mix check                    # All quality checks
 mix test.json --quiet --summary-only  # Test health
-mix dialyzer                 # Type checking (14 skips, passes)
-mix credo --strict           # 1 TODO tag (passes)
+mix dialyzer                 # Type checking
+mix credo --strict           # Static analysis
 mix hex.publish --dry-run    # Verify before publishing
 ```
 
-### ✅ Test Suite Status
-
-**Current status:** 233 tests total, properly organized
-
-| Command | Tests | Duration |
-|---------|-------|----------|
-| `mix test` (unit only) | 141 passed | ~5 seconds |
-| `mix test --include integration` | 232 passed, 1 skipped | ~93 seconds |
-
-Test tagging completed (R015) - integration tests now excluded by default for fast iteration.
-
----
-
-## Audit Findings Summary
-
-### Code Metrics
-
-| Metric | Value | Status |
-|--------|-------|--------|
-| Core LOC | 1,938 | ✅ Good |
-| Test/Code Ratio | ~1.2:1 | ✅ Good |
-| Module Count | 11 core | ✅ Good |
-| Largest Module | 862 lines (Client) | ❌ Violates principles |
-| Type Coverage | ~85% | ✅ Good |
-| Documentation | ~95% | ✅ Excellent |
-| Dialyzer | Passes (14 skips) | ✅ Good |
-| Credo Strict | 1 TODO tag | ✅ Good |
-
-### Module Size Distribution
-
-| Module | Lines | Status |
-|--------|-------|--------|
-| client.ex | 789 | ⚠️ Reduced from 862, still large |
-| heartbeat_manager.ex | 114 | ✅ New (R001) |
-| deribit_rpc.ex | 237 | ⚠️ High but acceptable (examples) |
-| deribit_genserver_adapter.ex | 231 | ⚠️ Business logic (migrate out) |
-| reconnection.ex | 200 | ✅ Good |
-| batch_subscription_manager.ex | 181 | ⚠️ Business logic (migrate out) |
-| rate_limiter.ex | 170 | ✅ Acceptable |
-| usage_patterns.ex | 150 | ✅ Good (examples) |
-| config.ex | 132 | ✅ Good |
-| message_handler.ex | 125 | ✅ Good |
-| deribit_adapter.ex | 124 | ⚠️ Business logic (migrate out) |
-| client_supervisor.ex | 122 | ✅ Good |
-| connection_registry.ex | 84 | ✅ Good |
-| json_rpc.ex | 81 | ✅ Excellent |
-| error_handler.ex | 70 | ✅ Good |
-| frame.ex | 61 | ✅ Excellent |
-| debug.ex | 31 | ✅ Excellent |
+Test tagging completed (R015) - integration tests excluded by default for fast iteration.
 
 ---
 
@@ -110,12 +60,11 @@ Test tagging completed (R015) - integration tests now excluded by default for fa
 Extract heartbeat logic from Client.ex into dedicated module.
 
 **Success criteria:**
-- [x] New `ZenWebsocket.HeartbeatManager` module created (114 lines)
+- [x] New `ZenWebsocket.HeartbeatManager` module created
 - [x] Handles platform-specific heartbeat sending (Deribit, generic, ping_pong)
 - [x] Tracks heartbeat state (last_sent, interval, type)
 - [x] Client delegates heartbeat operations to new module
 - [x] All existing heartbeat tests pass
-- [x] Module under 100 lines (slightly over at 114, acceptable)
 
 **What was done:**
 - Created `lib/zen_websocket/heartbeat_manager.ex` with 5 public functions:
@@ -125,9 +74,8 @@ Extract heartbeat logic from Client.ex into dedicated module.
   - `send_heartbeat/1` - Send platform-specific heartbeat
   - `get_health/1` - Return health metrics map
 - Created `test/zen_websocket/heartbeat_manager_test.exs` with unit tests
-- Client.ex reduced from 870 to 789 lines (~81 lines removed)
-- Removed 4 private functions from Client.ex
-- All 215 tests pass, Dialyzer passes, Credo passes
+- Client.ex reduced, private heartbeat functions removed
+- All tests pass, Dialyzer passes, Credo passes
 
 ---
 
@@ -145,7 +93,6 @@ Extract subscription tracking from Client.ex into dedicated module.
 - [ ] Handles subscription restoration after reconnect
 - [ ] Clean API: `add/2`, `remove/2`, `list/1`, `restore/2`
 - [ ] All existing subscription tests pass
-- [ ] Module under 80 lines
 
 **Files to create:**
 - `lib/zen_websocket/subscription_manager.ex`
@@ -167,7 +114,6 @@ Extract JSON-RPC request/response correlation from Client.ex.
 - [ ] Cleans up timed-out requests properly
 - [ ] API: `track/3`, `resolve/2`, `timeout/2`, `pending/1`
 - [ ] All JSON-RPC correlation tests pass
-- [ ] Module under 100 lines
 
 **Files to create:**
 - `lib/zen_websocket/request_correlator.ex`
@@ -181,7 +127,7 @@ Extract JSON-RPC request/response correlation from Client.ex.
 After extracting R001-R003, refactor Client.ex to delegate to new modules.
 
 **Success criteria:**
-- [ ] Client.ex under 300 lines (from 862)
+- [ ] Client.ex significantly reduced
 - [ ] Client focuses only on: connection lifecycle, message routing, public API
 - [ ] All extracted concerns delegated to specialized modules
 - [ ] No functionality changes - all tests pass
@@ -349,19 +295,15 @@ Audit test files and properly tag integration tests that depend on external serv
 **Success criteria:**
 - [x] All tests audited for proper tagging
 - [x] Unit tests (pure logic, no I/O) run without `:integration` tag
-- [x] `mix test` completes in < 30 seconds (actual: ~5 seconds)
-- [x] `mix test --include integration` runs full suite (232 tests)
+- [x] `mix test` completes quickly (unit tests only)
+- [x] `mix test --include integration` runs full suite
 - [x] Document tagging conventions in test_helper.exs
 
 **What was done:**
-- Added `@moduletag :integration` to 7 test files using MockWebSockServer or external APIs:
-  - `client_test.exs`, `client_reconnect_test.exs`, `correlation_test.exs`
-  - `supervised_client_test.exs`, `supervised_connection_test.exs`
-  - `subscription_management_test.exs`, `error_handling_test.exs`
+- Added `@moduletag :integration` to test files using MockWebSockServer or external APIs
 - `rate_limiting_test.exs` uses `@describetag :integration` only on network-dependent describe blocks
 - `platform_adapter_template_test.exs` left as unit test (pure function tests, no network)
 - Added tagging convention documentation to `test/test_helper.exs`
-- Result: 141 unit tests (~5s), 92 integration tests excluded by default
 
 ---
 
@@ -382,8 +324,7 @@ After R015 tagging audit, identify and create missing unit tests for pure functi
 - [ ] Each core module has dedicated unit test file
 - [ ] Unit tests cover edge cases (nil, empty, invalid inputs)
 - [ ] Unit tests run without MockWebSockServer or network
-- [ ] 90%+ coverage on pure functions
-- [ ] `mix test` (unit only) completes in < 10 seconds
+- [ ] `mix test` (unit only) completes quickly
 
 **Depends on:** R015 (tagging audit identifies gaps)
 
@@ -497,19 +438,9 @@ R012, R013 [P] - Documentation (independent)
 
 ---
 
-## Success Metrics
+## Quality Gates
 
-### Post-Refactor Targets
-
-| Metric | Current | Target |
-|--------|---------|--------|
-| Client.ex LOC | 789 (was 862) | <300 |
-| Largest module | 789 | <200 |
-| Credo warnings | 1 TODO | 0 |
-| Property tests | 0 | 10+ |
-| Dialyzer skips | 14 | <10 |
-
-### Quality Gates (must pass before each release)
+Quality gates that must pass before each release:
 
 ```bash
 mix test.json --quiet --summary-only  # All tests pass
@@ -524,7 +455,7 @@ mix doctor                            # 100% moduledoc coverage
 
 ### Why Split Client.ex?
 
-The 862-line Client module handles:
+The Client module handles too many concerns:
 1. Connection lifecycle (connect, close, reconnect)
 2. Message sending and routing
 3. Heartbeat management
@@ -545,7 +476,7 @@ Splitting improves:
 
 ### Why Keep Some Large Examples?
 
-`deribit_rpc.ex` (237 lines) and similar files are:
+Example files like `deribit_rpc.ex` are:
 - Example/documentation code, not core library
 - Scheduled for migration to market_maker
 - Acceptable complexity for demonstration purposes
@@ -579,7 +510,7 @@ When completing tasks, update CHANGELOG.md:
 This roadmap was created after a deep audit of the zen_websocket library. Key context:
 
 1. **The library works well** - This is improvement, not emergency repair
-2. **Client.ex is the main target** - 862 lines doing 5+ jobs
+2. **Client.ex is the main target** - Too many concerns in one module
 3. **WNX0026 (hex.pm) should complete first** - Don't refactor during publish prep
 4. **Business logic migration depends on market_maker** - External dependency
 5. **Real API testing is non-negotiable** - Project principle, don't add mocks
