@@ -63,7 +63,13 @@ defmodule ZenWebsocket.ConnectionRegistry do
   """
   @spec cleanup_dead(pid()) :: :ok
   def cleanup_dead(gun_pid) when is_pid(gun_pid) do
-    :ets.match_delete(@table_name, {:_, gun_pid, :_})
+    matches = :ets.match_object(@table_name, {:_, gun_pid, :_})
+
+    Enum.each(matches, fn {connection_id, _pid, monitor_ref} ->
+      Process.demonitor(monitor_ref, [:flush])
+      :ets.delete(@table_name, connection_id)
+    end)
+
     :ok
   end
 
@@ -77,8 +83,22 @@ defmodule ZenWebsocket.ConnectionRegistry do
         :ok
 
       _ ->
+        demonitor_all()
         :ets.delete(@table_name)
         :ok
     end
+  end
+
+  # Demonitors all tracked connections before table deletion
+  @doc false
+  @spec demonitor_all() :: :ok
+  defp demonitor_all do
+    @table_name
+    |> :ets.tab2list()
+    |> Enum.each(fn {_id, _pid, monitor_ref} ->
+      Process.demonitor(monitor_ref, [:flush])
+    end)
+
+    :ok
   end
 end

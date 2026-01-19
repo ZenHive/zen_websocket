@@ -207,17 +207,25 @@ Add proper ETS table cleanup to prevent memory leaks.
 
 ---
 
-### Task R006: ConnectionRegistry Monitor Cleanup
+### Task R006: ConnectionRegistry Monitor Cleanup ✅ COMPLETE
 
 **[D:2/B:6 → Priority:3.0]** 🎯
 
 Ensure monitors are always cleaned up properly.
 
 **Success criteria:**
-- [ ] Verify monitor dereference on all exit paths
-- [ ] Add cleanup in terminate callback
-- [ ] Test registry behavior under process crashes
-- [ ] No monitor leaks in long-running scenarios
+- [x] Verify monitor dereference on all exit paths
+- [x] Add cleanup in terminate callback
+- [x] Test registry behavior under process crashes
+- [x] No monitor leaks in long-running scenarios
+
+**Completed:** January 2026
+
+**What was done:**
+- Fixed `cleanup_dead/1` to use `match_object` + iterate + demonitor before delete (was using `match_delete` which skipped demonitor)
+- Fixed `shutdown/0` to call new `demonitor_all/0` helper before table deletion
+- Added `demonitor_all/0` private helper that iterates all entries and demonitors each
+- Added 3 new tests verifying monitor cleanup behavior
 
 ---
 
@@ -382,13 +390,13 @@ Move Deribit-specific business logic to market_maker project (per WNX0028 analys
 
 ### Immediate (Before v0.2.0)
 
-| Task | Priority | Effort |
-|------|----------|--------|
-| R005: RateLimiter ETS Cleanup | 🎯 2.7 | D:3 |
-| R006: Monitor Cleanup | 🎯 3.0 | D:2 |
-| R007: Fix Credo Warnings | 🎯 2.5 | D:2 |
-| R008: Replace Magic Numbers | 🎯 2.0 | D:2 |
-| R001: Extract HeartbeatManager | 🎯 2.0 | D:4 |
+| Task | Priority | Effort | Status |
+|------|----------|--------|--------|
+| R006: Monitor Cleanup | 🎯 3.0 | D:2 | ✅ Complete |
+| R005: RateLimiter ETS Cleanup | 🎯 2.7 | D:3 | ⬜ Pending |
+| R007: Fix Credo Warnings | 🎯 2.5 | D:2 | ⬜ Pending |
+| R008: Replace Magic Numbers | 🎯 2.0 | D:2 | ⬜ Pending |
+| R001: Extract HeartbeatManager | 🎯 2.0 | D:4 | ⬜ Pending |
 
 ### Short-term (v0.2.0)
 
