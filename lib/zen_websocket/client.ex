@@ -74,6 +74,7 @@ defmodule ZenWebsocket.Client do
 
   alias ZenWebsocket.Debug
   alias ZenWebsocket.HeartbeatManager
+  alias ZenWebsocket.RequestCorrelator
   alias ZenWebsocket.SubscriptionManager
 
   require Logger
@@ -440,22 +441,13 @@ defmodule ZenWebsocket.Client do
   end
 
   def handle_call({:send_message, message}, from, %{gun_pid: gun_pid, stream_ref: stream_ref, state: :connected} = state) do
-    # Check if message has an ID for correlation
-    case Jason.decode(message) do
-      {:ok, %{"id" => id} = _decoded} when not is_nil(id) ->
-        # Track this request for correlation
-        timeout = state.config.request_timeout
-        timeout_ref = Process.send_after(self(), {:correlation_timeout, id}, timeout)
-
-        pending = Map.put(state.pending_requests, id, {from, timeout_ref})
-
-        # Send message but don't reply yet - will reply when response arrives
+    case RequestCorrelator.extract_id(message) do
+      {:ok, id} ->
+        new_state = RequestCorrelator.track(state, id, from, state.config.request_timeout)
         :gun.ws_send(gun_pid, stream_ref, {:text, message})
+        {:noreply, new_state}
 
-        {:noreply, %{state | pending_requests: pending}}
-
-      _ ->
-        # No ID or not JSON - send without correlation
+      :no_id ->
         result = :gun.ws_send(gun_pid, stream_ref, {:text, message})
         {:reply, result, state}
     end
@@ -662,16 +654,13 @@ defmodule ZenWebsocket.Client do
   end
 
   def handle_info({:correlation_timeout, request_id}, state) do
-    # Handle correlation timeout
-    case Map.pop(state.pending_requests, request_id) do
-      {nil, _} ->
-        # Already handled
+    case RequestCorrelator.timeout(state, request_id) do
+      {nil, state} ->
         {:noreply, state}
 
-      {{from, _timeout_ref}, new_pending} ->
-        # Reply with timeout error
+      {{from, _timeout_ref}, new_state} ->
         GenServer.reply(from, {:error, :timeout})
-        {:noreply, %{state | pending_requests: new_pending}}
+        {:noreply, new_state}
     end
   end
 
@@ -787,17 +776,14 @@ defmodule ZenWebsocket.Client do
   # Routes JSON-RPC responses to waiting callers
   @spec handle_rpc_response(map(), state()) :: state()
   defp handle_rpc_response(%{"id" => id} = response, state) do
-    case Map.pop(state.pending_requests, id) do
-      {nil, _} ->
-        # No pending request for this ID
+    case RequestCorrelator.resolve(state, id) do
+      {nil, state} ->
         state.handler.({:unmatched_response, response})
         state
 
-      {{from, timeout_ref}, new_pending} ->
-        # Cancel timeout and reply to waiting caller
-        Process.cancel_timer(timeout_ref)
+      {{from, _timeout_ref}, new_state} ->
         GenServer.reply(from, {:ok, response})
-        %{state | pending_requests: new_pending}
+        new_state
     end
   end
 

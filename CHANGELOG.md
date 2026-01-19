@@ -10,7 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `ZenWebsocket.HeartbeatManager` module for heartbeat lifecycle management (R001)
 - `ZenWebsocket.SubscriptionManager` module for subscription tracking and restoration (R002)
+- `ZenWebsocket.RequestCorrelator` module for JSON-RPC request/response correlation (R003)
 - Telemetry events for SubscriptionManager: `:add`, `:remove`, `:restore` (R002)
+- Telemetry events for RequestCorrelator: `:track`, `:resolve`, `:timeout` (R003)
 - `RateLimiter.shutdown/1` for proper ETS table cleanup (R005)
 - Configurable `max_queue_size` option for RateLimiter (default: 100) (R005)
 - Telemetry events for rate limiter: `:consume`, `:queue`, `:queue_full`, `:refill` (R005)
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Extracted heartbeat logic from Client.ex to HeartbeatManager (789 lines from 870) (R001)
 - Extracted subscription tracking from Client.ex to SubscriptionManager (R002)
+- Extracted request/response correlation from Client.ex to RequestCorrelator (R003)
 - Automatic subscription restoration on reconnect via `maybe_restore_subscriptions/1` (R002)
 - Replaced magic numbers with named module attributes in Client, ClientSupervisor, and Reconnection modules (R008)
 - BasicUsage example now uses Deribit testnet instead of echo.websocket.org

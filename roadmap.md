@@ -110,24 +110,33 @@ Extract subscription tracking from Client.ex into dedicated module.
 
 ---
 
-### Task R003: Extract RequestCorrelator `[P]`
+### Task R003: Extract RequestCorrelator ✅ COMPLETE
 
 **[D:5/B:7 → Priority:1.4]** 🚀
 
+**Completed:** January 2026
+
 Extract JSON-RPC request/response correlation from Client.ex.
 
-**Current location:** `client.ex` (pending_requests map, timeout handling)
-
 **Success criteria:**
-- [ ] New `ZenWebsocket.RequestCorrelator` module created
-- [ ] Tracks pending requests with timeouts
-- [ ] Matches responses to requests by ID
-- [ ] Cleans up timed-out requests properly
-- [ ] API: `track/3`, `resolve/2`, `timeout/2`, `pending/1`
-- [ ] All JSON-RPC correlation tests pass
+- [x] New `ZenWebsocket.RequestCorrelator` module created
+- [x] Tracks pending requests with timeouts
+- [x] Matches responses to requests by ID
+- [x] Cleans up timed-out requests properly
+- [x] API: `extract_id/1`, `track/4`, `resolve/2`, `timeout/2`, `pending_count/1`
+- [x] All JSON-RPC correlation tests pass
 
-**Files to create:**
-- `lib/zen_websocket/request_correlator.ex`
+**What was done:**
+- Created `lib/zen_websocket/request_correlator.ex` with 5 public functions:
+  - `extract_id/1` - Extract request ID from JSON message
+  - `track/4` - Track pending request with timeout timer
+  - `resolve/2` - Match response to pending request, cancel timer
+  - `timeout/2` - Handle timeout for pending request
+  - `pending_count/1` - Return count of pending requests
+- Created `test/zen_websocket/request_correlator_test.exs` with 28 unit tests
+- Added telemetry events: `:track`, `:resolve`, `:timeout`
+- Client.ex updated to delegate correlation to RequestCorrelator
+- Pure functional design - state ownership stays with Client GenServer
 
 ---
 
@@ -414,13 +423,13 @@ Move Deribit-specific business logic to market_maker project (per WNX0028 analys
 | R008: Replace Magic Numbers | 🎯 2.0 | D:2 | ✅ Complete |
 | R001: Extract HeartbeatManager | 🎯 2.0 | D:4 | ✅ Complete |
 | R002: Extract SubscriptionManager | 🚀 1.75 | D:4 | ✅ Complete |
+| R003: Extract RequestCorrelator | 🚀 1.4 | D:5 | ✅ Complete |
 
 ### Short-term (v0.2.0)
 
 | Task | Priority | Effort |
 |------|----------|--------|
 | R012: Building Adapters Guide | 🚀 1.7 | D:3 |
-| R003: Extract RequestCorrelator | 🚀 1.4 | D:5 |
 | R004: Slim Down Client.ex | 🚀 1.5 | D:6 |
 | R009: Standardize Debug Logging | 🚀 1.5 | D:2 |
 
@@ -440,7 +449,7 @@ Move Deribit-specific business logic to market_maker project (per WNX0028 analys
 These tasks can be worked on simultaneously:
 
 ```
-R003 [P] - Extract RequestCorrelator (independent extraction)
+R004 [P] - Slim Down Client.ex (depends on R001-R003, all complete)
 R009 [P] - Standardize Debug Logging (independent)
 R012, R013 [P] - Documentation (independent)
 ```

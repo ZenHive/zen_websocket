@@ -140,6 +140,7 @@ ZenWebsocket.RateLimiter         # API rate limiting
 ZenWebsocket.JsonRpc             # JSON-RPC 2.0 protocol
 ZenWebsocket.HeartbeatManager    # Heartbeat lifecycle management
 ZenWebsocket.SubscriptionManager # Subscription tracking and restoration
+ZenWebsocket.RequestCorrelator   # Request/response correlation tracking
 ```
 
 ## Platform Integration
