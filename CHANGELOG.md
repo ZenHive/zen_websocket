@@ -8,12 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `ZenWebsocket.HeartbeatManager` module for heartbeat lifecycle management (R001)
 - `RateLimiter.shutdown/1` for proper ETS table cleanup (R005)
 - Configurable `max_queue_size` option for RateLimiter (default: 100) (R005)
 - Telemetry events for rate limiter: `:consume`, `:queue`, `:queue_full`, `:refill` (R005)
 - Memory characteristics documentation in RateLimiter @moduledoc (R005)
 
 ### Changed
+- Extracted heartbeat logic from Client.ex to HeartbeatManager (789 lines from 870) (R001)
 - Replaced magic numbers with named module attributes in Client, ClientSupervisor, and Reconnection modules (R008)
 - BasicUsage example now uses Deribit testnet instead of echo.websocket.org
 - MockWebSockServer handler registration improved in `websocket_init/1`

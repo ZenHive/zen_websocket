@@ -73,7 +73,7 @@ defmodule ZenWebsocket.Client do
   use GenServer
 
   alias ZenWebsocket.Debug
-  alias ZenWebsocket.Helpers.Deribit
+  alias ZenWebsocket.HeartbeatManager
 
   require Logger
 
@@ -456,15 +456,7 @@ defmodule ZenWebsocket.Client do
   end
 
   def handle_call(:get_heartbeat_health, _from, state) do
-    health = %{
-      active_heartbeats: MapSet.to_list(Map.get(state, :active_heartbeats, MapSet.new())),
-      last_heartbeat_at: Map.get(state, :last_heartbeat_at),
-      failure_count: Map.get(state, :heartbeat_failures, 0),
-      config: Map.get(state, :heartbeat_config, :disabled),
-      timer_active: Map.get(state, :heartbeat_timer) != nil
-    }
-
-    {:reply, health, state}
+    {:reply, HeartbeatManager.get_health(state), state}
   end
 
   def handle_call(:get_state_metrics, _from, state) do
@@ -506,7 +498,7 @@ defmodule ZenWebsocket.Client do
     Debug.log(state, "   📋 Headers: #{inspect(headers, pretty: true)}")
 
     # Start heartbeat timer if configured
-    new_state = maybe_start_heartbeat_timer(%{state | state: :connected})
+    new_state = HeartbeatManager.start_timer(%{state | state: :connected})
 
     Debug.log(state, "   🔄 State: :connecting → :connected")
 
@@ -634,8 +626,7 @@ defmodule ZenWebsocket.Client do
   @doc false
   # Handles periodic heartbeat sending
   def handle_info(:send_heartbeat, %{state: :connected, heartbeat_config: config} = state) when is_map(config) do
-    # Send platform-specific heartbeat
-    new_state = send_platform_heartbeat(config, state)
+    new_state = HeartbeatManager.send_heartbeat(state)
 
     # Schedule next heartbeat
     interval = Map.get(config, :interval, state.config.heartbeat_interval)
@@ -683,20 +674,16 @@ defmodule ZenWebsocket.Client do
         Process.demonitor(state.monitor_ref, [:flush])
       end
 
-      # Cancel heartbeat timer
-      if state.heartbeat_timer do
-        Process.cancel_timer(state.heartbeat_timer)
-      end
+      # Cancel heartbeat timer and reset state
+      state_after_heartbeat = HeartbeatManager.cancel_timer(state)
 
       # Trigger reconnection from this GenServer to maintain ownership
       new_state = %{
-        state
+        state_after_heartbeat
         | gun_pid: nil,
           stream_ref: nil,
           state: :disconnected,
-          monitor_ref: nil,
-          heartbeat_timer: nil,
-          heartbeat_failures: 0
+          monitor_ref: nil
       }
 
       {:noreply, Map.delete(new_state, :awaiting_connection), {:continue, :reconnect}}
@@ -728,7 +715,7 @@ defmodule ZenWebsocket.Client do
             # Handle heartbeat directly
             Debug.log(state, "💓 [HEARTBEAT DETECTED] #{DateTime.to_string(DateTime.utc_now())}")
             Debug.log(state, "   Heartbeat message: #{inspect(msg, pretty: true)}")
-            handle_heartbeat_message(msg, state)
+            HeartbeatManager.handle_message(msg, state)
 
           {:ok, %{"method" => "subscription"} = msg} ->
             # Handle subscription confirmation
@@ -798,73 +785,5 @@ defmodule ZenWebsocket.Client do
     # Other errors - log and continue
     state.handler.({:frame_error, error})
     {:noreply, state}
-  end
-
-  # Handles heartbeat messages based on platform configuration
-  @spec handle_heartbeat_message(map(), state()) :: state()
-  defp handle_heartbeat_message(msg, state) do
-    case state.heartbeat_config do
-      %{type: :deribit} ->
-        Deribit.handle_heartbeat(msg, state)
-
-      %{type: :binance} ->
-        # Binance uses WebSocket ping/pong frames, not application messages
-        state
-
-      _ ->
-        # Generic heartbeat handling
-        case msg do
-          %{"method" => "heartbeat", "params" => %{"type" => type}} ->
-            Logger.info("💚 [PLATFORM HEARTBEAT] Type: #{type}")
-            handle_platform_heartbeat(type, state)
-
-          _ ->
-            Logger.info("❓ [UNKNOWN HEARTBEAT] #{inspect(msg)}")
-            state
-        end
-    end
-  end
-
-  # Handles generic platform heartbeats
-  @spec handle_platform_heartbeat(String.t(), map()) :: map()
-  defp handle_platform_heartbeat(type, state) do
-    # Update active heartbeats
-    %{
-      state
-      | active_heartbeats: MapSet.put(state.active_heartbeats, type),
-        last_heartbeat_at: System.monotonic_time(:millisecond),
-        heartbeat_failures: 0
-    }
-  end
-
-  # Starts heartbeat timer if configured
-  @spec maybe_start_heartbeat_timer(map()) :: map()
-  defp maybe_start_heartbeat_timer(%{heartbeat_config: :disabled} = state), do: state
-
-  defp maybe_start_heartbeat_timer(%{heartbeat_config: config} = state) when is_map(config) do
-    interval = Map.get(config, :interval, state.config.heartbeat_interval)
-    timer_ref = Process.send_after(self(), :send_heartbeat, interval)
-    %{state | heartbeat_timer: timer_ref}
-  end
-
-  defp maybe_start_heartbeat_timer(state), do: state
-
-  # Sends platform-specific heartbeat message
-  @spec send_platform_heartbeat(map(), map()) :: map()
-  defp send_platform_heartbeat(%{type: :deribit} = _config, state) do
-    new_state = Deribit.send_heartbeat(state)
-    new_state
-  end
-
-  defp send_platform_heartbeat(%{type: :ping_pong} = _config, state) do
-    # Send standard ping frame
-    :ok = :gun.ws_send(state.gun_pid, state.stream_ref, :ping)
-
-    %{state | last_heartbeat_at: System.monotonic_time(:millisecond)}
-  end
-
-  defp send_platform_heartbeat(_config, state) do
-    # Unknown heartbeat type, do nothing
-    state
   end
 end
