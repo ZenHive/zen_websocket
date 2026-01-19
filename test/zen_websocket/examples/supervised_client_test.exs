@@ -3,17 +3,30 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
 
   alias ZenWebsocket.ClientSupervisor
   alias ZenWebsocket.Examples.SupervisedClient
+  alias ZenWebsocket.Test.Support.MockWebSockServer
 
   setup do
     # Start the ClientSupervisor
     {:ok, _sup_pid} = start_supervised({ClientSupervisor, []})
-    :ok
+
+    # Start a mock server for testing
+    {:ok, server, port} = MockWebSockServer.start_link()
+
+    MockWebSockServer.set_handler(server, fn
+      {:text, msg} -> {:reply, {:text, msg}}
+      {:binary, data} -> {:reply, {:binary, data}}
+    end)
+
+    mock_url = "ws://localhost:#{port}/ws"
+
+    on_exit(fn -> MockWebSockServer.stop(server) end)
+
+    {:ok, server: server, port: port, mock_url: mock_url}
   end
 
   describe "start_connection/2" do
-    @tag :integration
-    test "starts a supervised WebSocket connection" do
-      {:ok, client} = SupervisedClient.start_connection("wss://echo.websocket.org")
+    test "starts a supervised WebSocket connection", %{mock_url: mock_url} do
+      {:ok, client} = SupervisedClient.start_connection(mock_url)
 
       assert is_map(client)
       assert is_pid(client.server_pid)
@@ -23,10 +36,9 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
       SupervisedClient.stop_connection(client.server_pid)
     end
 
-    @tag :integration
-    test "passes options to the client" do
+    test "passes options to the client", %{mock_url: mock_url} do
       opts = [retry_count: 5, heartbeat_interval: 20_000]
-      {:ok, client} = SupervisedClient.start_connection("wss://echo.websocket.org", opts)
+      {:ok, client} = SupervisedClient.start_connection(mock_url, opts)
 
       assert Process.alive?(client.server_pid)
 
@@ -41,11 +53,10 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
   end
 
   describe "start_multiple/1" do
-    @tag :integration
-    test "starts multiple supervised connections" do
+    test "starts multiple supervised connections", %{mock_url: mock_url} do
       configs = [
-        {"wss://echo.websocket.org", retry_count: 3},
-        {"wss://echo.websocket.org", heartbeat_interval: 15_000}
+        {mock_url, retry_count: 3},
+        {mock_url, heartbeat_interval: 15_000}
       ]
 
       results = SupervisedClient.start_multiple(configs)
@@ -53,7 +64,7 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
       assert length(results) == 2
 
       assert Enum.all?(results, fn {url, result} ->
-               assert url == "wss://echo.websocket.org"
+               assert url == mock_url
 
                case result do
                  {:ok, client} ->
@@ -73,9 +84,9 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
       end)
     end
 
-    test "handles mixed success and failure" do
+    test "handles mixed success and failure", %{mock_url: mock_url} do
       configs = [
-        {"wss://echo.websocket.org", []},
+        {mock_url, []},
         {"ws://invalid.example.com:9999", []}
       ]
 
@@ -85,7 +96,7 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
 
       # Check first succeeded
       {url1, result1} = Enum.at(results, 0)
-      assert url1 == "wss://echo.websocket.org"
+      assert url1 == mock_url
       assert {:ok, client} = result1
       assert Process.alive?(client.server_pid)
 
@@ -100,14 +111,13 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
   end
 
   describe "list_connections/0" do
-    @tag :integration
-    test "lists all supervised connections" do
+    test "lists all supervised connections", %{mock_url: mock_url} do
       # Start with no connections
       assert SupervisedClient.list_connections() == []
 
       # Start some connections
-      {:ok, client1} = SupervisedClient.start_connection("wss://echo.websocket.org")
-      {:ok, client2} = SupervisedClient.start_connection("wss://echo.websocket.org")
+      {:ok, client1} = SupervisedClient.start_connection(mock_url)
+      {:ok, client2} = SupervisedClient.start_connection(mock_url)
 
       connections = SupervisedClient.list_connections()
       assert length(connections) == 2
@@ -125,9 +135,8 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
   end
 
   describe "stop_connection/1" do
-    @tag :integration
-    test "stops a supervised connection" do
-      {:ok, client} = SupervisedClient.start_connection("wss://echo.websocket.org")
+    test "stops a supervised connection", %{mock_url: mock_url} do
+      {:ok, client} = SupervisedClient.start_connection(mock_url)
       pid = client.server_pid
 
       assert Process.alive?(pid)
@@ -151,9 +160,8 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
   end
 
   describe "integration patterns" do
-    @tag :integration
-    test "supervised client survives crashes" do
-      {:ok, client} = SupervisedClient.start_connection("wss://echo.websocket.org")
+    test "supervised client survives crashes", %{mock_url: mock_url} do
+      {:ok, client} = SupervisedClient.start_connection(mock_url)
       original_pid = client.server_pid
 
       # Kill the client process
@@ -164,7 +172,7 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
 
       # Should have a new process
       connections = SupervisedClient.list_connections()
-      assert length(connections) > 0
+      assert connections != []
       new_pid = hd(connections)
       assert new_pid != original_pid
       assert Process.alive?(new_pid)
@@ -173,12 +181,11 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
       SupervisedClient.stop_connection(new_pid)
     end
 
-    @tag :integration
-    test "multiple connections with different configurations" do
+    test "multiple connections with different configurations", %{mock_url: mock_url} do
       configs = [
-        {"wss://echo.websocket.org", retry_count: 3, retry_delay: 1000},
-        {"wss://echo.websocket.org", retry_count: 5, retry_delay: 2000},
-        {"wss://echo.websocket.org", heartbeat_interval: 20_000}
+        {mock_url, retry_count: 3, retry_delay: 1000},
+        {mock_url, retry_count: 5, retry_delay: 2000},
+        {mock_url, heartbeat_interval: 20_000}
       ]
 
       results = SupervisedClient.start_multiple(configs)

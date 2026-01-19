@@ -79,7 +79,7 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
 
     report_issues(issues, format)
 
-    if strict and length(issues) > 0 do
+    if strict and issues != [] do
       System.halt(1)
     end
   end

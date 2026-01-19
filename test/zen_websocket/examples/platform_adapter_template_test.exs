@@ -3,6 +3,12 @@ defmodule ZenWebsocket.Examples.PlatformAdapterTemplateTest do
 
   alias ZenWebsocket.Examples.PlatformAdapterTemplate
 
+  setup do
+    # Ensure module is loaded before function_exported?/3 checks
+    Code.ensure_loaded!(PlatformAdapterTemplate)
+    :ok
+  end
+
   describe "platform adapter template" do
     test "handle_message processes successful results" do
       msg = %{"result" => %{"balance" => 1000}}

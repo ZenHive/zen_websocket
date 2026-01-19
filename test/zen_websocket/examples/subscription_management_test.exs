@@ -87,7 +87,7 @@ defmodule ZenWebsocket.Examples.SubscriptionManagementTest do
 
         {:error, :timeout, messages} ->
           # Echo server might be slow, but we should have some messages
-          assert length(messages) > 0
+          assert messages != []
       end
 
       Client.close(client)

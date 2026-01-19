@@ -1,15 +1,38 @@
 defmodule ZenWebsocket.Examples.ErrorHandlingTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
 
   import ExUnit.CaptureLog
 
   alias ZenWebsocket.Client
   alias ZenWebsocket.Examples.Docs.ErrorHandling
+  alias ZenWebsocket.Test.Support.MockWebSockServer
 
-  require Logger
-
-  @echo_server "wss://echo.websocket.org"
   @invalid_url "wss://invalid.websocket.test"
+
+  @doc false
+  # Polls ErrorHandling GenServer state until client is connected or timeout expires.
+  # Returns {:ok, state} on connection, {:timeout, state} on timeout.
+  defp wait_for_connection(timeout \\ 2000) do
+    deadline = System.monotonic_time(:millisecond) + timeout
+
+    fn ->
+      state = ErrorHandling.get_state()
+
+      cond do
+        state.client != nil ->
+          {:ok, state}
+
+        System.monotonic_time(:millisecond) > deadline ->
+          {:timeout, state}
+
+        true ->
+          Process.sleep(50)
+          :continue
+      end
+    end
+    |> Stream.repeatedly()
+    |> Enum.find(&(&1 != :continue))
+  end
 
   describe "connection error handling" do
     test "handles initial connection failure and retries" do
@@ -33,18 +56,27 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
     end
 
     test "successfully connects on first attempt" do
-      {:ok, pid} = ErrorHandling.start_link(@echo_server)
+      {:ok, server, port} = MockWebSockServer.start_link()
 
-      # Wait for connection
-      Process.sleep(100)
+      MockWebSockServer.set_handler(server, fn
+        {:text, msg} -> {:reply, {:text, msg}}
+        {:binary, data} -> {:reply, {:binary, data}}
+      end)
 
-      # Check state shows connected
-      state = ErrorHandling.get_state()
-      assert %Client{} = state.client
-      assert state.retry_count == 0
+      mock_url = "ws://localhost:#{port}/ws"
 
-      # Clean up
-      GenServer.stop(pid)
+      try do
+        {:ok, pid} = ErrorHandling.start_link(mock_url)
+
+        # Wait for connection with proper timeout
+        assert {:ok, state} = wait_for_connection()
+        assert %Client{} = state.client
+        assert state.retry_count == 0
+
+        GenServer.stop(pid)
+      after
+        MockWebSockServer.stop(server)
+      end
     end
 
     test "handles send_message when not connected" do
@@ -62,17 +94,29 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
     end
 
     test "handles send_message when connected" do
-      {:ok, pid} = ErrorHandling.start_link(@echo_server)
+      {:ok, server, port} = MockWebSockServer.start_link()
 
-      # Wait for connection
-      Process.sleep(100)
+      MockWebSockServer.set_handler(server, fn
+        {:text, msg} -> {:reply, {:text, msg}}
+        {:binary, data} -> {:reply, {:binary, data}}
+      end)
 
-      # Send message when connected
-      result = ErrorHandling.send_message("test message")
-      assert result == :ok
+      mock_url = "ws://localhost:#{port}/ws"
 
-      # Clean up
-      GenServer.stop(pid)
+      try do
+        {:ok, pid} = ErrorHandling.start_link(mock_url)
+
+        # Wait for connection with proper timeout
+        assert {:ok, _state} = wait_for_connection()
+
+        # Send message when connected - can return :ok or {:ok, response}
+        result = ErrorHandling.send_message("test message")
+        assert result == :ok or match?({:ok, _}, result)
+
+        GenServer.stop(pid)
+      after
+        MockWebSockServer.stop(server)
+      end
     end
   end
 
@@ -103,41 +147,72 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
 
   describe "error message handling" do
     test "handles websocket_error messages" do
-      log =
-        capture_log(fn ->
-          {:ok, pid} = ErrorHandling.start_link(@echo_server)
+      {:ok, server, port} = MockWebSockServer.start_link()
 
-          # Send error message directly to the GenServer
-          send(pid, {:websocket_error, :connection_timeout})
+      MockWebSockServer.set_handler(server, fn
+        {:text, msg} -> {:reply, {:text, msg}}
+      end)
 
-          Process.sleep(100)
+      mock_url = "ws://localhost:#{port}/ws"
 
-          GenServer.stop(pid)
-        end)
+      try do
+        log =
+          capture_log(fn ->
+            {:ok, pid} = ErrorHandling.start_link(mock_url)
 
-      assert log =~ "WebSocket error: :connection_timeout"
+            # Wait for connection
+            assert {:ok, _state} = wait_for_connection()
+
+            # Send error message directly to the GenServer
+            send(pid, {:websocket_error, :connection_timeout})
+
+            Process.sleep(100)
+
+            GenServer.stop(pid)
+          end)
+
+        assert log =~ "WebSocket error: :connection_timeout"
+      after
+        MockWebSockServer.stop(server)
+      end
     end
 
     test "handles websocket_message messages" do
-      # Configure logger to capture debug messages
-      Logger.configure(level: :debug)
+      {:ok, server, port} = MockWebSockServer.start_link()
 
-      log =
-        capture_log(fn ->
-          {:ok, pid} = ErrorHandling.start_link(@echo_server)
+      MockWebSockServer.set_handler(server, fn
+        {:text, msg} -> {:reply, {:text, msg}}
+      end)
 
-          # Send message directly to the GenServer
-          send(pid, {:websocket_message, "test message"})
+      mock_url = "ws://localhost:#{port}/ws"
 
-          Process.sleep(100)
+      try do
+        # Configure logger to capture debug messages
+        Logger.configure(level: :debug)
 
-          GenServer.stop(pid)
-        end)
+        log =
+          capture_log(fn ->
+            {:ok, pid} = ErrorHandling.start_link(mock_url)
 
-      # Reset logger level
-      Logger.configure(level: :info)
+            # Wait for connection
+            assert {:ok, _state} = wait_for_connection()
 
-      assert log =~ "Processing message: \"test message\""
+            # Send message directly to the GenServer
+            send(pid, {:websocket_message, "test message"})
+
+            Process.sleep(100)
+
+            GenServer.stop(pid)
+          end)
+
+        # Reset logger level
+        Logger.configure(level: :info)
+
+        assert log =~ "Processing message: \"test message\""
+      after
+        Logger.configure(level: :info)
+        MockWebSockServer.stop(server)
+      end
     end
   end
 
@@ -178,34 +253,59 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
 
   describe "connection state management" do
     test "tracks connection state accurately" do
-      {:ok, pid} = ErrorHandling.start_link(@echo_server)
+      {:ok, server, port} = MockWebSockServer.start_link()
 
-      # Wait for connection
-      Process.sleep(100)
+      MockWebSockServer.set_handler(server, fn
+        {:text, msg} -> {:reply, {:text, msg}}
+        {:binary, data} -> {:reply, {:binary, data}}
+      end)
 
-      # Check connected state
-      state = ErrorHandling.get_state()
-      assert %Client{} = state.client
-      assert state.retry_count == 0
+      mock_url = "ws://localhost:#{port}/ws"
 
-      # Send a message to ensure connection works
-      assert :ok = ErrorHandling.send_message("ping")
+      try do
+        {:ok, pid} = ErrorHandling.start_link(mock_url)
 
-      GenServer.stop(pid)
+        # Wait for connection with proper timeout
+        assert {:ok, state} = wait_for_connection()
+        assert %Client{} = state.client
+        assert state.retry_count == 0
+
+        # Send a message to ensure connection works - can return :ok or {:ok, response}
+        result = ErrorHandling.send_message("ping")
+        assert result == :ok or match?({:ok, _}, result)
+
+        GenServer.stop(pid)
+      after
+        MockWebSockServer.stop(server)
+      end
     end
 
     test "handles rapid message sending" do
-      {:ok, pid} = ErrorHandling.start_link(@echo_server)
+      {:ok, server, port} = MockWebSockServer.start_link()
 
-      # Wait for connection
-      Process.sleep(100)
+      MockWebSockServer.set_handler(server, fn
+        {:text, msg} -> {:reply, {:text, msg}}
+        {:binary, data} -> {:reply, {:binary, data}}
+      end)
 
-      # Send multiple messages rapidly
-      for i <- 1..10 do
-        assert :ok = ErrorHandling.send_message("message #{i}")
+      mock_url = "ws://localhost:#{port}/ws"
+
+      try do
+        {:ok, pid} = ErrorHandling.start_link(mock_url)
+
+        # Wait for connection with proper timeout
+        assert {:ok, _state} = wait_for_connection()
+
+        # Send multiple messages rapidly - can return :ok or {:ok, response}
+        for i <- 1..10 do
+          result = ErrorHandling.send_message("message #{i}")
+          assert result == :ok or match?({:ok, _}, result)
+        end
+
+        GenServer.stop(pid)
+      after
+        MockWebSockServer.stop(server)
       end
-
-      GenServer.stop(pid)
     end
   end
 

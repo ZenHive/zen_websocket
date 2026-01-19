@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- BasicUsage example now uses Deribit testnet instead of echo.websocket.org
+- MockWebSockServer handler registration improved in `websocket_init/1`
+
 ### Fixed
 - ConnectionRegistry monitor leaks: `cleanup_dead/1` and `shutdown/0` now properly demonitor before deletion (R006)
+- Flaky tests: migrated from unreliable echo.websocket.org to local MockWebSockServer
+- Race conditions in ErrorHandlingTest with proper `wait_for_connection/1` polling
+- MockWebSockServer now raises clear error when TLS certificates unavailable
 
 ## [0.1.4] - 2025-11-05
 

@@ -54,14 +54,16 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
           keyfile: key_file
         ]
       else
-        # Generate a very basic test cert in memory
-        # This is a simplified version - for production testing use a proper cert generator
-        [
-          # Would need actual cert data
-          cert: "...",
-          # Would need actual key data
-          key: "..."
-        ]
+        raise """
+        No TLS certificates available for MockWebSockServer.
+
+        Either:
+        1. Install ZenWebsocket.Test.Support.CertificateHelper (recommended)
+        2. Provide test certificates at:
+           - #{cert_file}
+           - #{key_file}
+        3. Use protocol: :http instead of :tls for testing
+        """
       end
     end
   end
@@ -74,7 +76,9 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
       {:cowboy_websocket, req, state}
     end
 
-    def websocket_init(state) do
+    def websocket_init(%{parent: parent} = state) do
+      # Register with parent and request current handler
+      send(parent, {:get_handler_request, self()})
       {:ok, state}
     end
 

@@ -7,18 +7,29 @@ defmodule ZenWebsocket.Examples.Docs.BasicUsage do
   alias ZenWebsocket.Client
   alias ZenWebsocket.Config
 
-  @doc """
-  Simple echo server connection example.
+  @deribit_testnet "wss://test.deribit.com/ws/api/v2"
 
-  Connects to an echo WebSocket server, sends a message, and receives the echo.
+  @doc """
+  Simple Deribit testnet connection example.
+
+  Connects to Deribit testnet, sends a public API request, and receives response.
   The default handler automatically sends messages to the calling process.
   """
-  def echo_server_example do
-    # Connect to an echo WebSocket server
-    {:ok, client} = Client.connect("wss://echo.websocket.org")
+  def deribit_testnet_example do
+    # Connect to Deribit testnet (no auth required for public endpoints)
+    {:ok, client} = Client.connect(@deribit_testnet)
 
-    # Send a message
-    :ok = Client.send_message(client, "Hello, WebSocket!")
+    # Send a public/test request (returns server version info)
+    request =
+      Jason.encode!(%{
+        "jsonrpc" => "2.0",
+        "method" => "public/test",
+        "params" => %{},
+        "id" => 1
+      })
+
+    # send_message returns {:ok, response} for JSON-RPC calls with correlation
+    {:ok, _response} = Client.send_message(client, request)
 
     # Close the connection
     :ok = Client.close(client)
@@ -33,7 +44,7 @@ defmodule ZenWebsocket.Examples.Docs.BasicUsage do
   """
   def custom_headers_example(token) do
     config = %Config{
-      url: "wss://echo.websocket.org",
+      url: @deribit_testnet,
       headers: [
         {"Authorization", "Bearer #{token}"},
         {"X-API-Version", "2.0"}

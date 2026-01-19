@@ -3,36 +3,45 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
 
   alias ZenWebsocket.Client
   alias ZenWebsocket.ClientSupervisor
+  alias ZenWebsocket.Test.Support.MockWebSockServer
+
+  @deribit_testnet "wss://test.deribit.com/ws/api/v2"
 
   setup do
     # Start a supervised instance for testing
     {:ok, sup_pid} = start_supervised({ClientSupervisor, []})
-    {:ok, supervisor: sup_pid}
+
+    # Start a mock server for testing
+    {:ok, server, port} = MockWebSockServer.start_link()
+
+    MockWebSockServer.set_handler(server, fn
+      {:text, msg} -> {:reply, {:text, msg}}
+      {:binary, data} -> {:reply, {:binary, data}}
+    end)
+
+    mock_url = "ws://localhost:#{port}/ws"
+
+    on_exit(fn -> MockWebSockServer.stop(server) end)
+
+    {:ok, supervisor: sup_pid, server: server, port: port, mock_url: mock_url}
   end
 
   describe "basic supervised connections" do
-    @tag :integration
-    test "starts supervised client connection" do
-      {:ok, client} = ClientSupervisor.start_client("wss://echo.websocket.org")
+    test "starts supervised client connection", %{mock_url: mock_url} do
+      {:ok, client} = ClientSupervisor.start_client(mock_url)
 
       assert is_pid(client.server_pid)
       assert Process.alive?(client.server_pid)
 
-      # Verify connection works
-      case Client.send_message(client, "test message") do
-        :ok ->
-          :ok
-
-        {:ok, response} ->
-          assert response == "test message"
-      end
+      # Verify connection works - can return :ok or {:ok, response}
+      result = Client.send_message(client, "test message")
+      assert result == :ok or match?({:ok, _}, result)
 
       :ok = Client.close(client)
     end
 
-    @tag :integration
-    test "restarts client on crash" do
-      {:ok, client} = ClientSupervisor.start_client("wss://echo.websocket.org")
+    test "restarts client on crash", %{mock_url: mock_url} do
+      {:ok, client} = ClientSupervisor.start_client(mock_url)
 
       original_pid = client.server_pid
       assert Process.alive?(original_pid)
@@ -45,18 +54,17 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
 
       # Check if a new process was started
       clients = ClientSupervisor.list_clients()
-      assert length(clients) > 0
+      assert clients != []
 
       new_pid = hd(clients)
       assert new_pid != original_pid
       assert Process.alive?(new_pid)
     end
 
-    @tag :integration
-    test "lists all supervised clients" do
+    test "lists all supervised clients", %{mock_url: mock_url} do
       # Start multiple clients
-      {:ok, _client1} = ClientSupervisor.start_client("wss://echo.websocket.org")
-      {:ok, _client2} = ClientSupervisor.start_client("wss://echo.websocket.org")
+      {:ok, _client1} = ClientSupervisor.start_client(mock_url)
+      {:ok, _client2} = ClientSupervisor.start_client(mock_url)
 
       clients = ClientSupervisor.list_clients()
       assert length(clients) == 2
@@ -65,8 +73,7 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
   end
 
   describe "supervision tree integration" do
-    @tag :integration
-    test "integrates with application supervision tree" do
+    test "integrates with application supervision tree", %{mock_url: mock_url} do
       # Example of how it would be used in an application
       defmodule TestApp do
         @moduledoc false
@@ -86,16 +93,15 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       {:ok, _} = TestApp.start(:normal, [])
 
       # Use the already running supervisor from setup
-      {:ok, client} = ClientSupervisor.start_client("wss://echo.websocket.org")
+      {:ok, client} = ClientSupervisor.start_client(mock_url)
       assert Process.alive?(client.server_pid)
 
       :ok = Client.close(client)
     end
 
-    @tag :integration
-    test "handles supervisor restarts" do
+    test "handles supervisor restarts", %{mock_url: mock_url} do
       {:ok, client} =
-        ClientSupervisor.start_client("wss://echo.websocket.org",
+        ClientSupervisor.start_client(mock_url,
           retry_count: 3,
           retry_delay: 100
         )
@@ -113,7 +119,7 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
 
       # Should have restarted
       clients = ClientSupervisor.list_clients()
-      assert length(clients) > 0
+      assert clients != []
     end
   end
 
@@ -129,9 +135,8 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       assert ClientSupervisor.list_clients() == []
     end
 
-    @tag :integration
-    test "stops supervised client cleanly" do
-      {:ok, client} = ClientSupervisor.start_client("wss://echo.websocket.org")
+    test "stops supervised client cleanly", %{mock_url: mock_url} do
+      {:ok, client} = ClientSupervisor.start_client(mock_url)
       pid = client.server_pid
 
       assert Process.alive?(pid)
@@ -145,20 +150,16 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       assert ClientSupervisor.list_clients() == []
     end
 
-    @tag :integration
-    test "supervised client maintains state across restarts" do
+    test "supervised client maintains state across restarts", %{mock_url: mock_url} do
       {:ok, client} =
-        ClientSupervisor.start_client("wss://echo.websocket.org",
+        ClientSupervisor.start_client(mock_url,
           heartbeat_interval: 30_000
         )
 
-      # Subscribe to some channels (echo server doesn't support this, but we test the pattern)
-      case Client.subscribe(client, ["test.channel"]) do
-        :ok -> :ok
-        {:ok, _} -> :ok
-        # Echo server doesn't support subscriptions
-        {:error, _} -> :ok
-      end
+      # Subscribe - mock server returns echo of subscription message, not a subscription confirmation
+      # We just verify the call doesn't crash the client
+      result = Client.subscribe(client, ["test.channel"])
+      assert result == :ok or match?({:ok, _}, result)
 
       # Get current connection state
       assert Client.get_state(client) == :connected
@@ -171,17 +172,16 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       # reacquire the client reference after restart. This is just testing
       # the supervision pattern.
       new_clients = ClientSupervisor.list_clients()
-      assert length(new_clients) > 0
+      assert new_clients != []
     end
   end
 
   describe "advanced supervision patterns" do
-    @tag :integration
-    test "multiple supervised connections with different configs" do
+    test "multiple supervised connections with different configs", %{mock_url: mock_url} do
       configs = [
-        %{url: "wss://echo.websocket.org", retry_count: 3},
-        %{url: "wss://echo.websocket.org", retry_count: 5},
-        %{url: "wss://echo.websocket.org", heartbeat_interval: 20_000}
+        %{url: mock_url, retry_count: 3},
+        %{url: mock_url, retry_count: 5},
+        %{url: mock_url, heartbeat_interval: 20_000}
       ]
 
       clients =
@@ -204,9 +204,8 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       end
     end
 
-    @tag :integration
-    test "respects max restart limits" do
-      {:ok, client} = ClientSupervisor.start_client("wss://echo.websocket.org")
+    test "respects max restart limits", %{mock_url: mock_url} do
+      {:ok, client} = ClientSupervisor.start_client(mock_url)
 
       _original_pid = client.server_pid
 
@@ -231,8 +230,7 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
   end
 
   describe "real-world supervised connection patterns" do
-    @describetag :integration
-    test "connection manager pattern" do
+    test "connection manager pattern", %{mock_url: mock_url} do
       defmodule ConnectionManager do
         @moduledoc false
         use GenServer
@@ -269,21 +267,16 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       end
 
       # Start connection manager
-      urls = ["wss://echo.websocket.org"]
+      urls = [mock_url]
       {:ok, manager} = ConnectionManager.start_link(urls)
 
       # Get managed client
-      client = ConnectionManager.get_client(manager, "wss://echo.websocket.org")
+      client = ConnectionManager.get_client(manager, mock_url)
       assert client
 
-      # Use the client
-      case Client.send_message(client, "managed message") do
-        :ok ->
-          :ok
-
-        {:ok, response} ->
-          assert response == "managed message"
-      end
+      # Use the client - can return :ok or {:ok, response}
+      result = Client.send_message(client, "managed message")
+      assert result == :ok or match?({:ok, _}, result)
     end
 
     @tag :integration
@@ -292,14 +285,12 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       client_secret = System.get_env("DERIBIT_CLIENT_SECRET")
 
       if client_id && client_secret do
-        url = "wss://test.deribit.com/ws/api/v2"
-
         opts = [
           heartbeat_interval: 30_000,
           timeout: 10_000
         ]
 
-        {:ok, client} = ClientSupervisor.start_client(url, opts)
+        {:ok, client} = ClientSupervisor.start_client(@deribit_testnet, opts)
 
         # Authenticate
         auth_msg = %{

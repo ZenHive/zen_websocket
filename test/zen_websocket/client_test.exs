@@ -3,6 +3,7 @@ defmodule ZenWebsocket.ClientTest do
 
   alias ZenWebsocket.Client
   alias ZenWebsocket.Config
+  alias ZenWebsocket.Test.Support.MockWebSockServer
 
   @deribit_test_url "wss://test.deribit.com/ws/api/v2"
 
@@ -64,10 +65,25 @@ defmodule ZenWebsocket.ClientTest do
   end
 
   describe "default message handler" do
-    @tag :integration
-    test "sends text messages to calling process by default" do
-      # Use echo server for predictable responses
-      {:ok, client} = Client.connect("wss://echo.websocket.org")
+    setup do
+      # Start a local mock server with exact echo behavior
+      {:ok, server, port} = MockWebSockServer.start_link()
+
+      # Set handler for exact echo (no prefix)
+      MockWebSockServer.set_handler(server, fn
+        {:text, msg} -> {:reply, {:text, msg}}
+        {:binary, data} -> {:reply, {:binary, data}}
+      end)
+
+      mock_url = "ws://localhost:#{port}/ws"
+
+      on_exit(fn -> MockWebSockServer.stop(server) end)
+
+      {:ok, server: server, port: port, mock_url: mock_url}
+    end
+
+    test "sends text messages to calling process by default", %{mock_url: mock_url} do
+      {:ok, client} = Client.connect(mock_url)
 
       # Send a test message
       test_message = "Hello, WebSocket!"
@@ -79,8 +95,7 @@ defmodule ZenWebsocket.ClientTest do
       Client.close(client)
     end
 
-    @tag :integration
-    test "custom handler overrides default behavior" do
+    test "custom handler overrides default behavior", %{mock_url: mock_url} do
       test_pid = self()
 
       # Custom handler that sends different message format
@@ -89,7 +104,7 @@ defmodule ZenWebsocket.ClientTest do
         _other -> :ok
       end
 
-      {:ok, client} = Client.connect("wss://echo.websocket.org", handler: custom_handler)
+      {:ok, client} = Client.connect(mock_url, handler: custom_handler)
 
       test_message = "Custom handler test"
       assert :ok = Client.send_message(client, test_message)
@@ -101,12 +116,10 @@ defmodule ZenWebsocket.ClientTest do
       Client.close(client)
     end
 
-    @tag :integration
-    test "handles binary messages with default handler" do
-      # Use echo server to test that default handler works with any message type
-      {:ok, client} = Client.connect("wss://echo.websocket.org")
+    test "handles binary messages with default handler", %{mock_url: mock_url} do
+      {:ok, client} = Client.connect(mock_url)
 
-      # Send a simple text message (echo server will echo it back)
+      # Send a simple text message (mock server will echo it back)
       test_message = "Binary handler test"
 
       assert :ok = Client.send_message(client, test_message)
@@ -217,13 +230,12 @@ defmodule ZenWebsocket.ClientTest do
       Client.close(client)
     end
 
+    # TODO: Implement reconnection test - requires either:
+    # 1. Kill the Gun process and verify reconnection
+    # 2. Use MockWebSockServer with connection drop simulation
+    # Tracked as future work for reconnection testing infrastructure
     @tag :skip
     test "reconnection maintains Gun message ownership in Client GenServer" do
-      # This test requires simulating a connection drop
-      # Would need to either:
-      # 1. Kill the Gun process and verify reconnection
-      # 2. Use a mock server that can drop connections
-      # For now, marking as skip since it requires infrastructure changes
     end
   end
 end
