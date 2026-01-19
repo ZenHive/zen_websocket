@@ -179,6 +179,20 @@ Debug logging is disabled by default to keep library output quiet. Enable it for
 
 When enabled, you'll see detailed logs for connection establishment, WebSocket upgrades, frame handling, heartbeats, and reconnection attempts.
 
+**Using Debug in Custom Adapters:**
+
+If you're building a custom adapter or extension, use `ZenWebsocket.Debug.log/2` with the Config struct:
+
+```elixir
+alias ZenWebsocket.Debug
+
+# Always pass the Config struct (not the full state map)
+Debug.log(config, "Custom adapter initialized")
+Debug.log(state.config, "Processing message: #{inspect(msg)}")
+```
+
+The function is a no-op when `debug: false` (the default), so you can leave debug statements in production code without performance impact.
+
 ## Testing Philosophy
 
 This library uses **real API testing exclusively**. No mocks or stubs - every test runs against actual WebSocket endpoints or local test servers. This ensures the library handles real-world conditions including network latency, connection drops, and API quirks.

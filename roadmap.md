@@ -262,18 +262,23 @@ Replace hardcoded constants with named module attributes.
 
 ---
 
-### Task R009: Standardize Debug Logging
+### Task R009: Standardize Debug Logging ✅ COMPLETE
 
 **[D:2/B:3 → Priority:1.5]** 🚀
 
+**Completed:** January 2026
+
 Remove polymorphic debug interface confusion.
 
-**Current issue:** Debug.log accepts both Config structs and state maps.
-
 **Success criteria:**
-- [ ] Single consistent interface for Debug.log
-- [ ] All callers updated to use consistent pattern
-- [ ] No ambiguity in debug function signatures
+- [x] Single consistent interface for Debug.log (Config struct only)
+- [x] All callers updated to use consistent pattern (`state.config`)
+- [x] No ambiguity in debug function signatures
+
+**What was done:**
+- Simplified `Debug.log/2` to accept only `Config.t()` (removed state map pattern)
+- Updated all 34 calls in Client.ex from `Debug.log(state, ...)` to `Debug.log(state.config, ...)`
+- Updated `@spec` and `@doc` to reflect single interface
 
 ---
 
@@ -446,7 +451,7 @@ Move Deribit-specific business logic to market_maker project (per WNX0028 analys
 |------|----------|--------|--------|
 | R012: Building Adapters Guide | 🚀 1.7 | D:3 | ⬜ Pending |
 | R004: Slim Down Client.ex | 🚀 1.5 | D:6 | ✅ Complete |
-| R009: Standardize Debug Logging | 🚀 1.5 | D:2 | ⬜ Pending |
+| R009: Standardize Debug Logging | 🚀 1.5 | D:2 | ✅ Complete |
 
 ### Medium-term (v0.3.0)
 
@@ -464,7 +469,6 @@ Move Deribit-specific business logic to market_maker project (per WNX0028 analys
 These tasks can be worked on simultaneously:
 
 ```
-R009 [P] - Standardize Debug Logging (independent)
 R012, R013 [P] - Documentation (independent)
 R016 [P] - Unit Test Coverage (depends on R015, complete)
 ```

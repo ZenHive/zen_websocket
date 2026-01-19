@@ -14,18 +14,14 @@ defmodule ZenWebsocket.Debug do
   @doc """
   Log a debug message if debug mode is enabled in the config.
 
-  Accepts either a Config struct directly or a state map containing a config key.
+  Always pass the Config struct directly - this is the canonical holder of the debug flag.
 
   ## Examples
 
-      # With Config struct
       ZenWebsocket.Debug.log(config, "Connection established")
-
-      # With state map containing config
-      ZenWebsocket.Debug.log(state, "Message received")
+      ZenWebsocket.Debug.log(state.config, "Message received")
   """
-  @spec log(Config.t() | map(), String.t()) :: :ok
+  @spec log(Config.t(), String.t()) :: :ok
   def log(%Config{debug: true}, message), do: Logger.debug(message)
-  def log(%{config: %{debug: true}}, message), do: Logger.debug(message)
-  def log(_, _), do: :ok
+  def log(%Config{debug: false}, _message), do: :ok
 end

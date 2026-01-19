@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Client.ex now fully delegates to extracted modules; removed dead `restore_subscriptions/4` from Reconnection (R004)
 - Automatic subscription restoration on reconnect via `maybe_restore_subscriptions/1` (R002)
 - Replaced magic numbers with named module attributes in Client, ClientSupervisor, and Reconnection modules (R008)
+- Standardized `Debug.log/2` to accept only `Config.t()` struct, removed polymorphic state map interface (R009)
 - BasicUsage example now uses Deribit testnet instead of echo.websocket.org
 - MockWebSockServer handler registration improved in `websocket_init/1`
 - Downgraded Elixir from 1.20.0-rc.1 to 1.19.5 (fixes Credo false positives)
