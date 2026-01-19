@@ -79,23 +79,34 @@ Extract heartbeat logic from Client.ex into dedicated module.
 
 ---
 
-### Task R002: Extract SubscriptionManager `[P]`
+### Task R002: Extract SubscriptionManager ✅ COMPLETE
 
 **[D:4/B:7 → Priority:1.75]** 🚀
 
+**Completed:** January 2026
+
 Extract subscription tracking from Client.ex into dedicated module.
 
-**Current location:** `client.ex` (subscription state, restore logic)
-
 **Success criteria:**
-- [ ] New `ZenWebsocket.SubscriptionManager` module created
-- [ ] Tracks active subscriptions per client
-- [ ] Handles subscription restoration after reconnect
-- [ ] Clean API: `add/2`, `remove/2`, `list/1`, `restore/2`
-- [ ] All existing subscription tests pass
+- [x] New `ZenWebsocket.SubscriptionManager` module created
+- [x] Tracks active subscriptions per client
+- [x] Handles subscription restoration after reconnect
+- [x] Clean API: `add/2`, `remove/2`, `list/1`, `build_restore_message/1`, `handle_message/2`
+- [x] All existing subscription tests pass
 
-**Files to create:**
-- `lib/zen_websocket/subscription_manager.ex`
+**What was done:**
+- Created `lib/zen_websocket/subscription_manager.ex` with 5 public functions:
+  - `add/2` - Add channel to tracked set (on confirmation)
+  - `remove/2` - Remove channel from tracked set
+  - `list/1` - List all tracked subscriptions
+  - `build_restore_message/1` - Build JSON restore message for reconnection
+  - `handle_message/2` - Handle incoming subscription confirmation messages
+- Created `test/zen_websocket/subscription_manager_test.exs` with comprehensive unit tests
+- Client.ex updated to delegate subscription handling to SubscriptionManager
+- Automatic subscription restoration on reconnect (respects `restore_subscriptions` config)
+- Deleted private `handle_subscription_message/2` from Client.ex
+
+**Fixed:** Dialyzer warning on `maybe_restore_subscriptions/1` resolved by expanding `Client.state()` type to include all required fields.
 
 ---
 
@@ -402,12 +413,12 @@ Move Deribit-specific business logic to market_maker project (per WNX0028 analys
 | R007: Fix Credo Warnings | 🎯 2.5 | D:2 | ✅ Complete |
 | R008: Replace Magic Numbers | 🎯 2.0 | D:2 | ✅ Complete |
 | R001: Extract HeartbeatManager | 🎯 2.0 | D:4 | ✅ Complete |
+| R002: Extract SubscriptionManager | 🚀 1.75 | D:4 | ✅ Complete |
 
 ### Short-term (v0.2.0)
 
 | Task | Priority | Effort |
 |------|----------|--------|
-| R002: Extract SubscriptionManager | 🚀 1.75 | D:4 |
 | R012: Building Adapters Guide | 🚀 1.7 | D:3 |
 | R003: Extract RequestCorrelator | 🚀 1.4 | D:5 |
 | R004: Slim Down Client.ex | 🚀 1.5 | D:6 |
@@ -429,8 +440,8 @@ Move Deribit-specific business logic to market_maker project (per WNX0028 analys
 These tasks can be worked on simultaneously:
 
 ```
-R001, R002, R003 [P] - Extract modules (independent extractions)
-R007, R008, R009 [P] - Code quality fixes (independent)
+R003 [P] - Extract RequestCorrelator (independent extraction)
+R009 [P] - Standardize Debug Logging (independent)
 R012, R013 [P] - Documentation (independent)
 ```
 

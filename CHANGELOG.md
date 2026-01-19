@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `ZenWebsocket.HeartbeatManager` module for heartbeat lifecycle management (R001)
+- `ZenWebsocket.SubscriptionManager` module for subscription tracking and restoration (R002)
+- Telemetry events for SubscriptionManager: `:add`, `:remove`, `:restore` (R002)
 - `RateLimiter.shutdown/1` for proper ETS table cleanup (R005)
 - Configurable `max_queue_size` option for RateLimiter (default: 100) (R005)
 - Telemetry events for rate limiter: `:consume`, `:queue`, `:queue_full`, `:refill` (R005)
@@ -17,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Extracted heartbeat logic from Client.ex to HeartbeatManager (789 lines from 870) (R001)
+- Extracted subscription tracking from Client.ex to SubscriptionManager (R002)
+- Automatic subscription restoration on reconnect via `maybe_restore_subscriptions/1` (R002)
 - Replaced magic numbers with named module attributes in Client, ClientSupervisor, and Reconnection modules (R008)
 - BasicUsage example now uses Deribit testnet instead of echo.websocket.org
 - MockWebSockServer handler registration improved in `websocket_init/1`
@@ -24,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - RateLimiter `handle_rate_limit/5` now accepts config parameter to avoid double ETS lookup (R005)
 
 ### Fixed
+- Dialyzer warning on `Client.maybe_restore_subscriptions/1` - expanded `Client.state()` type to include all fields (R002)
 - ConnectionRegistry monitor leaks: `cleanup_dead/1` and `shutdown/0` now properly demonitor before deletion (R006)
 - Flaky tests: migrated from unreliable echo.websocket.org to local MockWebSockServer
 - Race conditions in ErrorHandlingTest with proper `wait_for_connection/1` polling

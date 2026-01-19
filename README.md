@@ -53,6 +53,38 @@ end
 :ok = ZenWebsocket.Client.close(client)
 ```
 
+### Subscription Management
+
+ZenWebsocket tracks channel subscriptions and automatically restores them after reconnection:
+
+```elixir
+# Subscribe to channels
+{:ok, client} = ZenWebsocket.Client.connect("wss://api.example.com/ws")
+:ok = ZenWebsocket.Client.subscribe(client, ["ticker.BTC", "trades.BTC"])
+
+# Subscriptions are automatically tracked when confirmations arrive
+# On reconnect, tracked subscriptions are restored automatically
+```
+
+**What the library handles:**
+- Tracking confirmed subscriptions via `SubscriptionManager`
+- Automatic restoration after reconnection (when `restore_subscriptions: true`, the default)
+- Building restore messages in the correct format
+
+**What your client needs to handle:**
+- Processing subscription data messages (sent to your handler callback)
+- Unsubscription logic (call your API's unsubscribe method, then the library removes from tracking)
+- Authentication before subscribing to private channels
+
+**Configuration:**
+
+```elixir
+# Disable automatic subscription restoration
+{:ok, client} = ZenWebsocket.Client.connect("wss://api.example.com/ws",
+  restore_subscriptions: false
+)
+```
+
 For more detailed examples, see our working examples with fully tested implementations:
 - **Basic Usage** - Connection management and messaging
 - **Error Handling** - Robust error recovery patterns  
@@ -98,14 +130,16 @@ config = %{
 ZenWebsocket follows a modular architecture with clear separation of concerns:
 
 ```
-ZenWebsocket.Client         # Main client interface
-ZenWebsocket.Config         # Configuration management
-ZenWebsocket.Frame          # WebSocket frame handling
-ZenWebsocket.Reconnection   # Automatic reconnection logic
-ZenWebsocket.MessageHandler # Message parsing and routing
-ZenWebsocket.ErrorHandler   # Error categorization
-ZenWebsocket.RateLimiter   # API rate limiting
-ZenWebsocket.JsonRpc       # JSON-RPC 2.0 protocol
+ZenWebsocket.Client              # Main client interface
+ZenWebsocket.Config              # Configuration management
+ZenWebsocket.Frame               # WebSocket frame handling
+ZenWebsocket.Reconnection        # Automatic reconnection logic
+ZenWebsocket.MessageHandler      # Message parsing and routing
+ZenWebsocket.ErrorHandler        # Error categorization
+ZenWebsocket.RateLimiter         # API rate limiting
+ZenWebsocket.JsonRpc             # JSON-RPC 2.0 protocol
+ZenWebsocket.HeartbeatManager    # Heartbeat lifecycle management
+ZenWebsocket.SubscriptionManager # Subscription tracking and restoration
 ```
 
 ## Platform Integration
@@ -130,6 +164,7 @@ See `lib/zen_websocket/examples/deribit_adapter.ex` for a complete example.
 | `retry_delay` | Initial retry delay in milliseconds | `1000` |
 | `heartbeat_interval` | Ping interval in milliseconds | `30000` |
 | `reconnect_on_error` | Enable automatic reconnection | `true` |
+| `restore_subscriptions` | Restore subscriptions after reconnect | `true` |
 | `debug` | Enable verbose debug logging | `false` |
 
 ### Debug Logging

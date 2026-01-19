@@ -74,6 +74,7 @@ defmodule ZenWebsocket.Client do
 
   alias ZenWebsocket.Debug
   alias ZenWebsocket.HeartbeatManager
+  alias ZenWebsocket.SubscriptionManager
 
   require Logger
 
@@ -94,12 +95,29 @@ defmodule ZenWebsocket.Client do
           server_pid: pid() | nil
         }
 
+  @typedoc "Internal GenServer state for the WebSocket client"
   @type state :: %{
+          # Optional fields (added during lifecycle) - must come first
+          optional(:retry_count) => non_neg_integer(),
+          optional(:awaiting_connection) => GenServer.from(),
+          # Connection fields
           gun_pid: pid() | nil,
           stream_ref: reference() | nil,
           state: :connecting | :connected | :disconnected,
-          url: String.t() | nil,
-          monitor_ref: reference() | nil
+          url: String.t(),
+          monitor_ref: reference() | nil,
+          config: ZenWebsocket.Config.t(),
+          handler: (term() -> term()),
+          # Subscription tracking
+          subscriptions: MapSet.t(String.t()),
+          # Request correlation
+          pending_requests: %{optional(term()) => {GenServer.from(), reference()}},
+          # Heartbeat tracking
+          heartbeat_config: :disabled | map(),
+          active_heartbeats: MapSet.t(term()),
+          last_heartbeat_at: DateTime.t() | nil,
+          heartbeat_failures: non_neg_integer(),
+          heartbeat_timer: reference() | nil
         }
 
   @doc """
@@ -498,7 +516,10 @@ defmodule ZenWebsocket.Client do
     Debug.log(state, "   📋 Headers: #{inspect(headers, pretty: true)}")
 
     # Start heartbeat timer if configured
-    new_state = HeartbeatManager.start_timer(%{state | state: :connected})
+    new_state =
+      %{state | state: :connected}
+      |> HeartbeatManager.start_timer()
+      |> maybe_restore_subscriptions()
 
     Debug.log(state, "   🔄 State: :connecting → :connected")
 
@@ -704,6 +725,21 @@ defmodule ZenWebsocket.Client do
     }
   end
 
+  @doc false
+  # Restores subscriptions after reconnection if configured
+  @spec maybe_restore_subscriptions(state()) :: state()
+  defp maybe_restore_subscriptions(state) do
+    case SubscriptionManager.build_restore_message(state) do
+      nil ->
+        state
+
+      message ->
+        Debug.log(state, "   📡 Restoring subscriptions...")
+        :gun.ws_send(state.gun_pid, state.stream_ref, {:text, message})
+        state
+    end
+  end
+
   # Routes data frames to appropriate handlers based on content
   @spec route_data_frame(term(), state()) :: state()
   defp route_data_frame(frame, state) do
@@ -719,7 +755,7 @@ defmodule ZenWebsocket.Client do
 
           {:ok, %{"method" => "subscription"} = msg} ->
             # Handle subscription confirmation
-            handle_subscription_message(msg, state)
+            SubscriptionManager.handle_message(msg, state)
 
           {:ok, %{"id" => id} = msg} when is_integer(id) or is_binary(id) ->
             # JSON-RPC response - route to pending request
@@ -747,15 +783,6 @@ defmodule ZenWebsocket.Client do
         state
     end
   end
-
-  # Handles subscription-related messages
-  @spec handle_subscription_message(map(), state()) :: state()
-  defp handle_subscription_message(%{"params" => %{"channel" => channel}}, state) do
-    new_subscriptions = MapSet.put(state.subscriptions, channel)
-    %{state | subscriptions: new_subscriptions}
-  end
-
-  defp handle_subscription_message(_msg, state), do: state
 
   # Routes JSON-RPC responses to waiting callers
   @spec handle_rpc_response(map(), state()) :: state()
