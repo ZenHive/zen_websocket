@@ -162,43 +162,4 @@ defmodule ZenWebsocket.Reconnection do
   def max_retries_exceeded?(attempt, max_retries) do
     attempt >= max_retries
   end
-
-  @doc """
-  Restore subscriptions after successful reconnection.
-
-  This should be called after the WebSocket upgrade is complete and the
-  connection is ready to receive subscription messages.
-
-  Accepts a Config struct or state map for conditional debug logging.
-  """
-  @spec restore_subscriptions(
-          gun_pid :: pid(),
-          stream_ref :: reference(),
-          subscriptions :: [String.t()],
-          config_or_state :: Config.t() | map()
-        ) :: :ok
-  def restore_subscriptions(gun_pid, stream_ref, subscriptions, config_or_state \\ %{})
-
-  def restore_subscriptions(_gun_pid, _stream_ref, [], _config_or_state), do: :ok
-
-  def restore_subscriptions(gun_pid, stream_ref, subscriptions, config_or_state) when is_list(subscriptions) do
-    Debug.log(config_or_state, "📡 [RESTORE SUBSCRIPTIONS] #{DateTime.to_string(DateTime.utc_now())}")
-    Debug.log(config_or_state, "   🔧 Gun PID: #{inspect(gun_pid)}")
-    Debug.log(config_or_state, "   📡 Stream Ref: #{inspect(stream_ref)}")
-    Debug.log(config_or_state, "   📋 Subscriptions: #{inspect(subscriptions)}")
-
-    message =
-      Jason.encode!(%{
-        "jsonrpc" => "2.0",
-        "method" => "public/subscribe",
-        "params" => %{"channels" => subscriptions},
-        "id" => System.unique_integer([:positive])
-      })
-
-    Debug.log(config_or_state, "   📤 Sending subscription restore message...")
-    :gun.ws_send(gun_pid, stream_ref, {:text, message})
-    Debug.log(config_or_state, "   ✅ Subscription restoration complete")
-
-    :ok
-  end
 end

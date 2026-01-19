@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extracted heartbeat logic from Client.ex to HeartbeatManager (789 lines from 870) (R001)
 - Extracted subscription tracking from Client.ex to SubscriptionManager (R002)
 - Extracted request/response correlation from Client.ex to RequestCorrelator (R003)
+- Client.ex now fully delegates to extracted modules; removed dead `restore_subscriptions/4` from Reconnection (R004)
 - Automatic subscription restoration on reconnect via `maybe_restore_subscriptions/1` (R002)
 - Replaced magic numbers with named module attributes in Client, ClientSupervisor, and Reconnection modules (R008)
 - BasicUsage example now uses Deribit testnet instead of echo.websocket.org

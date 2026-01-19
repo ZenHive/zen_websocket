@@ -140,20 +140,35 @@ Extract JSON-RPC request/response correlation from Client.ex.
 
 ---
 
-### Task R004: Slim Down Client.ex
+### Task R004: Slim Down Client.ex ✅ COMPLETE
 
 **[D:6/B:9 → Priority:1.5]** 🚀
+
+**Completed:** January 2026
 
 After extracting R001-R003, refactor Client.ex to delegate to new modules.
 
 **Success criteria:**
-- [ ] Client.ex significantly reduced
-- [ ] Client focuses only on: connection lifecycle, message routing, public API
-- [ ] All extracted concerns delegated to specialized modules
-- [ ] No functionality changes - all tests pass
-- [ ] Maintains backward-compatible public API
+- [x] Client.ex significantly reduced
+- [x] Client focuses only on: connection lifecycle, message routing, public API
+- [x] All extracted concerns delegated to specialized modules
+- [x] No functionality changes - all tests pass
+- [x] Maintains backward-compatible public API
 
-**Depends on:** R001, R002, R003
+**Depends on:** R001, R002, R003 (all complete)
+
+**What was done:**
+- Delegation was completed by R001-R003: Client.ex now delegates to HeartbeatManager, SubscriptionManager, and RequestCorrelator
+- Removed dead `restore_subscriptions/4` from Reconnection module (superseded by `SubscriptionManager.build_restore_message/1`)
+- Client.ex (802 lines) focuses on: connection lifecycle, message routing, GenServer callbacks, public API (10 functions)
+- Line count "violations" are justified: `init/1` initializes 13-field state map, `handle_continue(:connect/:reconnect)` include ~10-12 lines of debug logging each
+
+**Remaining private functions in Client are GenServer-specific concerns:**
+- `route_data_frame/2` - message dispatch (orchestration role)
+- `handle_rpc_response/2` - GenServer reply semantics
+- `handle_connection_error/2` - reconnect vs stop decision
+- `build_client_struct/2` - API adaptation layer
+- `maybe_restore_subscriptions/1` - Gun operation wrapper
 
 ---
 
@@ -427,11 +442,11 @@ Move Deribit-specific business logic to market_maker project (per WNX0028 analys
 
 ### Short-term (v0.2.0)
 
-| Task | Priority | Effort |
-|------|----------|--------|
-| R012: Building Adapters Guide | 🚀 1.7 | D:3 |
-| R004: Slim Down Client.ex | 🚀 1.5 | D:6 |
-| R009: Standardize Debug Logging | 🚀 1.5 | D:2 |
+| Task | Priority | Effort | Status |
+|------|----------|--------|--------|
+| R012: Building Adapters Guide | 🚀 1.7 | D:3 | ⬜ Pending |
+| R004: Slim Down Client.ex | 🚀 1.5 | D:6 | ✅ Complete |
+| R009: Standardize Debug Logging | 🚀 1.5 | D:2 | ⬜ Pending |
 
 ### Medium-term (v0.3.0)
 
@@ -449,9 +464,9 @@ Move Deribit-specific business logic to market_maker project (per WNX0028 analys
 These tasks can be worked on simultaneously:
 
 ```
-R004 [P] - Slim Down Client.ex (depends on R001-R003, all complete)
 R009 [P] - Standardize Debug Logging (independent)
 R012, R013 [P] - Documentation (independent)
+R016 [P] - Unit Test Coverage (depends on R015, complete)
 ```
 
 **Coordination rule:** Update status to 🔄 with branch name before starting.
