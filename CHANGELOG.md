@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `RateLimiter.shutdown/1` for proper ETS table cleanup (R005)
+- Configurable `max_queue_size` option for RateLimiter (default: 100) (R005)
+- Telemetry events for rate limiter: `:consume`, `:queue`, `:queue_full`, `:refill` (R005)
+- Memory characteristics documentation in RateLimiter @moduledoc (R005)
+
 ### Changed
 - BasicUsage example now uses Deribit testnet instead of echo.websocket.org
 - MockWebSockServer handler registration improved in `websocket_init/1`
+- Downgraded Elixir from 1.20.0-rc.1 to 1.19.5 (fixes Credo false positives)
+- RateLimiter `handle_rate_limit/5` now accepts config parameter to avoid double ETS lookup (R005)
 
 ### Fixed
 - ConnectionRegistry monitor leaks: `cleanup_dead/1` and `shutdown/0` now properly demonitor before deletion (R006)

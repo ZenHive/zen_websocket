@@ -5,6 +5,7 @@ defmodule ZenWebsocket.RateLimiterTest do
 
   setup do
     name = :"rate_limiter_#{System.unique_integer()}"
+    on_exit(fn -> RateLimiter.shutdown(name) end)
     {:ok, name: name}
   end
 
@@ -226,6 +227,201 @@ defmodule ZenWebsocket.RateLimiterTest do
 
       # Should have consumed exactly 1000 tokens
       assert {:ok, %{tokens: 0}} = RateLimiter.status(name)
+    end
+  end
+
+  describe "shutdown/1" do
+    test "deletes ETS table", %{name: name} do
+      config = %{
+        tokens: 100,
+        refill_rate: 10,
+        refill_interval: 1000,
+        request_cost: &RateLimiter.simple_cost/1
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+      assert :ets.whereis(name) != :undefined
+
+      :ok = RateLimiter.shutdown(name)
+      assert :ets.whereis(name) == :undefined
+    end
+
+    test "returns :ok when table already deleted", %{name: name} do
+      config = %{
+        tokens: 100,
+        refill_rate: 10,
+        refill_interval: 1000,
+        request_cost: &RateLimiter.simple_cost/1
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+      :ok = RateLimiter.shutdown(name)
+
+      # Second shutdown should still return :ok
+      assert :ok = RateLimiter.shutdown(name)
+    end
+  end
+
+  describe "configurable max_queue_size" do
+    test "respects custom max_queue_size", %{name: name} do
+      config = %{
+        tokens: 1,
+        refill_rate: 0,
+        refill_interval: 10_000,
+        request_cost: fn _ -> 10 end,
+        max_queue_size: 5
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+
+      # Fill queue to custom limit (5)
+      for _ <- 1..5 do
+        assert {:error, :rate_limited} = RateLimiter.consume(name, %{})
+      end
+
+      # Next request should fail with queue_full
+      assert {:error, :queue_full} = RateLimiter.consume(name, %{})
+    end
+
+    test "uses default max_queue_size of 100 when not specified", %{name: name} do
+      config = %{
+        tokens: 1,
+        refill_rate: 0,
+        refill_interval: 10_000,
+        request_cost: fn _ -> 10 end
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+
+      # Fill queue to default limit (100)
+      for _ <- 1..100 do
+        assert {:error, :rate_limited} = RateLimiter.consume(name, %{})
+      end
+
+      # 101st request should fail with queue_full
+      assert {:error, :queue_full} = RateLimiter.consume(name, %{})
+    end
+  end
+
+  describe "telemetry events" do
+    setup do
+      test_pid = self()
+
+      handler_id = "test-handler-#{System.unique_integer()}"
+
+      :telemetry.attach_many(
+        handler_id,
+        [
+          [:zen_websocket, :rate_limiter, :consume],
+          [:zen_websocket, :rate_limiter, :queue],
+          [:zen_websocket, :rate_limiter, :queue_full],
+          [:zen_websocket, :rate_limiter, :refill]
+        ],
+        fn event, measurements, metadata, _config ->
+          send(test_pid, {:telemetry, event, measurements, metadata})
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      :ok
+    end
+
+    test "emits telemetry on successful consume", %{name: name} do
+      config = %{
+        tokens: 100,
+        refill_rate: 10,
+        refill_interval: 10_000,
+        request_cost: fn _ -> 5 end
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+      :ok = RateLimiter.consume(name, %{})
+
+      assert_receive {:telemetry, [:zen_websocket, :rate_limiter, :consume], measurements, metadata}
+
+      assert measurements.tokens_remaining == 95
+      assert measurements.cost == 5
+      assert metadata.name == name
+    end
+
+    test "emits telemetry on queue", %{name: name} do
+      config = %{
+        tokens: 1,
+        refill_rate: 0,
+        refill_interval: 10_000,
+        request_cost: fn _ -> 10 end
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+      {:error, :rate_limited} = RateLimiter.consume(name, %{})
+
+      assert_receive {:telemetry, [:zen_websocket, :rate_limiter, :queue], measurements, metadata}
+      assert measurements.queue_size == 1
+      assert measurements.cost == 10
+      assert metadata.name == name
+    end
+
+    test "emits telemetry on queue_full", %{name: name} do
+      config = %{
+        tokens: 1,
+        refill_rate: 0,
+        refill_interval: 10_000,
+        request_cost: fn _ -> 10 end,
+        max_queue_size: 2
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+
+      # Fill the queue
+      {:error, :rate_limited} = RateLimiter.consume(name, %{})
+      {:error, :rate_limited} = RateLimiter.consume(name, %{})
+
+      # Clear queue events
+      receive do
+        {:telemetry, [:zen_websocket, :rate_limiter, :queue], _, _} -> :ok
+      end
+
+      receive do
+        {:telemetry, [:zen_websocket, :rate_limiter, :queue], _, _} -> :ok
+      end
+
+      # Trigger queue_full
+      {:error, :queue_full} = RateLimiter.consume(name, %{})
+
+      assert_receive {:telemetry, [:zen_websocket, :rate_limiter, :queue_full], measurements, metadata}
+
+      assert measurements.queue_size == 2
+      assert metadata.name == name
+    end
+
+    test "emits telemetry on refill", %{name: name} do
+      config = %{
+        tokens: 100,
+        refill_rate: 25,
+        refill_interval: 10_000,
+        request_cost: fn _ -> 50 end
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+
+      # Consume some tokens
+      :ok = RateLimiter.consume(name, %{})
+
+      # Clear consume event
+      receive do
+        {:telemetry, [:zen_websocket, :rate_limiter, :consume], _, _} -> :ok
+      end
+
+      # Trigger refill
+      RateLimiter.refill(name)
+
+      assert_receive {:telemetry, [:zen_websocket, :rate_limiter, :refill], measurements, metadata}
+      assert measurements.tokens_before == 50
+      assert measurements.tokens_after == 75
+      assert measurements.refill_rate == 25
+      assert metadata.name == name
     end
   end
 end
