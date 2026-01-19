@@ -3,4 +3,4 @@
 # [:none, :info, :warning, :debug]
 # Logger.configure(level: :info)
 
-ExUnit.start(exclude: [:stability, :stability_dev])
+ExUnit.start(exclude: [:integration, :external_network, :stability, :stability_dev])

@@ -1,4 +1,6 @@
 defmodule ZenWebsocket.Reconnection do
+  # Default maximum delay between reconnection attempts (30 seconds).
+  # Prevents exponential backoff from growing unbounded.
   @moduledoc """
   Internal reconnection helper for Client GenServer.
 
@@ -23,6 +25,8 @@ defmodule ZenWebsocket.Reconnection do
   """
   alias ZenWebsocket.Config
   alias ZenWebsocket.Debug
+
+  @default_max_backoff_ms 30_000
 
   @doc """
   Attempt to establish a Gun connection with the given configuration.
@@ -130,9 +134,9 @@ defmodule ZenWebsocket.Reconnection do
           max_backoff :: pos_integer() | nil
         ) ::
           pos_integer()
-  def calculate_backoff(attempt, base_delay, max_backoff \\ 30_000) do
+  def calculate_backoff(attempt, base_delay, max_backoff \\ @default_max_backoff_ms) do
     delay = base_delay * :math.pow(2, attempt)
-    max_delay = max_backoff || 30_000
+    max_delay = max_backoff || @default_max_backoff_ms
     min(round(delay), max_delay)
   end
 

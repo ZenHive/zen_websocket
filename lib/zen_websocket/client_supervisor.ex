@@ -1,4 +1,6 @@
 defmodule ZenWebsocket.ClientSupervisor do
+  # Supervisor restart policy: allow up to 10 restarts within 60 seconds.
+  # This prevents rapid restart loops while allowing recovery from transient failures.
   @moduledoc """
   Optional supervisor for WebSocket client connections.
 
@@ -30,6 +32,13 @@ defmodule ZenWebsocket.ClientSupervisor do
 
   use DynamicSupervisor
 
+  @max_restarts 10
+  @restart_window_seconds 60
+
+  # Extra time buffer for DynamicSupervisor child startup overhead
+  # beyond the client's own connection timeout.
+  @supervision_buffer_ms 1000
+
   @doc """
   Starts the client supervisor.
   """
@@ -41,8 +50,8 @@ defmodule ZenWebsocket.ClientSupervisor do
   def init(_init_arg) do
     DynamicSupervisor.init(
       strategy: :one_for_one,
-      max_restarts: 10,
-      max_seconds: 60
+      max_restarts: @max_restarts,
+      max_seconds: @restart_window_seconds
     )
   end
 
@@ -68,7 +77,7 @@ defmodule ZenWebsocket.ClientSupervisor do
     case DynamicSupervisor.start_child(__MODULE__, child_spec) do
       {:ok, pid} when is_pid(pid) ->
         # Wait for connection and get the client struct
-        timeout = Keyword.get(opts, :timeout, 5000) + 1000
+        timeout = Keyword.get(opts, :timeout, 5000) + @supervision_buffer_ms
 
         try do
           case GenServer.call(pid, :await_connection, timeout) do

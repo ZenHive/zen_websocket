@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Memory characteristics documentation in RateLimiter @moduledoc (R005)
 
 ### Changed
+- Replaced magic numbers with named module attributes in Client, ClientSupervisor, and Reconnection modules (R008)
 - BasicUsage example now uses Deribit testnet instead of echo.websocket.org
 - MockWebSockServer handler registration improved in `websocket_init/1`
 - Downgraded Elixir from 1.20.0-rc.1 to 1.19.5 (fixes Credo false positives)

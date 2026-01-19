@@ -251,21 +251,25 @@ The `length/1` warnings no longer appear - likely fixed during other refactoring
 
 ---
 
-### Task R008: Replace Magic Numbers `[P]`
+### Task R008: Replace Magic Numbers ✅ COMPLETE
 
 **[D:2/B:4 → Priority:2.0]** 🎯
 
+**Completed:** January 2026
+
 Replace hardcoded constants with named module attributes.
 
-**Current issues:**
-- `timeout + 100` - unexplained adjustment
-- `max(timeout, 1000)` - minimum timeout not documented
-- Various millisecond values without explanation
-
 **Success criteria:**
-- [ ] All timeout adjustments use named constants
-- [ ] Each constant has documentation comment
-- [ ] No unexplained numeric literals in core modules
+- [x] All timeout adjustments use named constants
+- [x] Each constant has documentation comment
+- [x] No unexplained numeric literals in core modules
+
+**What was done:**
+- Added `@genserver_call_buffer_ms` and `@minimum_connection_timeout_ms` to Client.ex
+- Added `@max_restarts`, `@restart_window_seconds`, `@supervision_buffer_ms` to ClientSupervisor.ex
+- Added `@default_max_backoff_ms` to Reconnection.ex
+- Removed redundant fallbacks that duplicated Config defaults (e.g., `Map.get(state.config, :request_timeout, 30_000)` → `state.config.request_timeout`)
+- Heartbeat intervals now fall back to `state.config.heartbeat_interval` instead of hardcoded values
 
 ---
 
@@ -323,6 +327,53 @@ Add tests for edge cases and error scenarios.
 - [ ] Each error category has explicit test
 - [ ] Recovery paths verified
 - [ ] Error messages are clear and actionable
+
+---
+
+### Task R015: Test Tagging Audit `[P]`
+
+**[D:2/B:5 → Priority:2.5]** 🎯
+
+Audit test files and properly tag integration tests that depend on external services.
+
+**Current issue:** Many tests use MockWebSockServer or external APIs but aren't tagged as `:integration`. This makes `mix test` slower than necessary and can cause flaky results when network is unavailable.
+
+**Criteria for `:integration` tag:**
+- Tests that connect to external services (Deribit testnet, etc.)
+- Tests that require network connectivity
+- Tests with timeouts > 5 seconds
+- Tests using real WebSocket connections (even to localhost MockWebSockServer)
+
+**Success criteria:**
+- [ ] All tests audited for proper tagging
+- [ ] Unit tests (pure logic, no I/O) run without `:integration` tag
+- [ ] `mix test` completes in < 30 seconds
+- [ ] `mix test --include integration` runs full suite
+- [ ] Document tagging conventions in test_helper.exs
+
+---
+
+### Task R016: Unit Test Coverage `[P]`
+
+**[D:4/B:6 → Priority:1.5]** 🚀
+
+After R015 tagging audit, identify and create missing unit tests for pure functions.
+
+**Target modules for unit test coverage:**
+- `Config` - validation logic, defaults, merging
+- `Frame` - encoding/decoding without network
+- `JsonRpc` - message formatting, ID generation
+- `ErrorHandler` - error categorization logic
+- `Reconnection` - backoff calculation, retry logic
+
+**Success criteria:**
+- [ ] Each core module has dedicated unit test file
+- [ ] Unit tests cover edge cases (nil, empty, invalid inputs)
+- [ ] Unit tests run without MockWebSockServer or network
+- [ ] 90%+ coverage on pure functions
+- [ ] `mix test` (unit only) completes in < 10 seconds
+
+**Depends on:** R015 (tagging audit identifies gaps)
 
 ---
 
@@ -395,7 +446,7 @@ Move Deribit-specific business logic to market_maker project (per WNX0028 analys
 | R006: Monitor Cleanup | 🎯 3.0 | D:2 | ✅ Complete |
 | R005: RateLimiter ETS Cleanup | 🎯 2.7 | D:3 | ✅ Complete |
 | R007: Fix Credo Warnings | 🎯 2.5 | D:2 | ✅ Complete |
-| R008: Replace Magic Numbers | 🎯 2.0 | D:2 | ⬜ Pending |
+| R008: Replace Magic Numbers | 🎯 2.0 | D:2 | ✅ Complete |
 | R001: Extract HeartbeatManager | 🎯 2.0 | D:4 | ⬜ Pending |
 
 ### Short-term (v0.2.0)

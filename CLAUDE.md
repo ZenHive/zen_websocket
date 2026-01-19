@@ -34,7 +34,9 @@ mix security      # Sobelow
 mix check         # All quality checks (lint + typecheck + security + coverage)
 mix rebuild       # Full rebuild with all checks
 
-# Testing
+# Testing (integration tests excluded by default)
+mix test.json --quiet --summary-only   # Unit tests only (fast, default)
+mix test --include integration         # Include integration tests
 mix test.api              # Real API integration tests
 mix test.api --deribit    # Deribit-specific tests
 mix test.performance      # Performance/stress testing
@@ -91,6 +93,18 @@ export DERIBIT_CLIENT_SECRET="your_client_secret"
 - `heartbeat_interval` - Ping interval (default: 30000ms)
 
 ## Testing Strategy
+
+### Test Coverage Requirements
+**When modifying any module, ensure it has both:**
+1. **Unit tests** - Pure function logic, no network/I/O, fast execution
+2. **Integration tests** - Real connections via MockWebSockServer or external APIs
+
+If either is missing, create them before completing the task.
+
+### Test Tagging
+- `:integration` - Tests using MockWebSockServer or external services
+- `:external_network` - Tests requiring internet (Deribit testnet, etc.)
+- Default `mix test` excludes these for fast feedback
 
 ### Real API Testing Policy
 **NO MOCKS ALLOWED** - Only real API testing:

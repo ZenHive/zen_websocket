@@ -1,4 +1,6 @@
 defmodule ZenWebsocket.Client do
+  # GenServer.call needs extra time beyond the underlying operation timeout.
+  # This buffer accounts for message passing and scheduling overhead.
   @moduledoc """
   WebSocket client GenServer using Gun as transport layer.
 
@@ -74,6 +76,12 @@ defmodule ZenWebsocket.Client do
   alias ZenWebsocket.Helpers.Deribit
 
   require Logger
+
+  @genserver_call_buffer_ms 100
+
+  # Minimum timeout ensures connection attempts have reasonable time,
+  # even if user specifies a very short timeout.
+  @minimum_connection_timeout_ms 1000
 
   defstruct [:gun_pid, :stream_ref, :state, :url, :monitor_ref, :server_pid]
 
@@ -191,7 +199,7 @@ defmodule ZenWebsocket.Client do
     case GenServer.start(__MODULE__, {config, opts_with_handler}) do
       {:ok, server_pid} ->
         # Add a bit more time for GenServer overhead
-        timeout = max(config.timeout + 100, 1000)
+        timeout = max(config.timeout + @genserver_call_buffer_ms, @minimum_connection_timeout_ms)
 
         try do
           case GenServer.call(server_pid, :await_connection, timeout) do
@@ -418,7 +426,7 @@ defmodule ZenWebsocket.Client do
     case Jason.decode(message) do
       {:ok, %{"id" => id} = _decoded} when not is_nil(id) ->
         # Track this request for correlation
-        timeout = Map.get(state.config, :request_timeout, 30_000)
+        timeout = state.config.request_timeout
         timeout_ref = Process.send_after(self(), {:correlation_timeout, id}, timeout)
 
         pending = Map.put(state.pending_requests, id, {from, timeout_ref})
@@ -630,7 +638,7 @@ defmodule ZenWebsocket.Client do
     new_state = send_platform_heartbeat(config, state)
 
     # Schedule next heartbeat
-    interval = Map.get(config, :interval, 30_000)
+    interval = Map.get(config, :interval, state.config.heartbeat_interval)
     timer_ref = Process.send_after(self(), :send_heartbeat, interval)
 
     {:noreply, %{new_state | heartbeat_timer: timer_ref}}
@@ -834,7 +842,7 @@ defmodule ZenWebsocket.Client do
   defp maybe_start_heartbeat_timer(%{heartbeat_config: :disabled} = state), do: state
 
   defp maybe_start_heartbeat_timer(%{heartbeat_config: config} = state) when is_map(config) do
-    interval = Map.get(config, :interval, 30_000)
+    interval = Map.get(config, :interval, state.config.heartbeat_interval)
     timer_ref = Process.send_after(self(), :send_heartbeat, interval)
     %{state | heartbeat_timer: timer_ref}
   end
