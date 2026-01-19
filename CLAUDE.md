@@ -175,6 +175,12 @@ connect_opts = [
 
 ## Task Management
 
+### Roadmap
+See [roadmap.md](roadmap.md) for:
+- Current focus and active tasks
+- Prioritized task list with D/B scoring
+- Completed work history
+
 ### Task ID Format
 Use `WNX####` format:
 - Core: WNX0001-WNX0099
@@ -183,11 +189,12 @@ Use `WNX####` format:
 - Tests: WNX0300-WNX0399
 
 ### Task Tracking
-Tasks tracked in `docs/TaskList.md` with status values:
-- `Planned`, `In Progress`, `Review`, `Completed`, `Blocked`
+Tasks tracked in [roadmap.md](roadmap.md) with status markers:
+- ⬜ Pending
+- 🔄 In progress
+- ✅ Complete
 
-Priority values:
-- `Critical`, `High`, `Medium`, `Low`
+Priority uses D/B scoring (Difficulty/Benefit ratio).
 
 ### WebSocket-Specific Requirements
 - All connection tasks must include real API testing
