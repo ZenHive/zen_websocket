@@ -15,9 +15,9 @@
 |-------|------|----------|--------------|--------|
 | 1 | **R020**: Test Helpers Module | 🚀 1.5 | Consumer-facing test utilities | ✅ Complete |
 | 2 | **R019**: Session Recording | 🚀 1.4 | Message recording for debugging | ✅ Complete |
-| 3 | **R023**: Docs Rewrite | 🎯 2.5 | USAGE_RULES.md + AGENTS.md | ⬜ Next |
+| 3 | **R023**: Docs Rewrite | 🎯 2.5 | USAGE_RULES.md + AGENTS.md | ✅ Complete |
 
-**Order:** Features complete (R020, R019). Next: docs (R023), then publish v0.3.0.
+**Order:** All v0.3.0 tasks complete. Ready to publish.
 
 ### Quick Commands
 ```bash
@@ -84,9 +84,9 @@ Add optional message recording for debugging and testing.
 
 ---
 
-### Task R023: Rewrite USAGE_RULES.md and Add AGENTS.md
+### Task R023: Rewrite USAGE_RULES.md and Add AGENTS.md ✅
 
-**[D:2/B:5 → Priority:2.5]** 🎯
+**[D:2/B:5 → Priority:2.5]** 🎯 — **Complete**
 
 Modernize AI agent documentation files to follow current conventions.
 
@@ -106,11 +106,11 @@ Modernize AI agent documentation files to follow current conventions.
 - Link to roadmap for task coordination
 
 **Success criteria:**
-- [ ] CHANGELOG.md audited for undocumented features
-- [ ] USAGE_RULES.md updated with v0.2.0 features
-- [ ] AGENTS.md created with contributor guidance
-- [ ] Both files follow hex.pm conventions
-- [ ] Cross-referenced from README.md
+- [x] CHANGELOG.md audited for undocumented features
+- [x] USAGE_RULES.md updated with v0.2.0 features
+- [x] AGENTS.md created with contributor guidance
+- [x] Both files follow hex.pm conventions
+- [x] Cross-referenced from README.md
 
 ---
 
@@ -211,10 +211,10 @@ Move Deribit-specific business logic to market_maker project (per WNX0028 analys
 These tasks can be worked on simultaneously:
 
 ```
-v0.3.0 Parallelizable:
-R019 ✅ - Session Recording (Client) - COMPLETE
-R020 ✅ - Test Helpers Module (test support) - COMPLETE
-R023 [P] - USAGE_RULES.md + AGENTS.md (documentation) - Available
+v0.3.0 Complete:
+R019 ✅ - Session Recording (Client)
+R020 ✅ - Test Helpers Module (test support)
+R023 ✅ - USAGE_RULES.md + AGENTS.md (documentation)
 ```
 
 **Coordination rule:** Update status to 🔄 with branch name before starting.
@@ -257,15 +257,15 @@ Key context for picking up this roadmap:
 
 1. **The library works well** - This is improvement, not emergency repair
 2. **v0.2.0 is published** - Latency telemetry, error explanations, backpressure all shipped
-3. **v0.3.0 features complete** - R019 (Session Recording) and R020 (Test Helpers) implemented
-4. **R023 is next** - Documentation rewrite (USAGE_RULES.md + AGENTS.md), then publish v0.3.0
-5. **R014 is blocked** - Depends on external market_maker project
-6. **Real API testing is non-negotiable** - Project principle, don't add mocks
+3. **v0.3.0 is ready to publish** - All features and docs complete
+4. **R014 is blocked** - Depends on external market_maker project
+5. **Real API testing is non-negotiable** - Project principle, don't add mocks
 
 **What was implemented for v0.3.0:**
 - R019 (Recording) → `ZenWebsocket.Recorder` + `RecorderServer`, hooks in Client.ex
 - R020 (Test Helpers) → `ZenWebsocket.Testing` exposes MockWebSockServer to consumers
-- R022 (Pool) → extends ClientSupervisor with load balancing (backlog)
+- R023 (Docs) → Updated USAGE_RULES.md with new features, created AGENTS.md for AI agents
+- R022 (Pool) → extends ClientSupervisor with load balancing (backlog, not v0.3.0)
 
 The project has excellent documentation. Read:
 - `CLAUDE.md` for project principles

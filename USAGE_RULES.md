@@ -76,20 +76,54 @@ opts = [
   # Connection
   timeout: 5000,              # Connection timeout in ms
   headers: [],                # Additional headers
-  
+  debug: false,               # Enable verbose debug logging
+
   # Reconnection
   retry_count: 3,             # Max reconnection attempts
   retry_delay: 1000,          # Initial retry delay (exponential backoff)
   reconnect_on_error: true,   # Auto-reconnect on errors
-  
+  restore_subscriptions: true, # Restore subscriptions after reconnect
+
   # Heartbeat
   heartbeat_config: %{
     type: :ping,              # :ping, :pong, :deribit, :custom
     interval: 30_000,         # Heartbeat interval in ms
     message: nil              # Custom heartbeat message (for :custom type)
-  }
+  },
+
+  # Session Recording
+  record_to: "/tmp/session.jsonl",  # Enable message recording (nil to disable)
+
+  # Latency Monitoring
+  latency_buffer_size: 100    # Samples for p50/p99 calculations
 ]
 ```
+
+## Session Recording
+
+Record WebSocket sessions for debugging, testing, and replay:
+
+```elixir
+# Enable recording when connecting
+{:ok, client} = ZenWebsocket.Client.connect(url, record_to: "/tmp/debug.jsonl")
+
+# Use the connection normally - all messages are recorded
+ZenWebsocket.Client.send_message(client, %{action: "subscribe", channel: "trades"})
+
+# Close to flush remaining buffer
+ZenWebsocket.Client.close(client)
+
+# Get session metadata (count, duration, timestamps)
+{:ok, meta} = ZenWebsocket.Recorder.metadata("/tmp/debug.jsonl")
+# => %{count: 42, inbound: 30, outbound: 12, duration_ms: 5000, ...}
+
+# Replay the recorded session
+ZenWebsocket.Recorder.replay("/tmp/debug.jsonl", fn entry ->
+  IO.inspect(entry, label: "#{entry.dir} at #{entry.ts}")
+end)
+```
+
+**Recording format:** JSONL (one JSON object per line) for streaming writes. Binary frames are base64-encoded.
 
 ## Platform-Specific Rules
 
@@ -114,37 +148,77 @@ opts = [
 ```elixir
 # All functions return tagged tuples
 case ZenWebsocket.Client.connect(url) do
-  {:ok, client} -> 
+  {:ok, client} ->
     # Success path
     client
-    
+
   {:error, reason} ->
+    # Get human-readable explanation with fix suggestion
+    explanation = ZenWebsocket.ErrorHandler.explain(reason)
+    Logger.error("#{explanation.message}. #{explanation.suggestion}")
     # Errors are passed raw from Gun/WebSocket
     # Common errors: :timeout, :connection_refused, :protocol_error
-    Logger.error("Connection failed: #{inspect(reason)}")
 end
 ```
 
 ## Testing Rules
 
 ```elixir
-# NEVER mock WebSocket connections
-# Use real test endpoints
+# Use the Testing module for controlled tests
+alias ZenWebsocket.Testing
+
+# Start a mock server
+{:ok, server} = Testing.start_mock_server()
+{:ok, client} = ZenWebsocket.Client.connect(server.url)
+
+# Inject messages from server to client
+Testing.inject_message(server, ~s({"type": "hello"}))
+
+# Assert client sent expected message (supports string, regex, map, or function matchers)
+assert Testing.assert_message_sent(server, %{"type" => "ping"}, 1000)
+
+# Simulate disconnects for error handling tests
+Testing.simulate_disconnect(server, :going_away)
+
+# Cleanup
+Testing.stop_server(server)
+```
+
+### ExUnit Integration Pattern
+```elixir
+defmodule MyTest do
+  use ExUnit.Case
+  alias ZenWebsocket.Testing
+
+  setup do
+    {:ok, server} = Testing.start_mock_server()
+    on_exit(fn -> Testing.stop_server(server) end)
+    {:ok, server: server}
+  end
+
+  test "client handles server message", %{server: server} do
+    {:ok, client} = ZenWebsocket.Client.connect(server.url)
+    Testing.inject_message(server, ~s({"type": "pong"}))
+    assert_receive {:websocket_message, _}, 1000
+    ZenWebsocket.Client.close(client)
+  end
+end
+```
+
+### Real API Testing
+```elixir
+# For integration tests against real endpoints
 @tag :integration
 test "real WebSocket behavior" do
   {:ok, client} = ZenWebsocket.Client.connect("wss://test.deribit.com/ws/api/v2")
   # Test against real API...
 end
-
-# For controlled testing, use MockWebSockServer
-{:ok, server} = ZenWebsocket.MockWebSockServer.start(port: 8080)
-{:ok, client} = ZenWebsocket.Client.connect("ws://localhost:8080")
 ```
 
 ## DO NOT
 
 1. **Don't create wrapper modules** - Use the 5 functions directly
-2. **Don't mock WebSocket behavior** - Test against real endpoints
+2. **Don't mock WebSocket behavior** - Test against real endpoints or use Testing module
 3. **Don't add custom reconnection** - Use built-in retry options
 4. **Don't transform errors** - Handle raw Gun/WebSocket errors
 5. **Don't avoid GenServers** - Client uses GenServer appropriately for state
@@ -155,12 +229,52 @@ end
 - **GenServer State**: Client maintains connection state in GenServer
 - **ETS Registry**: Fast connection lookups via ETS
 - **Exponential Backoff**: Smart reconnection with backoff
-- **Real API Testing**: 93 tests, all using real APIs
+- **Real API Testing**: 395 tests, all using real APIs or Testing module
 
-## Monitoring
+## Monitoring and Observability
+
+### Latency Statistics
+```elixir
+# Get latency metrics (p50/p99/last/count)
+stats = ZenWebsocket.Client.get_latency_stats(client)
+# => %{p50: 12.5, p99: 45.2, last: 10.0, count: 100}
+```
+
+### Heartbeat Health
+```elixir
+# Check heartbeat status
+health = ZenWebsocket.Client.get_heartbeat_health(client)
+# => %{failures: 0, last_at: ~U[2026-01-20 10:30:00Z]}
+```
+
+### State Metrics
+```elixir
+# Get connection state metrics
+metrics = ZenWebsocket.Client.get_state_metrics(client)
+# => %{pending_requests: 5, subscriptions: 12, memory_bytes: 1024}
+```
+
+### Rate Limiter Status
+```elixir
+# Check rate limiter pressure
+status = ZenWebsocket.RateLimiter.status(limiter)
+# => %{tokens: 85, capacity: 100, pressure_level: :low, suggested_delay_ms: 0}
+# pressure_level: :low (<25%), :medium (25-50%), :high (50-75%), :critical (>75%)
+```
+
+### Key Telemetry Events
+
+| Event | Measurements | When |
+|-------|--------------|------|
+| `[:zen_websocket, :client, :message_received]` | `size` | Message received |
+| `[:zen_websocket, :connection, :upgrade]` | `connect_time_ms` | WebSocket upgrade complete |
+| `[:zen_websocket, :heartbeat, :pong]` | `rtt_ms` | Heartbeat response received |
+| `[:zen_websocket, :rate_limiter, :pressure]` | `level`, `queue_size` | Pressure threshold crossed |
+
+See [Performance Tuning Guide](docs/guides/performance_tuning.md) for complete telemetry reference.
 
 ```elixir
-# Telemetry events are emitted for monitoring
+# Attach to telemetry events
 :telemetry.attach(
   "websocket-logger",
   [:zen_websocket, :client, :message_received],
@@ -184,11 +298,12 @@ Each module follows strict simplicity rules:
 - **Examples**: See `lib/zen_websocket/examples/` directory
 - **Tests**: Review `test/` for usage patterns
 - **Deribit**: See `DeribitAdapter` for complete platform integration
+- **Guides**: See `docs/guides/` for performance tuning and adapter building
 
 ## Common Mistakes to Avoid
 
 1. **Creating abstractions too early** - Start with direct usage
-2. **Mocking in tests** - Always use real WebSocket endpoints
+2. **Mocking in tests** - Always use real WebSocket endpoints or Testing module
 3. **Custom error types** - Handle raw Gun/WebSocket errors
 4. **Complex supervision** - Use provided patterns (1, 2, or 3)
 5. **Ignoring heartbeats** - Configure heartbeat for production
@@ -236,7 +351,8 @@ export DERIBIT_CLIENT_SECRET="your_client_secret"
 1. Start with Pattern 1 (direct) for development
 2. Move to Pattern 2 or 3 for production
 3. Configure heartbeats for long-lived connections
-4. Test against real endpoints
+4. Test against real endpoints or use Testing module
 5. Handle raw errors with pattern matching
 6. Use telemetry for monitoring
-7. Keep it simple - just 5 functions!
+7. Enable `record_to` for debugging production issues
+8. Keep it simple - just 5 functions!

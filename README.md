@@ -198,6 +198,7 @@ Comprehensive guides are available in the `docs/guides/` directory:
 | [Building Adapters](docs/guides/building_adapters.md) | Create platform adapters with heartbeat, auth, and reconnection patterns |
 | [Performance Tuning](docs/guides/performance_tuning.md) | Configure timeouts, rate limiting, and memory for your use case |
 | [Troubleshooting Reconnection](docs/guides/troubleshooting_reconnection.md) | Debug connection issues and reconnection logic |
+| [AGENTS.md](AGENTS.md) | Guide for AI coding agents contributing to this project |
 
 See the full [HexDocs documentation](https://hexdocs.pm/zen_websocket) for API reference and module documentation.
 

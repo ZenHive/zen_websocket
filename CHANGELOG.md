@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `AGENTS.md` guide for AI coding agents contributing to the project (R023)
+  - Module overview with key functions
+  - Project constraints (5 functions, 15 lines, real API testing)
+  - Testing strategy and common patterns
+  - Debugging guide (recording, state inspection)
 - `ZenWebsocket.Testing` module with consumer-facing test utilities (R020)
   - `start_mock_server/1` - simplified mock server startup with URL generation
   - `stop_server/1` - cleanup server and resources
@@ -29,6 +34,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - JSONL format (one JSON object per line) for streaming writes
   - Binary frames encoded as base64
   - Close frames include code and reason
+
+### Changed
+- `USAGE_RULES.md` expanded with v0.2.0+ features (R023)
+  - Testing module documentation (replaced MockWebSockServer references)
+  - Session recording section with Recorder API
+  - Expanded monitoring/observability section (latency, heartbeat, metrics)
+  - ErrorHandler.explain/1 usage example
+  - New config options (record_to, latency_buffer_size)
+  - Telemetry events reference table
+  - Updated test count (93 → 395)
+
+### Removed
+- Stale documentation files superseded by ROADMAP.md and AGENTS.md
+  - `docs/TaskList.md`, `docs/deferred_tasks.md`
+  - `docs/JsonRPCElixir_MigrationTasks.md`, `docs/json_rpc_elixir.md`
+  - `docs/WNX0019_learnings.md`, `docs/test_roadmap.md`
 
 ## [0.2.0] - 2026-01-20
 
