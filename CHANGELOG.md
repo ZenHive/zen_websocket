@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `ZenWebsocket.Testing` module with consumer-facing test utilities (R020)
+  - `start_mock_server/1` - simplified mock server startup with URL generation
+  - `stop_server/1` - cleanup server and resources
+  - `simulate_disconnect/2` - trigger disconnect scenarios (`:normal`, `:going_away`, `{:code, n}`)
+  - `inject_message/2` - send message from server to connected clients
+  - `assert_message_sent/3` - verify client sent expected message (string, regex, map, or function matcher)
+  - Helpers integrate with ExUnit setup/on_exit patterns
+- `ZenWebsocket.Recorder` module for session recording (R019)
+  - `format_entry/3` - format frames as JSONL entries
+  - `parse_entry/1` - parse JSONL entries back to structs
+  - `replay/3` - stream recorded sessions to handler function
+  - `metadata/1` - get session statistics (count, duration, timestamps)
+- `ZenWebsocket.RecorderServer` async GenServer for file I/O (R019)
+  - Buffered writes with periodic flush (1s interval or 100 entries)
+  - Non-blocking `record/3` via send (not call)
+  - `stats/1` returns entries count and bytes written
+- Config option `record_to: path` enables session recording (R019)
+  - Records inbound and outbound frames with microsecond timestamps
+  - JSONL format (one JSON object per line) for streaming writes
+  - Binary frames encoded as base64
+  - Close frames include code and reason
+
 ## [0.2.0] - 2026-01-20
 
 ### Added

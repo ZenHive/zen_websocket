@@ -17,6 +17,8 @@ A robust WebSocket client library for Elixir, built on Gun transport for product
 - **Comprehensive Error Handling** - Categorized errors with recovery strategies
 - **Rate Limiting** - Configurable token bucket algorithm
 - **JSON-RPC 2.0** - Full protocol support with correlation tracking
+- **Session Recording** - JSONL message recording for debugging and replay
+- **Test Utilities** - Consumer-facing test helpers with mock server
 
 ## Installation
 
@@ -97,6 +99,32 @@ For more detailed examples, see our working examples with fully tested implement
 
 See the [Examples Guide](https://hexdocs.pm/zen_websocket/Examples.html) for complete code samples and usage patterns.
 
+### Session Recording
+
+Record WebSocket sessions for debugging and replay:
+
+```elixir
+# Enable recording when connecting
+{:ok, client} = ZenWebsocket.Client.connect("wss://api.example.com/ws",
+  record_to: "/tmp/session.jsonl"
+)
+
+# Use the connection normally - all messages are recorded
+ZenWebsocket.Client.send_message(client, %{action: "subscribe", channel: "trades"})
+
+# Close to flush remaining buffer
+ZenWebsocket.Client.close(client)
+
+# Replay the recorded session
+ZenWebsocket.Recorder.replay("/tmp/session.jsonl", fn entry ->
+  IO.inspect(entry, label: "#{entry.dir} at #{entry.ts}")
+end)
+
+# Get session metadata
+{:ok, meta} = ZenWebsocket.Recorder.metadata("/tmp/session.jsonl")
+# => %{count: 42, inbound: 30, outbound: 12, duration_ms: 5000, ...}
+```
+
 ### Deribit Integration
 
 ```elixir
@@ -145,6 +173,9 @@ ZenWebsocket.JsonRpc             # JSON-RPC 2.0 protocol
 ZenWebsocket.HeartbeatManager    # Heartbeat lifecycle management
 ZenWebsocket.SubscriptionManager # Subscription tracking and restoration
 ZenWebsocket.RequestCorrelator   # Request/response correlation tracking
+ZenWebsocket.Recorder            # Session recording (pure functions)
+ZenWebsocket.RecorderServer      # Async file I/O for recording
+ZenWebsocket.Testing             # Consumer-facing test utilities
 ```
 
 ## Platform Integration
@@ -182,6 +213,7 @@ See the full [HexDocs documentation](https://hexdocs.pm/zen_websocket) for API r
 | `heartbeat_interval` | Ping interval in milliseconds | `30000` |
 | `reconnect_on_error` | Enable automatic reconnection | `true` |
 | `restore_subscriptions` | Restore subscriptions after reconnect | `true` |
+| `record_to` | Path to JSONL file for session recording | `nil` |
 | `debug` | Enable verbose debug logging | `false` |
 
 ### Debug Logging
@@ -208,6 +240,61 @@ Debug.log(state.config, "Processing message: #{inspect(msg)}")
 ```
 
 The function is a no-op when `debug: false` (the default), so you can leave debug statements in production code without performance impact.
+
+## Testing Your Application
+
+ZenWebsocket provides test utilities for testing your own WebSocket clients:
+
+```elixir
+defmodule MyApp.WebSocketTest do
+  use ExUnit.Case
+
+  alias ZenWebsocket.Testing
+
+  setup do
+    {:ok, server} = Testing.start_mock_server()
+    on_exit(fn -> Testing.stop_server(server) end)
+    {:ok, server: server}
+  end
+
+  test "client sends expected message", %{server: server} do
+    # Connect your client to the mock server
+    {:ok, client} = ZenWebsocket.Client.connect(server.url)
+
+    # Send a message
+    ZenWebsocket.Client.send_message(client, ~s({"type": "ping"}))
+
+    # Assert the server received it (supports string, regex, map, or function matchers)
+    assert Testing.assert_message_sent(server, %{"type" => "ping"}, 1000)
+
+    ZenWebsocket.Client.close(client)
+  end
+
+  test "client handles server messages", %{server: server} do
+    {:ok, client} = ZenWebsocket.Client.connect(server.url)
+
+    # Inject a message from the server
+    Testing.inject_message(server, ~s({"type": "notification", "data": "hello"}))
+
+    # Your client should receive it
+    assert_receive {:websocket_message, msg}, 1000
+    assert String.contains?(msg, "notification")
+
+    ZenWebsocket.Client.close(client)
+  end
+
+  test "client handles disconnection", %{server: server} do
+    {:ok, client} = ZenWebsocket.Client.connect(server.url, reconnect_on_error: false)
+
+    # Simulate server disconnect
+    Testing.simulate_disconnect(server, :going_away)
+
+    # Verify client detected disconnect
+    Process.sleep(100)
+    refute Process.alive?(client.server_pid)
+  end
+end
+```
 
 ## Testing Philosophy
 

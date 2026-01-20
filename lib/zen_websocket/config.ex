@@ -16,6 +16,7 @@ defmodule ZenWebsocket.Config do
   - `:request_timeout` - Timeout for correlated requests in ms (default: 30000)
   - `:debug` - Enable verbose debug logging (default: false)
   - `:latency_buffer_size` - Size of circular buffer for latency stats (default: 100)
+  - `:record_to` - Path to JSONL file for session recording (default: nil, disabled)
 
   ## Examples
 
@@ -48,7 +49,8 @@ defmodule ZenWebsocket.Config do
     restore_subscriptions: true,
     request_timeout: 30_000,
     debug: false,
-    latency_buffer_size: 100
+    latency_buffer_size: 100,
+    record_to: nil
   ]
 
   @type t :: %__MODULE__{
@@ -63,7 +65,8 @@ defmodule ZenWebsocket.Config do
           restore_subscriptions: boolean(),
           request_timeout: pos_integer(),
           debug: boolean(),
-          latency_buffer_size: pos_integer()
+          latency_buffer_size: pos_integer(),
+          record_to: String.t() | nil
         }
 
   @doc """

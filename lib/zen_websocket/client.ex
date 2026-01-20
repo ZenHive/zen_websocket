@@ -122,7 +122,9 @@ defmodule ZenWebsocket.Client do
           heartbeat_timer: reference() | nil,
           # Latency tracking
           connect_start_time: integer() | nil,
-          latency_stats: LatencyStats.t()
+          latency_stats: LatencyStats.t(),
+          # Session recording
+          recorder_pid: pid() | nil
         }
 
   @doc """
@@ -351,6 +353,9 @@ defmodule ZenWebsocket.Client do
     # Get latency buffer size from config
     latency_buffer_size = config.latency_buffer_size
 
+    # Start recorder if configured
+    recorder_pid = maybe_start_recorder(config.record_to)
+
     initial_state = %{
       config: config,
       gun_pid: nil,
@@ -367,9 +372,13 @@ defmodule ZenWebsocket.Client do
       last_heartbeat_at: nil,
       heartbeat_failures: 0,
       heartbeat_timer: nil,
+      # Reconnection tracking
+      retry_count: 0,
       # Latency tracking
       connect_start_time: nil,
-      latency_stats: LatencyStats.new(max_size: latency_buffer_size)
+      latency_stats: LatencyStats.new(max_size: latency_buffer_size),
+      # Session recording
+      recorder_pid: recorder_pid
     }
 
     {:ok, initial_state, {:continue, :connect}}
@@ -476,10 +485,12 @@ defmodule ZenWebsocket.Client do
       {:ok, id} ->
         new_state = RequestCorrelator.track(state, id, from, state.config.request_timeout)
         :gun.ws_send(gun_pid, stream_ref, {:text, message})
+        maybe_record(state.recorder_pid, :out, {:text, message})
         {:noreply, new_state}
 
       :no_id ->
         result = :gun.ws_send(gun_pid, stream_ref, {:text, message})
+        maybe_record(state.recorder_pid, :out, {:text, message})
         {:reply, result, state}
     end
   end
@@ -716,6 +727,12 @@ defmodule ZenWebsocket.Client do
     {:noreply, state}
   end
 
+  @impl true
+  def terminate(_reason, state) do
+    maybe_stop_recorder(state.recorder_pid)
+    :ok
+  end
+
   # Private functions
 
   # Handles connection errors and triggers internal reconnection when appropriate.
@@ -746,6 +763,8 @@ defmodule ZenWebsocket.Client do
 
       {:noreply, Map.delete(new_state, :awaiting_connection), {:continue, :reconnect}}
     else
+      # Stop session recorder before terminating
+      maybe_stop_recorder(state.recorder_pid)
       {:stop, reason, state}
     end
   end
@@ -780,6 +799,9 @@ defmodule ZenWebsocket.Client do
   # Routes data frames to appropriate handlers based on content
   @spec route_data_frame(term(), state()) :: state()
   defp route_data_frame(frame, state) do
+    # Record inbound frame
+    maybe_record(state.recorder_pid, :in, frame)
+
     case frame do
       {:text, json_data} ->
         # Parse JSON and route based on message type
@@ -850,5 +872,39 @@ defmodule ZenWebsocket.Client do
     # Other errors - log and continue
     state.handler.({:frame_error, error})
     {:noreply, state}
+  end
+
+  # Session recording helpers
+
+  @spec maybe_start_recorder(String.t() | nil) :: pid() | nil
+  defp maybe_start_recorder(nil), do: nil
+
+  defp maybe_start_recorder(path) when is_binary(path) do
+    case ZenWebsocket.RecorderServer.start_link(path) do
+      {:ok, pid} ->
+        pid
+
+      {:error, reason} ->
+        Logger.warning("Failed to start session recorder: #{inspect(reason)}")
+        nil
+    end
+  end
+
+  @spec maybe_record(pid() | nil, ZenWebsocket.Recorder.direction(), term()) :: :ok
+  defp maybe_record(nil, _direction, _frame), do: :ok
+
+  defp maybe_record(recorder_pid, direction, frame) do
+    ZenWebsocket.RecorderServer.record(recorder_pid, direction, frame)
+  end
+
+  @spec maybe_stop_recorder(pid() | nil) :: :ok
+  defp maybe_stop_recorder(nil), do: :ok
+
+  defp maybe_stop_recorder(recorder_pid) do
+    if Process.alive?(recorder_pid) do
+      ZenWebsocket.RecorderServer.stop(recorder_pid)
+    end
+
+    :ok
   end
 end

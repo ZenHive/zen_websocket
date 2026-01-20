@@ -13,11 +13,11 @@
 
 | Order | Task | Priority | What It Does | Status |
 |-------|------|----------|--------------|--------|
-| 1 | **R020**: Test Helpers Module | 🚀 1.5 | Consumer-facing test utilities | ⬜ Next |
-| 2 | **R019**: Session Recording | 🚀 1.4 | Message recording for debugging | ⬜ Pending |
-| 3 | **R023**: Docs Rewrite | 🎯 2.5 | USAGE_RULES.md + AGENTS.md | ⬜ Last |
+| 1 | **R020**: Test Helpers Module | 🚀 1.5 | Consumer-facing test utilities | ✅ Complete |
+| 2 | **R019**: Session Recording | 🚀 1.4 | Message recording for debugging | ✅ Complete |
+| 3 | **R023**: Docs Rewrite | 🎯 2.5 | USAGE_RULES.md + AGENTS.md | ⬜ Next |
 
-**Order:** Features first (R020, R019), then docs (R023), then publish v0.3.0.
+**Order:** Features complete (R020, R019). Next: docs (R023), then publish v0.3.0.
 
 ### Quick Commands
 ```bash
@@ -47,40 +47,40 @@ mix hex.publish --dry-run    # Verify before publishing
 
 ## Active Tasks
 
-### Task R020: Test Helpers Module
+### Task R020: Test Helpers Module ✅
 
-**[D:4/B:6 → Priority:1.5]** 🚀
+**[D:4/B:6 → Priority:1.5]** 🚀 — **Complete**
 
 Create consumer-facing test utilities building on MockWebSockServer.
 
 **Builds on:** MockWebSockServer exists in `test/support/` but isn't exposed to consumers.
 
 **Success criteria:**
-- [ ] `ZenWebsocket.Testing` module with public helpers
-- [ ] `start_mock_server/1` - simplified server startup
-- [ ] `simulate_disconnect/2` - trigger disconnect scenarios
-- [ ] `assert_message_sent/3` - verify client sent expected message
-- [ ] `inject_message/2` - send message from server to client
-- [ ] Helpers work with ExUnit (setup/on_exit integration)
-- [ ] Documentation with usage examples
+- [x] `ZenWebsocket.Testing` module with public helpers
+- [x] `start_mock_server/1` - simplified server startup
+- [x] `simulate_disconnect/2` - trigger disconnect scenarios
+- [x] `assert_message_sent/3` - verify client sent expected message
+- [x] `inject_message/2` - send message from server to client
+- [x] Helpers work with ExUnit (setup/on_exit integration)
+- [x] Documentation with usage examples
 
 ---
 
-### Task R019: Session Recording
+### Task R019: Session Recording ✅
 
-**[D:5/B:7 → Priority:1.4]** 🚀
+**[D:5/B:7 → Priority:1.4]** 🚀 — **Complete**
 
 Add optional message recording for debugging and testing.
 
 **Builds on:** Client already routes all messages through `route_data_frame/2`.
 
 **Success criteria:**
-- [ ] Config option `record_to: path` enables recording
-- [ ] Records: timestamps, direction (in/out), raw frames, parsed messages
-- [ ] JSONL format (one JSON object per line) for streaming writes
-- [ ] `ZenWebsocket.Recorder.replay/2` plays back to a handler module
-- [ ] Recording has minimal performance impact (<1ms overhead per message)
-- [ ] Integration test with real connection recording/replay
+- [x] Config option `record_to: path` enables recording
+- [x] Records: timestamps, direction (in/out), raw frames, parsed messages
+- [x] JSONL format (one JSON object per line) for streaming writes
+- [x] `ZenWebsocket.Recorder.replay/2` plays back to a handler module
+- [x] Recording has minimal performance impact (<1ms overhead per message)
+- [x] Integration test with real connection recording/replay
 
 ---
 
@@ -212,9 +212,9 @@ These tasks can be worked on simultaneously:
 
 ```
 v0.3.0 Parallelizable:
-R019 [P] - Session Recording (Client)
-R020 [P] - Test Helpers Module (test support)
-R023 [P] - USAGE_RULES.md + AGENTS.md (documentation)
+R019 ✅ - Session Recording (Client) - COMPLETE
+R020 ✅ - Test Helpers Module (test support) - COMPLETE
+R023 [P] - USAGE_RULES.md + AGENTS.md (documentation) - Available
 ```
 
 **Coordination rule:** Update status to 🔄 with branch name before starting.
@@ -257,14 +257,15 @@ Key context for picking up this roadmap:
 
 1. **The library works well** - This is improvement, not emergency repair
 2. **v0.2.0 is published** - Latency telemetry, error explanations, backpressure all shipped
-3. **v0.3.0 focus is developer experience** - Test helpers, session recording, docs
-4. **R014 is blocked** - Depends on external market_maker project
-5. **Real API testing is non-negotiable** - Project principle, don't add mocks
+3. **v0.3.0 features complete** - R019 (Session Recording) and R020 (Test Helpers) implemented
+4. **R023 is next** - Documentation rewrite (USAGE_RULES.md + AGENTS.md), then publish v0.3.0
+5. **R014 is blocked** - Depends on external market_maker project
+6. **Real API testing is non-negotiable** - Project principle, don't add mocks
 
-**How Phase 8 builds on existing code:**
-- R019 (Recording) → hooks into Client.route_data_frame/2
-- R020 (Test Helpers) → exposes MockWebSockServer to consumers
-- R022 (Pool) → extends ClientSupervisor with load balancing
+**What was implemented for v0.3.0:**
+- R019 (Recording) → `ZenWebsocket.Recorder` + `RecorderServer`, hooks in Client.ex
+- R020 (Test Helpers) → `ZenWebsocket.Testing` exposes MockWebSockServer to consumers
+- R022 (Pool) → extends ClientSupervisor with load balancing (backlog)
 
 The project has excellent documentation. Read:
 - `CLAUDE.md` for project principles

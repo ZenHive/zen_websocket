@@ -1,0 +1,4 @@
+
+Traversal.FileModule: Directory Traversal in `File.open`,lib/zen_websocket/recorder_server.ex:113,1F435E4
+Traversal.FileModule: Directory Traversal in `File.open`,lib/zen_websocket/recorder.ex:185,35DD4FD
+Traversal.FileModule: Directory Traversal in `File.open`,lib/zen_websocket/recorder.ex:152,4D8A098

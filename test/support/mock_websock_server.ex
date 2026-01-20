@@ -118,6 +118,18 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
       {:ok, Map.put(state, :handler, handler)}
     end
 
+    def websocket_info({:send_text, message}, state) do
+      {:reply, {:text, message}, state}
+    end
+
+    def websocket_info({:send_binary, data}, state) do
+      {:reply, {:binary, data}, state}
+    end
+
+    def websocket_info({:trigger_close, code, reason}, state) do
+      {:reply, {:close, code, reason}, state}
+    end
+
     def websocket_info(info, state) do
       Logger.debug("WebSocketHandler received unhandled info: #{inspect(info)}")
       {:ok, state}
