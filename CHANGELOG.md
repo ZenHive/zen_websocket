@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `ZenWebsocket.PoolRouter` module for health-based connection routing (R022)
+  - `select_connection/1` - select healthiest connection from pool
+  - `calculate_health/1` - score (0-100) based on pending requests, latency, errors, pressure
+  - `record_error/1` / `clear_errors/1` - error tracking with 60s decay
+  - `pool_health/1` - get health snapshot for all connections
+  - Round-robin fallback when connections have equal health
+- `ClientSupervisor.send_balanced/2` for load-balanced message routing (R022)
+  - Routes to healthiest connection using PoolRouter scoring
+  - Automatic failover on send failure (configurable max_attempts)
+  - Records errors and emits telemetry on failover
+- Telemetry events for pool routing (R022)
+  - `[:zen_websocket, :pool, :route]` - connection selected with health score
+  - `[:zen_websocket, :pool, :health]` - pool health snapshot
+  - `[:zen_websocket, :pool, :failover]` - failover attempt with reason
 - `AGENTS.md` guide for AI coding agents contributing to the project (R023)
   - Module overview with key functions
   - Project constraints (5 functions, 15 lines, real API testing)
@@ -36,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Close frames include code and reason
 
 ### Changed
+- `PoolRouter.calculate_health/1` uses `div/2` for cleaner integer arithmetic
+- `ClientSupervisor` restart policy documented in `@moduledoc` (moved from comment)
+- Private functions consistently use `@doc false` with explanatory comments
 - `USAGE_RULES.md` expanded with v0.2.0+ features (R023)
   - Testing module documentation (replaced MockWebSockServer references)
   - Session recording section with Recorder API

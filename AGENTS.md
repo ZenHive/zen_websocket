@@ -54,6 +54,8 @@ These constraints are **non-negotiable**:
 | `Recorder` | Session recording | `format_entry/3`, `replay/3`, `metadata/1` |
 | `RecorderServer` | Async file I/O | `start_link/1`, `record/3`, `stats/1` |
 | `Testing` | Test utilities | `start_mock_server/0`, `inject_message/2`, `assert_message_sent/3` |
+| `ClientSupervisor` | Pool management | `start_client/2`, `send_balanced/2`, `list_clients/0` |
+| `PoolRouter` | Health-based routing | `select_connection/1`, `calculate_health/1`, `pool_health/1` |
 
 ## Testing Strategy
 

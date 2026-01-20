@@ -17,6 +17,7 @@ A robust WebSocket client library for Elixir, built on Gun transport for product
 - **Comprehensive Error Handling** - Categorized errors with recovery strategies
 - **Rate Limiting** - Configurable token bucket algorithm
 - **JSON-RPC 2.0** - Full protocol support with correlation tracking
+- **Pool Load Balancing** - Health-based routing with automatic failover
 - **Session Recording** - JSONL message recording for debugging and replay
 - **Test Utilities** - Consumer-facing test helpers with mock server
 
@@ -125,6 +126,31 @@ end)
 # => %{count: 42, inbound: 30, outbound: 12, duration_ms: 5000, ...}
 ```
 
+### Connection Pool Load Balancing
+
+Route messages to the healthiest connection in a pool:
+
+```elixir
+# Start the supervisor in your application
+{:ok, _} = ZenWebsocket.ClientSupervisor.start_link([])
+
+# Create multiple supervised connections
+{:ok, _client1} = ZenWebsocket.ClientSupervisor.start_client("wss://api.example.com/ws")
+{:ok, _client2} = ZenWebsocket.ClientSupervisor.start_client("wss://api.example.com/ws")
+{:ok, _client3} = ZenWebsocket.ClientSupervisor.start_client("wss://api.example.com/ws")
+
+# Send messages with automatic load balancing
+# Routes to healthiest connection based on: pending requests, latency, errors
+:ok = ZenWebsocket.ClientSupervisor.send_balanced(message)
+
+# Automatic failover on connection failure (max 3 attempts by default)
+:ok = ZenWebsocket.ClientSupervisor.send_balanced(message, max_attempts: 5)
+
+# Check pool health
+health = ZenWebsocket.PoolRouter.pool_health(ZenWebsocket.ClientSupervisor.list_clients())
+# => [%{pid: #PID<0.123.0>, health: 95}, %{pid: #PID<0.124.0>, health: 87}, ...]
+```
+
 ### Deribit Integration
 
 ```elixir
@@ -175,6 +201,7 @@ ZenWebsocket.SubscriptionManager # Subscription tracking and restoration
 ZenWebsocket.RequestCorrelator   # Request/response correlation tracking
 ZenWebsocket.Recorder            # Session recording (pure functions)
 ZenWebsocket.RecorderServer      # Async file I/O for recording
+ZenWebsocket.PoolRouter          # Health-based connection pool routing
 ZenWebsocket.Testing             # Consumer-facing test utilities
 ```
 

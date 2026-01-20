@@ -99,6 +99,92 @@ opts = [
 ]
 ```
 
+## Custom Client Discovery (Distributed Applications)
+
+For distributed applications using `:pg`, `Horde`, or other registries, ZenWebsocket provides hooks to integrate with your registry of choice.
+
+### Lifecycle Callbacks
+
+Register clients with your registry using `on_connect`/`on_disconnect`:
+
+```elixir
+{:ok, client} = ZenWebsocket.ClientSupervisor.start_client(
+  "wss://api.example.com/ws",
+  on_connect: fn pid -> :pg.join(:ws_pool, pid) end,
+  on_disconnect: fn pid -> :pg.leave(:ws_pool, pid) end
+)
+```
+
+**Important:** `on_disconnect` is called during `terminate/2`, which requires a graceful shutdown. It will NOT be called if the process is killed with `:kill` signal.
+
+### Custom Discovery for Load Balancing
+
+Use `client_discovery` to route messages across nodes:
+
+```elixir
+ZenWebsocket.ClientSupervisor.send_balanced(
+  message,
+  client_discovery: fn -> :pg.get_members(:ws_pool) end
+)
+```
+
+Without `client_discovery`, `send_balanced/2` defaults to `list_clients/0` (local connections only).
+
+### Example: Multi-Node Setup with pg
+
+```elixir
+# Node A and Node B both run:
+:pg.start_link()
+
+# Define callbacks once
+defmodule MyApp.WSCallbacks do
+  def on_connect(pid), do: :pg.join(:ws_pool, pid)
+  def on_disconnect(pid), do: :pg.leave(:ws_pool, pid)
+end
+
+# Start clients with pg callbacks
+{:ok, _} = ZenWebsocket.ClientSupervisor.start_client(url,
+  on_connect: &MyApp.WSCallbacks.on_connect/1,
+  on_disconnect: &MyApp.WSCallbacks.on_disconnect/1
+)
+
+# Route to any healthy client across all nodes
+ZenWebsocket.ClientSupervisor.send_balanced(msg,
+  client_discovery: fn -> :pg.get_members(:ws_pool) end
+)
+```
+
+### Example: Horde Registry
+
+```elixir
+# With Horde for distributed process registry
+{:ok, _} = ZenWebsocket.ClientSupervisor.start_client(url,
+  on_connect: fn pid ->
+    Horde.Registry.register(MyApp.WSRegistry, {:ws_client, pid}, pid)
+  end,
+  on_disconnect: fn pid ->
+    Horde.Registry.unregister(MyApp.WSRegistry, {:ws_client, pid})
+  end
+)
+
+# Custom discovery using Horde
+ZenWebsocket.ClientSupervisor.send_balanced(msg,
+  client_discovery: fn ->
+    Horde.Registry.select(MyApp.WSRegistry, [{{:ws_client, :_}, :_, :"$1"}, [], [:"$1"]}])
+  end
+)
+```
+
+### Callback Error Handling
+
+Callback errors are caught and logged - they won't crash the client or prevent connection/termination:
+
+```elixir
+# This won't crash the client
+on_connect: fn _pid -> raise "intentional error" end
+# Warning logged: "Lifecycle callback error: %RuntimeError{message: \"intentional error\"}"
+```
+
 ## Session Recording
 
 Record WebSocket sessions for debugging, testing, and replay:

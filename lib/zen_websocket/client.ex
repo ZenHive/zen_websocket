@@ -124,7 +124,9 @@ defmodule ZenWebsocket.Client do
           connect_start_time: integer() | nil,
           latency_stats: LatencyStats.t(),
           # Session recording
-          recorder_pid: pid() | nil
+          recorder_pid: pid() | nil,
+          # Lifecycle callback (invoked on terminate)
+          on_disconnect: (pid() -> any()) | nil
         }
 
   @doc """
@@ -344,6 +346,10 @@ defmodule ZenWebsocket.Client do
 
   @impl true
   def init({%ZenWebsocket.Config{} = config, opts}) do
+    # Trap exits to ensure terminate/2 is called on shutdown.
+    # This is required for on_disconnect callbacks when terminated via supervisor.
+    Process.flag(:trap_exit, true)
+
     # Setup message handler callback
     handler = Keyword.get(opts, :handler, &ZenWebsocket.MessageHandler.default_handler/1)
 
@@ -355,6 +361,9 @@ defmodule ZenWebsocket.Client do
 
     # Start recorder if configured
     recorder_pid = maybe_start_recorder(config.record_to)
+
+    # Get lifecycle callback
+    on_disconnect = Keyword.get(opts, :on_disconnect)
 
     initial_state = %{
       config: config,
@@ -378,7 +387,9 @@ defmodule ZenWebsocket.Client do
       connect_start_time: nil,
       latency_stats: LatencyStats.new(max_size: latency_buffer_size),
       # Session recording
-      recorder_pid: recorder_pid
+      recorder_pid: recorder_pid,
+      # Lifecycle callback
+      on_disconnect: on_disconnect
     }
 
     {:ok, initial_state, {:continue, :connect}}
@@ -730,7 +741,21 @@ defmodule ZenWebsocket.Client do
   @impl true
   def terminate(_reason, state) do
     maybe_stop_recorder(state.recorder_pid)
+    maybe_invoke_on_disconnect(state.on_disconnect)
     :ok
+  end
+
+  # Safely invokes the on_disconnect callback, catching and logging any errors.
+  @spec maybe_invoke_on_disconnect((pid() -> any()) | nil) :: :ok
+  defp maybe_invoke_on_disconnect(nil), do: :ok
+
+  defp maybe_invoke_on_disconnect(callback) when is_function(callback, 1) do
+    callback.(self())
+    :ok
+  rescue
+    error ->
+      Logger.warning("on_disconnect callback error: #{inspect(error)}")
+      :ok
   end
 
   # Private functions

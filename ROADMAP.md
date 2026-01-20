@@ -16,6 +16,7 @@
 | 1 | **R020**: Test Helpers Module | 🚀 1.5 | Consumer-facing test utilities | ✅ Complete |
 | 2 | **R019**: Session Recording | 🚀 1.4 | Message recording for debugging | ✅ Complete |
 | 3 | **R023**: Docs Rewrite | 🎯 2.5 | USAGE_RULES.md + AGENTS.md | ✅ Complete |
+| 4 | **R022**: Pool Load Balancing | 📋 1.0 | Health-based connection routing | ✅ Complete |
 
 **Order:** All v0.3.0 tasks complete. Ready to publish.
 
@@ -158,9 +159,9 @@ Add tests for edge cases and error scenarios.
 
 ### Phase 8: User Experience (Continued)
 
-#### Task R022: Connection Pool Load Balancing
+#### Task R022: Connection Pool Load Balancing ✅
 
-**[D:6/B:6 → Priority:1.0]** 📋
+**[D:6/B:6 → Priority:1.0]** 📋 — **Complete**
 
 Add load balancing to existing ClientSupervisor infrastructure.
 
@@ -169,12 +170,12 @@ Add load balancing to existing ClientSupervisor infrastructure.
 **Depends on:** R017 (latency metrics needed for health scoring) ✅ Complete
 
 **Success criteria:**
-- [ ] `ClientSupervisor.send_balanced/2` routes to healthiest connection
-- [ ] Health score based on: pending requests, latency, error rate
-- [ ] Round-robin fallback when all connections have equal health
-- [ ] Automatic failover when connection dies
-- [ ] Telemetry for pool utilization metrics
-- [ ] Integration tests with multiple connections
+- [x] `ClientSupervisor.send_balanced/2` routes to healthiest connection
+- [x] Health score based on: pending requests, latency, error rate
+- [x] Round-robin fallback when all connections have equal health
+- [x] Automatic failover when connection dies
+- [x] Telemetry for pool utilization metrics
+- [x] Integration tests with multiple connections
 
 ---
 
@@ -203,6 +204,87 @@ Move Deribit-specific business logic to market_maker project (per WNX0028 analys
 - [ ] No broken imports or dependencies
 
 **Revisit when:** market_maker project has core infrastructure in place.
+
+---
+
+### Task R024: Custom Client Discovery Hooks
+
+**[D:4/B:6 → Priority:1.5]** 📋 — **Future**
+
+Add hooks for applications to integrate their own client discovery/registry.
+
+**Philosophy:** Clustering is application concern, not library concern. The library should provide hooks, not mandate solutions.
+
+**Current state:** `ClientSupervisor.list_clients/0` only discovers local children. This is correct for a library - applications own distribution.
+
+**Goal:** Enable applications to plug in custom registries (pg, Horde, :global, etc.) without library changes.
+
+**Proposed API:**
+```elixir
+# Option 1: Discovery function
+ClientSupervisor.send_balanced(msg, client_discovery: fn -> MyRegistry.list_ws_clients() end)
+
+# Option 2: Callbacks for registration
+ClientSupervisor.start_client(url,
+  on_connect: fn pid -> :pg.join(:ws_pool, pid) end,
+  on_disconnect: fn pid -> :pg.leave(:ws_pool, pid) end
+)
+```
+
+**Success criteria:**
+- [ ] `send_balanced/2` accepts optional `client_discovery` function
+- [ ] Optional `on_connect`/`on_disconnect` callbacks in `start_client/2`
+- [ ] Default behavior unchanged (local discovery)
+- [ ] Documentation with pg/Horde integration examples
+- [ ] Tests with custom discovery function
+
+**Implementation notes:**
+- Keep changes minimal - just hooks, no clustering logic
+- Applications bring their own registry
+- Health checks already work with remote PIDs (GenServer.call)
+
+---
+
+### Task R025: Deployment Guide for Trading Applications
+
+**[D:3/B:5 → Priority:1.7]** 📋 — **Future**
+
+Add deployment considerations guide for trading applications using zen_websocket.
+
+**Scope:** Educational documentation, not prescriptive. Help users make informed decisions.
+
+**Topics to cover:**
+- **Latency considerations**
+  - Geographic proximity to exchanges matters for HFT
+  - Common exchange locations (Tokyo, Frankfurt, Chicago, Singapore, London)
+  - Co-location vs cloud trade-offs
+
+- **Cloud provider regions**
+  - AWS regions near major exchanges
+  - Fly.io edge locations
+  - When cloud latency is "good enough" (non-HFT strategies)
+
+- **Connection architecture**
+  - Single node vs distributed
+  - When to use connection pools
+  - Failover patterns
+
+- **Monitoring in production**
+  - Telemetry events to watch
+  - Latency percentiles that matter
+  - Alert thresholds
+
+**Success criteria:**
+- [ ] `docs/guides/deployment_considerations.md` created
+- [ ] Covers latency, geography, architecture trade-offs
+- [ ] Includes "questions to ask yourself" framework
+- [ ] Links to exchange-specific latency data where available
+- [ ] Not prescriptive - helps users decide based on their use case
+
+**Implementation notes:**
+- This is guidance, not the library's responsibility
+- Focus on "things to consider" not "do this"
+- Acknowledge different strategies have different needs
 
 ---
 
@@ -265,7 +347,7 @@ Key context for picking up this roadmap:
 - R019 (Recording) → `ZenWebsocket.Recorder` + `RecorderServer`, hooks in Client.ex
 - R020 (Test Helpers) → `ZenWebsocket.Testing` exposes MockWebSockServer to consumers
 - R023 (Docs) → Updated USAGE_RULES.md with new features, created AGENTS.md for AI agents
-- R022 (Pool) → extends ClientSupervisor with load balancing (backlog, not v0.3.0)
+- R022 (Pool) → `ZenWebsocket.PoolRouter` + `ClientSupervisor.send_balanced/2` for health-based routing
 
 The project has excellent documentation. Read:
 - `CLAUDE.md` for project principles
