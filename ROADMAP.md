@@ -1,6 +1,6 @@
 # ZenWebsocket Roadmap
 
-**Status:** Production-ready, v0.2.0 published on hex.pm
+**Status:** Production-ready, v0.3.0 published on hex.pm
 **Completed work:** See [CHANGELOG.md](CHANGELOG.md) for finished tasks (search by task ID: R001, R017, etc.).
 
 ---
@@ -18,7 +18,7 @@
 | 3 | **R023**: Docs Rewrite | 🎯 2.5 | USAGE_RULES.md + AGENTS.md | ✅ Complete |
 | 4 | **R022**: Pool Load Balancing | 📋 1.0 | Health-based connection routing | ✅ Complete |
 
-**Order:** All v0.3.0 tasks complete. Ready to publish.
+**Order:** All v0.3.0 tasks complete. Published 2026-01-21.
 
 ### Quick Commands
 ```bash
@@ -338,10 +338,9 @@ Example files like `deribit_rpc.ex` are:
 Key context for picking up this roadmap:
 
 1. **The library works well** - This is improvement, not emergency repair
-2. **v0.2.0 is published** - Latency telemetry, error explanations, backpressure all shipped
-3. **v0.3.0 is ready to publish** - All features and docs complete
-4. **R014 is blocked** - Depends on external market_maker project
-5. **Real API testing is non-negotiable** - Project principle, don't add mocks
+2. **v0.3.0 is published** - Pool routing, session recording, test helpers, docs rewrite
+3. **R014 is blocked** - Depends on external market_maker project
+4. **Real API testing is non-negotiable** - Project principle, don't add mocks
 
 **What was implemented for v0.3.0:**
 - R019 (Recording) → `ZenWebsocket.Recorder` + `RecorderServer`, hooks in Client.ex
