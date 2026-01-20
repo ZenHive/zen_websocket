@@ -11,6 +11,20 @@ defmodule ZenWebsocket.Helpers.Deribit do
   @spec handle_heartbeat(map(), map()) :: map()
   def handle_heartbeat(%{"params" => %{"type" => "test_request"}}, state) do
     Logger.info("🚨 [DERIBIT TEST_REQUEST] Auto-responding...")
+    now = System.monotonic_time(:millisecond)
+
+    # Emit heartbeat interval telemetry if we have a previous timestamp
+    # Note: This measures time between heartbeat responses (heartbeat regularity),
+    # not true round-trip time which would require tracking when requests are sent
+    if state.last_heartbeat_at do
+      rtt_ms = now - state.last_heartbeat_at
+
+      :telemetry.execute(
+        [:zen_websocket, :heartbeat, :pong],
+        %{rtt_ms: rtt_ms},
+        %{type: :deribit_test_request}
+      )
+    end
 
     # Send immediate test response
     response =
@@ -29,11 +43,13 @@ defmodule ZenWebsocket.Helpers.Deribit do
     %{
       state
       | active_heartbeats: MapSet.put(state.active_heartbeats, :deribit_test_request),
-        last_heartbeat_at: System.system_time(:millisecond),
+        last_heartbeat_at: now,
         heartbeat_failures: 0
     }
   end
 
+  @doc false
+  # Catch-all clause for non-test_request heartbeat messages
   def handle_heartbeat(_msg, state), do: state
 
   @doc """

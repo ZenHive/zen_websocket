@@ -45,16 +45,17 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
   end
 
   describe "track/4" do
-    test "adds request to pending_requests map" do
+    test "adds request to pending_requests map with timestamp" do
       state = build_state()
       from = {self(), make_ref()}
 
       new_state = RequestCorrelator.track(state, 42, from, 5000)
 
       assert Map.has_key?(new_state.pending_requests, 42)
-      {stored_from, timeout_ref} = new_state.pending_requests[42]
+      {stored_from, timeout_ref, start_time} = new_state.pending_requests[42]
       assert stored_from == from
       assert is_reference(timeout_ref)
+      assert is_integer(start_time)
 
       # Clean up timer
       Process.cancel_timer(timeout_ref)
@@ -66,7 +67,7 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
 
       # Use short timeout for testing
       new_state = RequestCorrelator.track(state, "test-id", from, 50)
-      {_from, _timeout_ref} = new_state.pending_requests["test-id"]
+      {_from, _timeout_ref, _start_time} = new_state.pending_requests["test-id"]
 
       # Should receive timeout message
       assert_receive {:correlation_timeout, "test-id"}, 200
@@ -87,7 +88,7 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       assert Map.has_key?(state.pending_requests, 2)
 
       # Clean up timers
-      for {_id, {_from, timer_ref}} <- state.pending_requests do
+      for {_id, {_from, timer_ref, _start_time}} <- state.pending_requests do
         Process.cancel_timer(timer_ref)
       end
     end
@@ -97,11 +98,12 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
     test "returns entry and removes request from pending" do
       from = {self(), make_ref()}
       timeout_ref = make_ref()
-      state = build_state(%{pending_requests: %{42 => {from, timeout_ref}}})
+      start_time = System.monotonic_time(:millisecond)
+      state = build_state(%{pending_requests: %{42 => {from, timeout_ref, start_time}}})
 
       {entry, new_state} = RequestCorrelator.resolve(state, 42)
 
-      assert entry == {from, timeout_ref}
+      assert entry == {from, timeout_ref, start_time}
       refute Map.has_key?(new_state.pending_requests, 42)
     end
 
@@ -120,7 +122,8 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
     end
 
     test "returns nil for unknown request ID" do
-      state = build_state(%{pending_requests: %{42 => {{self(), make_ref()}, make_ref()}}})
+      start_time = System.monotonic_time(:millisecond)
+      state = build_state(%{pending_requests: %{42 => {{self(), make_ref()}, make_ref(), start_time}}})
 
       {entry, new_state} = RequestCorrelator.resolve(state, 999)
 
@@ -143,11 +146,12 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
     test "returns entry and removes request from pending" do
       from = {self(), make_ref()}
       timeout_ref = make_ref()
-      state = build_state(%{pending_requests: %{42 => {from, timeout_ref}}})
+      start_time = System.monotonic_time(:millisecond)
+      state = build_state(%{pending_requests: %{42 => {from, timeout_ref, start_time}}})
 
       {entry, new_state} = RequestCorrelator.timeout(state, 42)
 
-      assert entry == {from, timeout_ref}
+      assert entry == {from, timeout_ref, start_time}
       refute Map.has_key?(new_state.pending_requests, 42)
     end
 
@@ -163,7 +167,8 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
     test "returns nil for unknown request ID" do
       from = {self(), make_ref()}
       timeout_ref = make_ref()
-      state = build_state(%{pending_requests: %{42 => {from, timeout_ref}}})
+      start_time = System.monotonic_time(:millisecond)
+      state = build_state(%{pending_requests: %{42 => {from, timeout_ref, start_time}}})
 
       {entry, new_state} = RequestCorrelator.timeout(state, 999)
 
@@ -180,12 +185,14 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
     end
 
     test "returns correct count for non-empty pending_requests" do
+      now = System.monotonic_time(:millisecond)
+
       state =
         build_state(%{
           pending_requests: %{
-            1 => {{self(), make_ref()}, make_ref()},
-            2 => {{self(), make_ref()}, make_ref()},
-            3 => {{self(), make_ref()}, make_ref()}
+            1 => {{self(), make_ref()}, make_ref(), now},
+            2 => {{self(), make_ref()}, make_ref(), now},
+            3 => {{self(), make_ref()}, make_ref(), now}
           }
         })
 
@@ -224,18 +231,24 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
                       %{id: 42, timeout_ms: 5000}}
 
       # Clean up timer
-      {_from, timer_ref} = new_state.pending_requests[42]
+      {_from, timer_ref, _start_time} = new_state.pending_requests[42]
       Process.cancel_timer(timer_ref)
     end
 
-    test "emits telemetry event on resolve" do
+    test "emits telemetry event on resolve with round_trip_ms" do
       from = {self(), make_ref()}
       timeout_ref = make_ref()
-      state = build_state(%{pending_requests: %{42 => {from, timeout_ref}}})
+      start_time = System.monotonic_time(:millisecond) - 50
+      state = build_state(%{pending_requests: %{42 => {from, timeout_ref, start_time}}})
 
       RequestCorrelator.resolve(state, 42)
 
-      assert_receive {:telemetry_event, [:zen_websocket, :request_correlator, :resolve], %{count: 1}, %{id: 42}}
+      assert_receive {:telemetry_event, [:zen_websocket, :request_correlator, :resolve],
+                      %{count: 1, round_trip_ms: round_trip_ms}, %{id: 42}}
+
+      # round_trip_ms should be approximately 50ms (with some tolerance)
+      assert round_trip_ms >= 50
+      assert round_trip_ms < 200
     end
 
     test "does not emit resolve telemetry for unknown ID" do
@@ -249,7 +262,8 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
     test "emits telemetry event on timeout" do
       from = {self(), make_ref()}
       timeout_ref = make_ref()
-      state = build_state(%{pending_requests: %{42 => {from, timeout_ref}}})
+      start_time = System.monotonic_time(:millisecond)
+      state = build_state(%{pending_requests: %{42 => {from, timeout_ref, start_time}}})
 
       RequestCorrelator.timeout(state, 42)
 
@@ -275,7 +289,7 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       assert RequestCorrelator.pending_count(state) == 1
 
       # Resolve request
-      {{resolved_from, _timer_ref}, state} = RequestCorrelator.resolve(state, "req-1")
+      {{resolved_from, _timer_ref, _start_time}, state} = RequestCorrelator.resolve(state, "req-1")
       assert resolved_from == from
       assert RequestCorrelator.pending_count(state) == 0
     end
@@ -292,7 +306,7 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       assert_receive {:correlation_timeout, "req-1"}, 100
 
       # Handle timeout
-      {{timed_out_from, _timer_ref}, state} = RequestCorrelator.timeout(state, "req-1")
+      {{timed_out_from, _timer_ref, _start_time}, state} = RequestCorrelator.timeout(state, "req-1")
       assert timed_out_from == from
       assert RequestCorrelator.pending_count(state) == 0
     end

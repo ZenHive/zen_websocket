@@ -19,7 +19,9 @@ defmodule ZenWebsocket.RateLimiterTest do
       }
 
       assert {:ok, ^name} = RateLimiter.init(name, config)
-      assert {:ok, %{tokens: 100, queue_size: 0}} = RateLimiter.status(name)
+
+      assert {:ok, %{tokens: 100, queue_size: 0, pressure_level: :none, suggested_delay_ms: 0}} =
+               RateLimiter.status(name)
     end
 
     test "consumes tokens based on cost function", %{name: name} do
@@ -102,7 +104,8 @@ defmodule ZenWebsocket.RateLimiterTest do
 
     test "processes queue when tokens available", %{name: name} do
       config = %{
-        tokens: 10,
+        # Bucket capacity must be >= refill_rate + request_cost for this test
+        tokens: 30,
         refill_rate: 20,
         refill_interval: 100,
         request_cost: fn _ -> 15 end
@@ -110,13 +113,18 @@ defmodule ZenWebsocket.RateLimiterTest do
 
       {:ok, ^name} = RateLimiter.init(name, config)
 
-      # Queue request needing 15 tokens
-      assert {:error, :rate_limited} = RateLimiter.consume(name, %{})
-      assert {:ok, %{tokens: 10, queue_size: 1}} = RateLimiter.status(name)
+      # Consume 30 tokens to empty bucket, then queue next request
+      assert :ok = RateLimiter.consume(name, %{})
+      assert :ok = RateLimiter.consume(name, %{})
+      assert {:ok, %{tokens: 0, queue_size: 0}} = RateLimiter.status(name)
 
-      # Refill adds 20 tokens, should process queued request
+      # Queue request needing 15 tokens (bucket empty)
+      assert {:error, :rate_limited} = RateLimiter.consume(name, %{})
+      assert {:ok, %{tokens: 0, queue_size: 1}} = RateLimiter.status(name)
+
+      # Refill adds 20 tokens, should process queued request (20 - 15 = 5)
       RateLimiter.refill(name)
-      assert {:ok, %{tokens: 15, queue_size: 0}} = RateLimiter.status(name)
+      assert {:ok, %{tokens: 5, queue_size: 0}} = RateLimiter.status(name)
     end
   end
 
@@ -422,6 +430,190 @@ defmodule ZenWebsocket.RateLimiterTest do
       assert measurements.tokens_after == 75
       assert measurements.refill_rate == 25
       assert metadata.name == name
+    end
+  end
+
+  describe "backpressure signaling" do
+    setup do
+      test_pid = self()
+      handler_id = "test-pressure-handler-#{System.unique_integer()}"
+
+      :telemetry.attach(
+        handler_id,
+        [:zen_websocket, :rate_limiter, :pressure],
+        fn event, measurements, metadata, _config ->
+          send(test_pid, {:telemetry, event, measurements, metadata})
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      :ok
+    end
+
+    test "emits pressure event when crossing low threshold (25%)", %{name: name} do
+      config = %{
+        tokens: 1,
+        refill_rate: 0,
+        refill_interval: 10_000,
+        request_cost: fn _ -> 10 end,
+        max_queue_size: 20
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+
+      # Fill queue to 25% (5 items in a 20-item queue)
+      for _ <- 1..5 do
+        {:error, :rate_limited} = RateLimiter.consume(name, %{})
+      end
+
+      assert_receive {:telemetry, [:zen_websocket, :rate_limiter, :pressure], measurements, metadata}
+      assert measurements.queue_size == 5
+      assert_in_delta measurements.ratio, 0.25, 0.01
+      assert metadata.level == :low
+      assert metadata.previous_level == :none
+    end
+
+    test "emits pressure event when crossing medium threshold (50%)", %{name: name} do
+      config = %{
+        tokens: 1,
+        refill_rate: 0,
+        refill_interval: 10_000,
+        request_cost: fn _ -> 10 end,
+        max_queue_size: 20
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+
+      # Fill queue to 50% (10 items)
+      for _ <- 1..10 do
+        {:error, :rate_limited} = RateLimiter.consume(name, %{})
+      end
+
+      # Should receive low (at 5) and medium (at 10) events
+      assert_receive {:telemetry, [:zen_websocket, :rate_limiter, :pressure], _, %{level: :low}}
+      assert_receive {:telemetry, [:zen_websocket, :rate_limiter, :pressure], measurements, metadata}
+      assert metadata.level == :medium
+      assert metadata.previous_level == :low
+      assert_in_delta measurements.ratio, 0.50, 0.01
+    end
+
+    test "emits pressure event when crossing high threshold (75%)", %{name: name} do
+      config = %{
+        tokens: 1,
+        refill_rate: 0,
+        refill_interval: 10_000,
+        request_cost: fn _ -> 10 end,
+        max_queue_size: 20
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+
+      # Fill queue to 75% (15 items)
+      for _ <- 1..15 do
+        {:error, :rate_limited} = RateLimiter.consume(name, %{})
+      end
+
+      # Should receive low, medium, and high events
+      assert_receive {:telemetry, [:zen_websocket, :rate_limiter, :pressure], _, %{level: :low}}
+      assert_receive {:telemetry, [:zen_websocket, :rate_limiter, :pressure], _, %{level: :medium}}
+      assert_receive {:telemetry, [:zen_websocket, :rate_limiter, :pressure], measurements, metadata}
+      assert metadata.level == :high
+      assert metadata.previous_level == :medium
+      assert_in_delta measurements.ratio, 0.75, 0.01
+    end
+
+    test "status includes pressure_level and suggested_delay_ms", %{name: name} do
+      config = %{
+        tokens: 1,
+        refill_rate: 0,
+        refill_interval: 1000,
+        request_cost: fn _ -> 10 end,
+        max_queue_size: 20
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+
+      # Initially no pressure
+      {:ok, status} = RateLimiter.status(name)
+      assert status.pressure_level == :none
+      assert status.suggested_delay_ms == 0
+
+      # Fill to 25% (low pressure)
+      for _ <- 1..5 do
+        {:error, :rate_limited} = RateLimiter.consume(name, %{})
+      end
+
+      {:ok, status} = RateLimiter.status(name)
+      assert status.pressure_level == :low
+      assert status.suggested_delay_ms == 1000
+
+      # Fill to 50% (medium pressure)
+      for _ <- 1..5 do
+        {:error, :rate_limited} = RateLimiter.consume(name, %{})
+      end
+
+      {:ok, status} = RateLimiter.status(name)
+      assert status.pressure_level == :medium
+      assert status.suggested_delay_ms == 2000
+
+      # Fill to 75% (high pressure)
+      for _ <- 1..5 do
+        {:error, :rate_limited} = RateLimiter.consume(name, %{})
+      end
+
+      {:ok, status} = RateLimiter.status(name)
+      assert status.pressure_level == :high
+      assert status.suggested_delay_ms == 4000
+    end
+
+    test "emits pressure event when queue drains below threshold", %{name: name} do
+      config = %{
+        # Bucket capacity must be large enough to allow refill and processing
+        tokens: 200,
+        refill_rate: 100,
+        refill_interval: 100,
+        request_cost: fn _ -> 10 end,
+        max_queue_size: 20
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+
+      # First exhaust tokens to enable queueing (200 / 10 = 20 requests)
+      for _ <- 1..20 do
+        assert :ok = RateLimiter.consume(name, %{})
+      end
+
+      assert {:ok, %{tokens: 0}} = RateLimiter.status(name)
+
+      # Fill queue to high pressure (15 items = 75% of max_queue_size 20)
+      for _ <- 1..15 do
+        {:error, :rate_limited} = RateLimiter.consume(name, %{})
+      end
+
+      # Clear the queue events
+      :timer.sleep(50)
+
+      receive do
+        {:telemetry, [:zen_websocket, :rate_limiter, :pressure], _, %{level: :low}} -> :ok
+      end
+
+      receive do
+        {:telemetry, [:zen_websocket, :rate_limiter, :pressure], _, %{level: :medium}} -> :ok
+      end
+
+      receive do
+        {:telemetry, [:zen_websocket, :rate_limiter, :pressure], _, %{level: :high}} -> :ok
+      end
+
+      # Refill adds 100 tokens, processes 10 items (100 / 10 = 10)
+      RateLimiter.refill(name)
+
+      # After processing, queue should be smaller (15 - 10 = 5)
+      {:ok, status} = RateLimiter.status(name)
+      assert status.queue_size < 15
+      assert status.queue_size == 5
     end
   end
 end

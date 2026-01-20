@@ -121,11 +121,25 @@ defmodule ZenWebsocket.HeartbeatManager do
   @spec handle_generic_heartbeat(map(), state()) :: state()
   defp handle_generic_heartbeat(%{"method" => "heartbeat", "params" => %{"type" => type}}, state) do
     Logger.info("💚 [PLATFORM HEARTBEAT] Type: #{type}")
+    now = System.monotonic_time(:millisecond)
+
+    # Emit heartbeat interval telemetry if we have a previous timestamp
+    # Note: This measures time between heartbeat responses (heartbeat regularity),
+    # not true round-trip time which would require tracking when requests are sent
+    if state.last_heartbeat_at do
+      rtt_ms = now - state.last_heartbeat_at
+
+      :telemetry.execute(
+        [:zen_websocket, :heartbeat, :pong],
+        %{rtt_ms: rtt_ms},
+        %{type: type}
+      )
+    end
 
     %{
       state
       | active_heartbeats: MapSet.put(state.active_heartbeats, type),
-        last_heartbeat_at: System.monotonic_time(:millisecond),
+        last_heartbeat_at: now,
         heartbeat_failures: 0
     }
   end

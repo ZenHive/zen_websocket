@@ -15,6 +15,7 @@ defmodule ZenWebsocket.Config do
   - `:restore_subscriptions` - Whether to restore subscriptions after reconnect (default: true)
   - `:request_timeout` - Timeout for correlated requests in ms (default: 30000)
   - `:debug` - Enable verbose debug logging (default: false)
+  - `:latency_buffer_size` - Size of circular buffer for latency stats (default: 100)
 
   ## Examples
 
@@ -46,7 +47,8 @@ defmodule ZenWebsocket.Config do
     reconnect_on_error: true,
     restore_subscriptions: true,
     request_timeout: 30_000,
-    debug: false
+    debug: false,
+    latency_buffer_size: 100
   ]
 
   @type t :: %__MODULE__{
@@ -60,7 +62,8 @@ defmodule ZenWebsocket.Config do
           reconnect_on_error: boolean(),
           restore_subscriptions: boolean(),
           request_timeout: pos_integer(),
-          debug: boolean()
+          debug: boolean(),
+          latency_buffer_size: pos_integer()
         }
 
   @doc """
@@ -112,6 +115,9 @@ defmodule ZenWebsocket.Config do
 
       config.request_timeout <= 0 ->
         {:error, "Request timeout must be positive"}
+
+      config.latency_buffer_size <= 0 ->
+        {:error, "Latency buffer size must be positive"}
 
       true ->
         {:ok, config}

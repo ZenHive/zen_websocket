@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `ErrorHandler.explain/1` returns human-readable error messages with fix suggestions (R018)
+- `ZenWebsocket.LatencyStats` module for bounded circular buffer latency statistics (R017)
+- `Client.get_latency_stats/1` returns p50/p99/last/count latency metrics (R017)
+- Telemetry event `[:zen_websocket, :connection, :upgrade]` with `connect_time_ms` measurement (R017)
+- Telemetry event `[:zen_websocket, :heartbeat, :pong]` with `rtt_ms` measurement (R017)
+- Telemetry event `[:zen_websocket, :rate_limiter, :pressure]` for backpressure signaling (R021)
+- Config option `latency_buffer_size` (default: 100) for latency stats circular buffer (R017)
+- `RateLimiter.status/1` now returns `pressure_level` and `suggested_delay_ms` fields (R021)
 - `ZenWebsocket.HeartbeatManager` module for heartbeat lifecycle management (R001)
 - `ZenWebsocket.SubscriptionManager` module for subscription tracking and restoration (R002)
 - `ZenWebsocket.RequestCorrelator` module for JSON-RPC request/response correlation (R003)
@@ -26,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reconnection extreme value tests for nil max_backoff and zero retries (T004)
 
 ### Changed
+- RequestCorrelator now stores timestamps and emits `round_trip_ms` in resolve telemetry (R017)
+- RateLimiter tracks pressure level and emits threshold-crossing events at 25%/50%/75% queue fill (R021)
+- HeartbeatManager emits RTT telemetry on heartbeat responses (R017)
+- Client tracks connection timing from connect start to WebSocket upgrade (R017)
 - Test coverage metrics now exclude non-production modules (Examples, Test.Support, Mix.Tasks) - reported coverage ~38% → ~70% (T001)
 - Frame module now at 100% test coverage (T002)
 - Config module now at 100% test coverage (T003)

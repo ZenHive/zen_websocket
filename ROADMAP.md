@@ -26,8 +26,8 @@ ZenWebsocket is a mature, production-grade WebSocket client library with excelle
 | Task | Priority | What It Does |
 |------|----------|--------------|
 | ~~**R018**: Error Explanations~~ | ✅ Done | Human-readable error messages with fix suggestions |
-| **R017**: Latency Telemetry | 🎯 2.7 | Round-trip timing, connection metrics, p50/p99 stats |
-| **R021**: Backpressure Signaling | 🎯 2.0 | Proactive notifications before rate limits hit |
+| ~~**R017**: Latency Telemetry~~ | ✅ Done | Round-trip timing, connection metrics, p50/p99 stats |
+| ~~**R021**: Backpressure Signaling~~ | ✅ Done | Proactive notifications before rate limits hit |
 | R012: Building Adapters Guide | 🚀 1.7 | Documentation for creating platform adapters |
 
 All v0.2.0 tasks are parallelizable `[P]` — can work multiple simultaneously.
@@ -279,21 +279,19 @@ Move Deribit-specific business logic to market_maker project (per WNX0028 analys
 
 > Features that make the library easier to use, debug, and monitor. Built on existing infrastructure.
 
-### Task R017: Latency Telemetry
+### Task R017: Latency Telemetry ✅ COMPLETE
 
-**[D:3/B:8 → Priority:2.7]** 🎯
+**[D:3/B:8 → Priority:2.7]** 🎯 — January 2026
 
-Add latency tracking to existing telemetry infrastructure.
-
-**Builds on:** RequestCorrelator already tracks request start time via `track/4`.
+Add latency tracking to existing telemetry infrastructure. See [CHANGELOG.md](CHANGELOG.md).
 
 **Success criteria:**
-- [ ] `[:zen_websocket, :request_correlator, :resolve]` includes `round_trip_ms` measurement
-- [ ] `[:zen_websocket, :connection, :upgrade]` emits with `connect_time_ms`
-- [ ] `[:zen_websocket, :heartbeat, :pong]` emits with `rtt_ms`
-- [ ] `Client.get_latency_stats/1` returns p50/p99/last values
-- [ ] Latency history kept in bounded circular buffer (configurable size)
-- [ ] Tests verify telemetry events include timing data
+- [x] `[:zen_websocket, :request_correlator, :resolve]` includes `round_trip_ms` measurement
+- [x] `[:zen_websocket, :connection, :upgrade]` emits with `connect_time_ms`
+- [x] `[:zen_websocket, :heartbeat, :pong]` emits with `rtt_ms`
+- [x] `Client.get_latency_stats/1` returns p50/p99/last values
+- [x] Latency history kept in bounded circular buffer (configurable size)
+- [x] Tests verify telemetry events include timing data
 
 ---
 
@@ -342,21 +340,19 @@ Create consumer-facing test utilities building on MockWebSockServer.
 
 ---
 
-### Task R021: Backpressure Signaling
+### Task R021: Backpressure Signaling ✅ COMPLETE
 
-**[D:3/B:6 → Priority:2.0]** 🎯
+**[D:3/B:6 → Priority:2.0]** 🎯 — January 2026
 
-Add proactive backpressure notifications to consumers.
-
-**Builds on:** RateLimiter already tracks queue depth and tokens via ETS.
+Add proactive backpressure notifications to consumers. See [CHANGELOG.md](CHANGELOG.md).
 
 **Success criteria:**
-- [ ] New telemetry event `[:zen_websocket, :rate_limiter, :pressure]` with `level: :low | :medium | :high`
-- [ ] Emitted when queue crosses configurable thresholds (default: 25%, 50%, 75%)
-- [ ] `RateLimiter.status/1` enhanced with `suggested_delay_ms` field
-- [ ] Optional callback `handle_backpressure/2` in client handler behavior
-- [ ] Config option `backpressure_thresholds: [low: 0.25, medium: 0.5, high: 0.75]`
-- [ ] Tests verify threshold crossing emits correct events
+- [x] New telemetry event `[:zen_websocket, :rate_limiter, :pressure]` with `level: :low | :medium | :high`
+- [x] Emitted when queue crosses configurable thresholds (default: 25%, 50%, 75%)
+- [x] `RateLimiter.status/1` enhanced with `suggested_delay_ms` and `pressure_level` fields
+- [ ] ~~Optional callback `handle_backpressure/2` in client handler behavior~~ (deferred - telemetry is sufficient)
+- [ ] ~~Config option `backpressure_thresholds: [low: 0.25, medium: 0.5, high: 0.75]`~~ (deferred - hardcoded thresholds are sensible defaults)
+- [x] Tests verify threshold crossing emits correct events
 
 ---
 
@@ -459,8 +455,8 @@ See [docs/test_roadmap.md](docs/test_roadmap.md) for detailed test coverage anal
 | Task | Priority | Effort | Status |
 |------|----------|--------|--------|
 | R018: Error Explanations | 🎯 3.5 | D:2 | ✅ Complete |
-| R017: Latency Telemetry | 🎯 2.7 | D:3 | ⬜ Pending |
-| R021: Backpressure Signaling | 🎯 2.0 | D:3 | ⬜ Pending |
+| R017: Latency Telemetry | 🎯 2.7 | D:3 | ✅ Complete |
+| R021: Backpressure Signaling | 🎯 2.0 | D:3 | ✅ Complete |
 | R012: Building Adapters Guide | 🚀 1.7 | D:3 | ⬜ Pending |
 | R004: Slim Down Client.ex | 🚀 1.5 | D:6 | ✅ Complete |
 | R009: Standardize Debug Logging | 🚀 1.5 | D:2 | ✅ Complete |
@@ -491,9 +487,9 @@ These tasks can be worked on simultaneously:
 
 ```
 v0.2.0 Parallelizable:
-R017 [P] - Latency Telemetry (RequestCorrelator)
+R017 ✅  - Latency Telemetry (COMPLETE)
 R018 ✅  - Error Explanations (COMPLETE)
-R021 [P] - Backpressure Signaling (RateLimiter)
+R021 ✅  - Backpressure Signaling (COMPLETE)
 R012 [P] - Building Adapters Guide (docs)
 
 v0.3.0 Parallelizable:

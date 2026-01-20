@@ -1,4 +1,6 @@
 [
+  # LatencyStats uses :queue opaque type in struct - dialyzer warns about @spec
+  {"lib/zen_websocket/latency_stats.ex", :contract_with_opaque},
   # Mix.Task callback warnings are a known dialyzer issue
   {"lib/mix/tasks/stability_test.ex", :callback_info_missing},
   {"lib/mix/tasks/zen_websocket.usage.ex", :callback_info_missing},

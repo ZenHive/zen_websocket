@@ -14,7 +14,7 @@ defmodule ZenWebsocket.RequestCorrelator do
     * Metadata: `%{id: id, timeout_ms: timeout}`
 
   * `[:zen_websocket, :request_correlator, :resolve]` - Emitted when a response is matched.
-    * Measurements: `%{count: 1}`
+    * Measurements: `%{count: 1, round_trip_ms: milliseconds}`
     * Metadata: `%{id: id}`
 
   * `[:zen_websocket, :request_correlator, :timeout]` - Emitted when a request times out.
@@ -24,7 +24,7 @@ defmodule ZenWebsocket.RequestCorrelator do
 
   @typedoc "Client state map containing pending_requests field (subset of Client.state)"
   @type state :: %{
-          :pending_requests => %{optional(term()) => {GenServer.from(), reference()}},
+          :pending_requests => %{optional(term()) => {GenServer.from(), reference(), integer()}},
           optional(atom()) => term()
         }
 
@@ -54,7 +54,8 @@ defmodule ZenWebsocket.RequestCorrelator do
   @spec track(state(), term(), GenServer.from(), pos_integer()) :: state()
   def track(state, id, from, timeout_ms) do
     timeout_ref = Process.send_after(self(), {:correlation_timeout, id}, timeout_ms)
-    pending = Map.put(state.pending_requests, id, {from, timeout_ref})
+    start_time = System.monotonic_time(:millisecond)
+    pending = Map.put(state.pending_requests, id, {from, timeout_ref, start_time})
 
     :telemetry.execute(
       [:zen_websocket, :request_correlator, :track],
@@ -69,20 +70,21 @@ defmodule ZenWebsocket.RequestCorrelator do
   Resolves a pending request by ID, returning the caller info.
 
   Cancels the timeout timer and removes the request from pending.
-  Returns `{entry, new_state}` where entry is `{from, timeout_ref}` or `nil`.
+  Returns `{entry, new_state}` where entry is `{from, timeout_ref, start_time}` or `nil`.
   """
-  @spec resolve(state(), term()) :: {{GenServer.from(), reference()} | nil, state()}
+  @spec resolve(state(), term()) :: {{GenServer.from(), reference(), integer()} | nil, state()}
   def resolve(state, id) do
     case Map.pop(state.pending_requests, id) do
       {nil, _} ->
         {nil, state}
 
-      {{_from, timeout_ref} = entry, new_pending} ->
+      {{_from, timeout_ref, start_time} = entry, new_pending} ->
         Process.cancel_timer(timeout_ref)
+        round_trip_ms = System.monotonic_time(:millisecond) - start_time
 
         :telemetry.execute(
           [:zen_websocket, :request_correlator, :resolve],
-          %{count: 1},
+          %{count: 1, round_trip_ms: round_trip_ms},
           %{id: id}
         )
 
@@ -94,9 +96,9 @@ defmodule ZenWebsocket.RequestCorrelator do
   Handles a timeout for a pending request.
 
   Removes the request from pending and returns the caller info.
-  Returns `{entry, new_state}` where entry is `{from, timeout_ref}` or `nil`.
+  Returns `{entry, new_state}` where entry is `{from, timeout_ref, start_time}` or `nil`.
   """
-  @spec timeout(state(), term()) :: {{GenServer.from(), reference()} | nil, state()}
+  @spec timeout(state(), term()) :: {{GenServer.from(), reference(), integer()} | nil, state()}
   def timeout(state, id) do
     case Map.pop(state.pending_requests, id) do
       {nil, _} ->

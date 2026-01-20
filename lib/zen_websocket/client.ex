@@ -1,6 +1,4 @@
 defmodule ZenWebsocket.Client do
-  # GenServer.call needs extra time beyond the underlying operation timeout.
-  # This buffer accounts for message passing and scheduling overhead.
   @moduledoc """
   WebSocket client GenServer using Gun as transport layer.
 
@@ -74,11 +72,14 @@ defmodule ZenWebsocket.Client do
 
   alias ZenWebsocket.Debug
   alias ZenWebsocket.HeartbeatManager
+  alias ZenWebsocket.LatencyStats
   alias ZenWebsocket.RequestCorrelator
   alias ZenWebsocket.SubscriptionManager
 
   require Logger
 
+  # GenServer.call needs extra time beyond the underlying operation timeout.
+  # This buffer accounts for message passing and scheduling overhead.
   @genserver_call_buffer_ms 100
 
   # Minimum timeout ensures connection attempts have reasonable time,
@@ -111,14 +112,17 @@ defmodule ZenWebsocket.Client do
           handler: (term() -> term()),
           # Subscription tracking
           subscriptions: MapSet.t(String.t()),
-          # Request correlation
-          pending_requests: %{optional(term()) => {GenServer.from(), reference()}},
+          # Request correlation (from, timeout_ref, start_time)
+          pending_requests: %{optional(term()) => {GenServer.from(), reference(), integer()}},
           # Heartbeat tracking
           heartbeat_config: :disabled | map(),
           active_heartbeats: MapSet.t(term()),
           last_heartbeat_at: DateTime.t() | nil,
           heartbeat_failures: non_neg_integer(),
-          heartbeat_timer: reference() | nil
+          heartbeat_timer: reference() | nil,
+          # Latency tracking
+          connect_start_time: integer() | nil,
+          latency_stats: LatencyStats.t()
         }
 
   @doc """
@@ -304,6 +308,19 @@ defmodule ZenWebsocket.Client do
 
   def get_state_metrics(%__MODULE__{}), do: nil
 
+  @doc """
+  Gets latency statistics for request/response round-trip times.
+
+  Returns a map with p50, p99, last sample, and count, or nil if no samples yet.
+  """
+  @spec get_latency_stats(t()) ::
+          %{p50: non_neg_integer(), p99: non_neg_integer(), last: non_neg_integer(), count: non_neg_integer()} | nil
+  def get_latency_stats(%__MODULE__{server_pid: server_pid}) when is_pid(server_pid) do
+    GenServer.call(server_pid, :get_latency_stats)
+  end
+
+  def get_latency_stats(%__MODULE__{}), do: nil
+
   @spec reconnect(t()) :: {:ok, t()} | {:error, term()}
   def reconnect(%__MODULE__{url: url} = client) do
     close(client)
@@ -331,6 +348,9 @@ defmodule ZenWebsocket.Client do
     # Setup heartbeat configuration
     heartbeat_config = Keyword.get(opts, :heartbeat_config, :disabled)
 
+    # Get latency buffer size from config
+    latency_buffer_size = config.latency_buffer_size
+
     initial_state = %{
       config: config,
       gun_pid: nil,
@@ -346,7 +366,10 @@ defmodule ZenWebsocket.Client do
       active_heartbeats: MapSet.new(),
       last_heartbeat_at: nil,
       heartbeat_failures: 0,
-      heartbeat_timer: nil
+      heartbeat_timer: nil,
+      # Latency tracking
+      connect_start_time: nil,
+      latency_stats: LatencyStats.new(max_size: latency_buffer_size)
     }
 
     {:ok, initial_state, {:continue, :connect}}
@@ -358,6 +381,10 @@ defmodule ZenWebsocket.Client do
     Debug.log(state.config, "   🌐 URL: #{config.url}")
     Debug.log(state.config, "   ⏱️  Timeout: #{config.timeout}ms")
     Debug.log(state.config, "   🔄 Establishing connection...")
+
+    # Capture start time for connection latency measurement
+    connect_start_time = System.monotonic_time(:millisecond)
+    state = %{state | connect_start_time: connect_start_time}
 
     case ZenWebsocket.Reconnection.establish_connection(config) do
       {:ok, gun_pid, stream_ref, monitor_ref} ->
@@ -394,6 +421,10 @@ defmodule ZenWebsocket.Client do
     Debug.log(state.config, "   🔢 Attempt: #{current_attempt + 1}")
     Debug.log(state.config, "   🌐 URL: #{config.url}")
     Debug.log(state.config, "   🔄 Re-establishing connection...")
+
+    # Capture start time for connection latency measurement
+    connect_start_time = System.monotonic_time(:millisecond)
+    state = %{state | connect_start_time: connect_start_time}
 
     # Reconnect from within the GenServer to maintain Gun ownership
     # This ensures the new Gun connection sends messages to this GenServer
@@ -496,6 +527,12 @@ defmodule ZenWebsocket.Client do
     {:reply, metrics, state}
   end
 
+  def handle_call(:get_latency_stats, _from, state) do
+    latency_stats = Map.get(state, :latency_stats)
+    summary = if latency_stats, do: LatencyStats.summary(latency_stats)
+    {:reply, summary, state}
+  end
+
   @impl true
   def handle_info(
         {:gun_upgrade, gun_pid, stream_ref, ["websocket"], headers},
@@ -507,9 +544,20 @@ defmodule ZenWebsocket.Client do
     Debug.log(state.config, "   📡 Stream Ref: #{inspect(stream_ref)}")
     Debug.log(state.config, "   📋 Headers: #{inspect(headers, pretty: true)}")
 
+    # Emit connection timing telemetry
+    if state.connect_start_time do
+      connect_time_ms = System.monotonic_time(:millisecond) - state.connect_start_time
+
+      :telemetry.execute(
+        [:zen_websocket, :connection, :upgrade],
+        %{connect_time_ms: connect_time_ms},
+        %{url: state.url}
+      )
+    end
+
     # Start heartbeat timer if configured
     new_state =
-      %{state | state: :connected}
+      %{state | state: :connected, connect_start_time: nil}
       |> HeartbeatManager.start_timer()
       |> maybe_restore_subscriptions()
 
@@ -658,7 +706,7 @@ defmodule ZenWebsocket.Client do
       {nil, state} ->
         {:noreply, state}
 
-      {{from, _timeout_ref}, new_state} ->
+      {{from, _timeout_ref, _start_time}, new_state} ->
         GenServer.reply(from, {:error, :timeout})
         {:noreply, new_state}
     end
@@ -781,9 +829,13 @@ defmodule ZenWebsocket.Client do
         state.handler.({:unmatched_response, response})
         state
 
-      {{from, _timeout_ref}, new_state} ->
+      {{from, _timeout_ref, start_time}, new_state} ->
         GenServer.reply(from, {:ok, response})
-        new_state
+
+        # Update latency stats with round-trip time
+        round_trip_ms = System.monotonic_time(:millisecond) - start_time
+        updated_latency_stats = LatencyStats.add(new_state.latency_stats, round_trip_ms)
+        %{new_state | latency_stats: updated_latency_stats}
     end
   end
 
