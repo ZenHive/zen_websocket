@@ -14,6 +14,16 @@ defmodule ZenWebsocket.MixProject do
       dialyzer: dialyzer(),
       aliases: aliases(),
 
+      # Test coverage configuration - exclude non-production modules
+      # Excludes: Examples (documentation/reference), Test.Support (test infra), Mix.Tasks (CLI)
+      test_coverage: [
+        ignore_modules: [
+          ~r/^ZenWebsocket\.Test\.Support\./,
+          ~r/^ZenWebsocket\.Examples\./,
+          ~r/^Mix\.Tasks\./
+        ]
+      ],
+
       # Hex Package metadata
       description: description(),
       package: package(),

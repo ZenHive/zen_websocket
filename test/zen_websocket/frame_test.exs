@@ -63,4 +63,37 @@ defmodule ZenWebsocket.FrameTest do
       assert message =~ "Unknown frame type"
     end
   end
+
+  describe "decoding direct frame format" do
+    test "decode/1 handles direct text frames" do
+      {:ok, frame} = Frame.decode({:text, "direct text"})
+      assert frame == {:text, "direct text"}
+    end
+
+    test "decode/1 handles direct binary frames" do
+      data = <<5, 6, 7>>
+      {:ok, frame} = Frame.decode({:binary, data})
+      assert frame == {:binary, data}
+    end
+
+    test "decode/1 handles direct ping frames" do
+      {:ok, frame} = Frame.decode({:ping, "ping-payload"})
+      assert frame == {:ping, "ping-payload"}
+    end
+
+    test "decode/1 handles direct pong frames" do
+      {:ok, frame} = Frame.decode({:pong, "pong-payload"})
+      assert frame == {:pong, "pong-payload"}
+    end
+
+    test "decode/1 handles close with code and reason" do
+      {:ok, frame} = Frame.decode({:close, 1000, "normal closure"})
+      assert frame == {:close, "normal closure"}
+    end
+
+    test "decode/1 handles close with just reason" do
+      {:ok, frame} = Frame.decode({:close, "going away"})
+      assert frame == {:close, "going away"}
+    end
+  end
 end

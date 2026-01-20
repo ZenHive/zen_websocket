@@ -53,6 +53,22 @@ defmodule ZenWebsocket.ReconnectionTest do
       assert Reconnection.calculate_backoff(10, 1000, 5000) == 5000
       assert Reconnection.calculate_backoff(20, 1000, 10_000) == 10_000
     end
+
+    test "uses default max_backoff when nil provided" do
+      # 2^10 * 1000 = 1,024,000 would exceed 30_000 default
+      assert Reconnection.calculate_backoff(10, 1000, nil) == 30_000
+    end
+
+    test "handles very large attempt numbers" do
+      # Should not overflow, just cap at max_backoff
+      assert Reconnection.calculate_backoff(100, 1000) == 30_000
+      assert Reconnection.calculate_backoff(1000, 1000) == 30_000
+    end
+
+    test "handles very small base delay" do
+      assert Reconnection.calculate_backoff(0, 1) == 1
+      assert Reconnection.calculate_backoff(5, 1) == 32
+    end
   end
 
   describe "max_retries_exceeded?/2" do
@@ -64,6 +80,12 @@ defmodule ZenWebsocket.ReconnectionTest do
     test "returns true when at or over limit" do
       assert Reconnection.max_retries_exceeded?(3, 3)
       assert Reconnection.max_retries_exceeded?(4, 3)
+    end
+
+    test "handles zero max retries" do
+      # Zero retries means first attempt is already exceeded
+      assert Reconnection.max_retries_exceeded?(0, 0)
+      assert Reconnection.max_retries_exceeded?(1, 0)
     end
   end
 

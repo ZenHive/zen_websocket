@@ -380,16 +380,75 @@ Add load balancing to existing ClientSupervisor infrastructure.
 
 ---
 
+## Phase 9: Test Coverage Infrastructure [D:3/B:7 → Priority:2.3] 🎯
+
+> Fix misleading coverage metrics and add targeted tests for real gaps.
+
+### Task T001: Configure Coverage Exclusions ✅ COMPLETE
+
+**[D:1/B:8 → Priority:8.0]** 🎯 — January 2026
+
+Exclude non-production modules from coverage metrics:
+- `ZenWebsocket.Test.Support.*` - Test infrastructure
+- `ZenWebsocket.Examples.*` - Documentation examples
+- `Mix.Tasks.*` - CLI utilities
+
+**Result:** Coverage jumped from ~38% to ~70% by measuring only production code.
+
+---
+
+### Task T002: Frame Edge Case Tests ✅ COMPLETE
+
+**[D:2/B:5 → Priority:2.5]** 🎯 — January 2026
+
+Added tests for direct frame format decoding and close frame variants.
+
+---
+
+### Task T003: Config Boundary Value Tests ✅ COMPLETE
+
+**[D:2/B:4 → Priority:2.0]** 🎯 — January 2026
+
+Added tests for `new!/2`, `request_timeout` validation, and edge cases.
+
+---
+
+### Task T004: Reconnection Extreme Value Tests ✅ COMPLETE
+
+**[D:2/B:4 → Priority:2.0]** 🎯 — January 2026
+
+Added tests for nil max_backoff, very large attempts, and zero retries.
+
+---
+
+### Task T005: Property-Based Tests
+
+**[D:4/B:6 → Priority:1.5]** 🚀
+
+See R010 in Phase 5. Uses stream_data for:
+- Frame encoding/decoding round-trips
+- Config validation invariants
+
+---
+
+See [docs/test_roadmap.md](docs/test_roadmap.md) for detailed test coverage analysis.
+
+---
+
 ## Priority Summary
 
 ### Immediate (Before v0.2.0)
 
 | Task | Priority | Effort | Status |
 |------|----------|--------|--------|
+| T001: Coverage Exclusions | 🎯 8.0 | D:1 | ✅ Complete |
 | R006: Monitor Cleanup | 🎯 3.0 | D:2 | ✅ Complete |
 | R005: RateLimiter ETS Cleanup | 🎯 2.7 | D:3 | ✅ Complete |
+| T002: Frame Edge Case Tests | 🎯 2.5 | D:2 | ✅ Complete |
 | R015: Test Tagging Audit | 🎯 2.5 | D:2 | ✅ Complete |
 | R007: Fix Credo Warnings | 🎯 2.5 | D:2 | ✅ Complete |
+| T003: Config Boundary Tests | 🎯 2.0 | D:2 | ✅ Complete |
+| T004: Reconnection Extreme Tests | 🎯 2.0 | D:2 | ✅ Complete |
 | R008: Replace Magic Numbers | 🎯 2.0 | D:2 | ✅ Complete |
 | R001: Extract HeartbeatManager | 🎯 2.0 | D:4 | ✅ Complete |
 | R002: Extract SubscriptionManager | 🚀 1.75 | D:4 | ✅ Complete |

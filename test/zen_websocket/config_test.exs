@@ -74,6 +74,35 @@ defmodule ZenWebsocket.ConfigTest do
       assert config.reconnect_on_error == false
       assert config.restore_subscriptions == false
     end
+
+    test "validates positive request_timeout" do
+      {:error, "Request timeout must be positive"} =
+        Config.new("wss://test.com", request_timeout: 0)
+    end
+
+    test "validates negative request_timeout" do
+      {:error, "Request timeout must be positive"} =
+        Config.new("wss://test.com", request_timeout: -1000)
+    end
+  end
+
+  describe "new!/2" do
+    test "returns config on success" do
+      config = Config.new!("wss://test.example.com/ws")
+      assert config.url == "wss://test.example.com/ws"
+    end
+
+    test "raises ArgumentError on invalid URL" do
+      assert_raise ArgumentError, "Invalid URL format", fn ->
+        Config.new!("invalid-url")
+      end
+    end
+
+    test "raises ArgumentError on invalid options" do
+      assert_raise ArgumentError, "Timeout must be positive", fn ->
+        Config.new!("wss://test.com", timeout: -1)
+      end
+    end
   end
 
   describe "validate/1" do
@@ -84,6 +113,14 @@ defmodule ZenWebsocket.ConfigTest do
 
     test "rejects missing URL" do
       {:error, "URL is required"} = Config.validate(%Config{})
+    end
+
+    test "rejects non-Config struct" do
+      {:error, "URL is required"} = Config.validate(%{url: "wss://test.com"})
+    end
+
+    test "rejects nil URL" do
+      {:error, "URL is required"} = Config.validate(%Config{url: nil})
     end
   end
 end
