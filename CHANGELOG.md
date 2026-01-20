@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `ErrorHandler.explain/1` returns human-readable error messages with fix suggestions (R018)
 - `ZenWebsocket.HeartbeatManager` module for heartbeat lifecycle management (R001)
 - `ZenWebsocket.SubscriptionManager` module for subscription tracking and restoration (R002)
 - `ZenWebsocket.RequestCorrelator` module for JSON-RPC request/response correlation (R003)

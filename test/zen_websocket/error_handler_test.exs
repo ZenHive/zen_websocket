@@ -75,4 +75,98 @@ defmodule ZenWebsocket.ErrorHandlerTest do
       assert :stop = ErrorHandler.handle_error(:unexpected_data)
     end
   end
+
+  describe "explain/1" do
+    test "returns explanation struct with required keys" do
+      result = ErrorHandler.explain({:error, :econnrefused})
+
+      assert is_map(result)
+      assert Map.has_key?(result, :message)
+      assert Map.has_key?(result, :suggestion)
+      assert Map.has_key?(result, :docs_url)
+      assert is_binary(result.message)
+      assert is_binary(result.suggestion)
+    end
+
+    test "explains connection errors" do
+      assert %{message: "Connection refused" <> _} = ErrorHandler.explain({:error, :econnrefused})
+      assert %{message: "Connection timed out" <> _} = ErrorHandler.explain({:error, :timeout})
+      assert %{message: "DNS lookup failed" <> _} = ErrorHandler.explain({:error, :nxdomain})
+      assert %{message: "Host not found" <> _} = ErrorHandler.explain({:error, :enotfound})
+      assert %{message: "Host unreachable" <> _} = ErrorHandler.explain({:error, :ehostunreach})
+      assert %{message: "Network unreachable" <> _} = ErrorHandler.explain({:error, :enetunreach})
+      assert %{message: "Connection failed" <> _} = ErrorHandler.explain(:connection_failed)
+    end
+
+    test "explains TLS errors with details" do
+      result = ErrorHandler.explain({:error, {:tls_alert, :bad_certificate}})
+
+      assert result.message =~ "TLS/SSL handshake failed"
+      assert result.message =~ "bad_certificate"
+      assert result.suggestion =~ "certificate"
+    end
+
+    test "explains gun_down errors" do
+      result = ErrorHandler.explain({:gun_down, :closed})
+
+      assert result.message =~ "Connection closed unexpectedly"
+      assert result.message =~ "closed"
+      assert result.suggestion =~ "reconnect"
+    end
+
+    test "explains gun_error errors" do
+      result = ErrorHandler.explain({:gun_error, :timeout})
+
+      assert result.message =~ "Connection error"
+      assert result.message =~ "timeout"
+    end
+
+    test "explains protocol errors" do
+      assert %{message: "Invalid WebSocket frame" <> _} = ErrorHandler.explain({:error, :invalid_frame})
+      assert %{message: "Frame exceeds" <> _} = ErrorHandler.explain({:error, :frame_too_large})
+
+      bad_frame_result = ErrorHandler.explain({:error, {:bad_frame, :invalid_opcode}})
+      assert bad_frame_result.message =~ "Malformed frame"
+      assert bad_frame_result.message =~ "invalid_opcode"
+    end
+
+    test "explains authentication errors" do
+      assert %{message: "Authentication failed" <> _} = ErrorHandler.explain({:error, :unauthorized})
+
+      assert %{message: "Invalid credentials" <> _} =
+               ErrorHandler.explain({:error, :invalid_credentials})
+
+      assert %{message: msg} = ErrorHandler.explain({:error, :token_expired})
+      assert msg =~ "expired"
+    end
+
+    test "handles unknown errors with raw error in message" do
+      result = ErrorHandler.explain({:error, :some_weird_error})
+
+      assert result.message =~ "Unknown error"
+      assert result.message =~ "some_weird_error"
+      assert result.suggestion =~ "logs"
+    end
+
+    test "handles raw atoms without {:error, _} wrapper" do
+      result = ErrorHandler.explain(:econnrefused)
+
+      assert result.message =~ "Connection refused"
+    end
+
+    test "handles nested tuples correctly" do
+      # {:error, {:tls_alert, details}} should unwrap properly
+      result = ErrorHandler.explain({:error, {:tls_alert, :certificate_expired}})
+
+      assert result.message =~ "TLS"
+      assert result.message =~ "certificate_expired"
+    end
+
+    test "handles completely unknown data structures" do
+      result = ErrorHandler.explain(%{weird: "structure"})
+
+      assert result.message =~ "Unknown error"
+      assert result.message =~ "weird"
+    end
+  end
 end
