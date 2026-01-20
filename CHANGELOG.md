@@ -19,8 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Telemetry events for rate limiter: `:consume`, `:queue`, `:queue_full`, `:refill` (R005)
 - Memory characteristics documentation in RateLimiter @moduledoc (R005)
 - Test tagging conventions documentation in test_helper.exs (R015)
+- Test coverage exclusion config for non-production modules (T001)
+- Test coverage roadmap documentation at `docs/test_roadmap.md`
+- Frame edge case tests for direct frame format decoding (T002)
+- Config boundary value tests for `new!/2` and `request_timeout` validation (T003)
+- Reconnection extreme value tests for nil max_backoff and zero retries (T004)
 
 ### Changed
+- Test coverage metrics now exclude non-production modules (Examples, Test.Support, Mix.Tasks) - reported coverage ~38% → ~70% (T001)
+- Frame module now at 100% test coverage (T002)
+- Config module now at 100% test coverage (T003)
 - Extracted heartbeat logic from Client.ex to HeartbeatManager (789 lines from 870) (R001)
 - Extracted subscription tracking from Client.ex to SubscriptionManager (R002)
 - Extracted request/response correlation from Client.ex to RequestCorrelator (R003)
