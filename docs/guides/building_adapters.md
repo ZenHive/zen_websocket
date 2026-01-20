@@ -4,6 +4,26 @@
 
 This guide explains how to build exchange adapters for ZenWebsocket. Exchange adapters provide platform-specific functionality on top of the core WebSocket client, including authentication, subscription management, and state restoration.
 
+## When to Use What
+
+Choose your adapter pattern based on complexity:
+
+| Pattern | When to Use | Example |
+|---------|-------------|---------|
+| **Plain Client** | Simple scripts, one-off connections, no state restoration needed | Quick data fetch |
+| **Struct Adapter** | Stateless operations, functional pipelines, no reconnection logic | Data transformation |
+| **GenServer Adapter** | Production use, state management, reconnection, subscription tracking | Trading bots |
+
+**Decision tree:**
+
+```
+Need automatic reconnection?
+  └─ No → Plain Client or Struct Adapter
+  └─ Yes → Need to restore state after reconnection?
+             └─ No → Plain Client with reconnect_on_error: true
+             └─ Yes → GenServer Adapter (recommended for production)
+```
+
 ## Adapter Template
 
 Here's a minimal template for building an exchange adapter:
@@ -115,16 +135,16 @@ defmodule YourExchange.Adapter do
     end
   end
   
-  defp restore_subscriptions(%{subscriptions: subs} = state) when subs != %MapSet{} do
-    Enum.each(subs, fn channel ->
-      sub_msg = build_subscription_message(channel)
-      Client.send_message(state.client, sub_msg)
-    end)
-    
+  defp restore_subscriptions(%{subscriptions: subs} = state) do
+    unless Enum.empty?(subs) do
+      Enum.each(subs, fn channel ->
+        sub_msg = build_subscription_message(channel)
+        Client.send_message(state.client, sub_msg)
+      end)
+    end
+
     {:ok, state}
   end
-  
-  defp restore_subscriptions(state), do: {:ok, state}
   
   # Monitor handling - CRITICAL for reconnection
   
@@ -168,13 +188,24 @@ defmodule YourExchange.Adapter do
   
   defp build_auth_message(api_key, api_secret) do
     # Exchange-specific auth format
+    timestamp = System.system_time(:millisecond)
+
     %{
       "method" => "auth",
       "params" => %{
         "api_key" => api_key,
-        "signature" => generate_signature(api_secret)
+        "timestamp" => timestamp,
+        # Exchange-specific signature - this is a placeholder
+        # Real implementation depends on exchange requirements
+        "signature" => generate_signature(api_secret, timestamp)
       }
     }
+  end
+
+  # Placeholder - implement based on exchange documentation
+  defp generate_signature(api_secret, timestamp) do
+    :crypto.mac(:hmac, :sha256, api_secret, "#{timestamp}")
+    |> Base.encode16(case: :lower)
   end
   
   defp build_subscription_message(channel) do
@@ -221,6 +252,83 @@ Implement proper handling for client process termination:
 def handle_info({:DOWN, ref, :process, _pid, reason}, %{client_ref: ref} = state) do
   # Client died - initiate reconnection
   # This is your ONLY reconnection trigger
+end
+```
+
+## Heartbeat Configuration
+
+ZenWebsocket supports different heartbeat types via `heartbeat_config`:
+
+| Type | Description | Use Case |
+|------|-------------|----------|
+| `:deribit` | JSON-RPC test_request/heartbeat | Deribit API |
+| `:ping_pong` | WebSocket ping/pong frames | Standard WebSocket |
+| `:binance` | Frame-level pings (handled by Gun) | Binance APIs |
+| `:disabled` | No heartbeats | Custom handling |
+
+### Configuring Heartbeats
+
+```elixir
+# Deribit-style JSON-RPC heartbeats
+connect_opts = [
+  heartbeat_config: %{
+    type: :deribit,
+    interval: 15_000  # 15 seconds
+  }
+]
+
+# Standard WebSocket ping/pong frames
+connect_opts = [
+  heartbeat_config: %{
+    type: :ping_pong,
+    interval: 30_000
+  }
+]
+
+# Disable heartbeats (adapter handles manually)
+connect_opts = [
+  heartbeat_config: :disabled
+]
+```
+
+### Custom Heartbeat Handler
+
+For exchanges with unique heartbeat patterns, disable built-in heartbeats and implement your own:
+
+```elixir
+defmodule MyExchange.Adapter do
+  use GenServer
+
+  @heartbeat_interval 20_000
+
+  def init(opts) do
+    state = %{
+      heartbeat_timer: nil,
+      # ... other state
+    }
+    {:ok, state}
+  end
+
+  # Start heartbeat after connection established
+  defp start_heartbeat(state) do
+    timer = Process.send_after(self(), :send_heartbeat, @heartbeat_interval)
+    %{state | heartbeat_timer: timer}
+  end
+
+  def handle_info(:send_heartbeat, state) do
+    # Exchange-specific heartbeat format
+    heartbeat_msg = %{"op" => "ping", "ts" => System.system_time(:millisecond)}
+    Client.send_message(state.client, heartbeat_msg)
+
+    timer = Process.send_after(self(), :send_heartbeat, @heartbeat_interval)
+    {:noreply, %{state | heartbeat_timer: timer}}
+  end
+
+  # Handle heartbeat response
+  def handle_info({:websocket_message, %{"op" => "pong"}}, state) do
+    # Heartbeat acknowledged
+    {:noreply, state}
+  end
 end
 ```
 
@@ -291,9 +399,12 @@ defp do_connect(state) do
 end
 ```
 
-## Common Patterns
+## Authentication Patterns
 
-### Authentication Flow
+Different exchanges use different authentication schemes:
+
+### 1. API Key + Secret (Deribit, JSON-RPC)
+
 ```elixir
 defp authenticate(state) do
   auth_params = %{
@@ -306,16 +417,76 @@ defp authenticate(state) do
     },
     "id" => generate_id()
   }
-  
+
   case Client.send_message(state.client, auth_params) do
     :ok ->
-      # Mark as authenticating, wait for response
       {:ok, %{state | authenticating: true}}
     error ->
       error
   end
 end
 ```
+
+### 2. HMAC Signature (Binance, Coinbase)
+
+```elixir
+defp authenticate(state) do
+  timestamp = System.system_time(:millisecond)
+
+  # Build signature payload
+  payload = "timestamp=#{timestamp}"
+  signature = :crypto.mac(:hmac, :sha256, state.api_secret, payload)
+               |> Base.encode16(case: :lower)
+
+  auth_msg = %{
+    "method" => "auth",
+    "params" => %{
+      "apiKey" => state.api_key,
+      "timestamp" => timestamp,
+      "signature" => signature
+    }
+  }
+
+  Client.send_message(state.client, auth_msg)
+end
+```
+
+### 3. OAuth Token Flow
+
+```elixir
+defp authenticate(state) do
+  # Exchange auth code for access token (via HTTP, not WebSocket)
+  case exchange_token(state.auth_code) do
+    {:ok, access_token} ->
+      auth_msg = %{
+        "type" => "auth",
+        "token" => access_token
+      }
+      Client.send_message(state.client, auth_msg)
+      {:ok, %{state | access_token: access_token}}
+
+    {:error, reason} ->
+      {:error, reason}
+  end
+end
+
+defp exchange_token(auth_code) do
+  case Req.post("https://api.exchange.com/oauth/token",
+         form: [grant_type: "authorization_code", code: auth_code]
+       ) do
+    {:ok, %{status: 200, body: %{"access_token" => token}}} ->
+      {:ok, token}
+
+    {:ok, %{status: status, body: body}} ->
+      {:error, {:token_exchange_failed, status, body}}
+
+    {:error, reason} ->
+      {:error, {:http_error, reason}}
+  end
+end
+```
+
+## Common Patterns
 
 ### Subscription Management
 ```elixir
@@ -346,6 +517,155 @@ defp handle_connection_loss(state) do
   initiate_reconnection(state)
 end
 ```
+
+## Example: Binance Spot Adapter
+
+Binance uses a different pattern than Deribit:
+- No JSON-RPC (plain JSON messages)
+- HMAC signature authentication
+- Combined streams via stream names
+
+```elixir
+defmodule Binance.SpotAdapter do
+  use GenServer
+  require Logger
+
+  alias ZenWebsocket.Client
+
+  @base_url "wss://stream.binance.com:9443/ws"
+
+  def start_link(opts) do
+    GenServer.start_link(__MODULE__, opts, name: opts[:name])
+  end
+
+  def subscribe(adapter, streams) when is_list(streams) do
+    GenServer.call(adapter, {:subscribe, streams})
+  end
+
+  @impl true
+  def init(opts) do
+    state = %{
+      api_key: opts[:api_key],
+      api_secret: opts[:api_secret],
+      client: nil,
+      client_ref: nil,
+      subscriptions: MapSet.new(),
+      request_id: 1
+    }
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_call(:connect, _from, state) do
+    # Binance uses ping/pong frames at WebSocket level
+    connect_opts = [
+      heartbeat_config: %{type: :ping_pong, interval: 30_000},
+      reconnect_on_error: false
+    ]
+
+    case Client.connect(@base_url, connect_opts) do
+      {:ok, client} ->
+        ref = Process.monitor(client.server_pid)
+        new_state = %{state | client: client, client_ref: ref}
+        {:reply, :ok, new_state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:subscribe, streams}, _from, state) do
+    # Binance subscription format (no JSON-RPC)
+    msg = %{
+      "method" => "SUBSCRIBE",
+      "params" => streams,
+      "id" => state.request_id
+    }
+
+    case Client.send_message(state.client, msg) do
+      :ok ->
+        new_subs = Enum.reduce(streams, state.subscriptions, &MapSet.put(&2, &1))
+        {:reply, :ok, %{state | subscriptions: new_subs, request_id: state.request_id + 1}}
+
+      error ->
+        {:reply, error, state}
+    end
+  end
+
+  # Signed request for user data stream
+  def create_listen_key(adapter) do
+    GenServer.call(adapter, :create_listen_key)
+  end
+
+  @impl true
+  def handle_call(:create_listen_key, _from, state) do
+    timestamp = System.system_time(:millisecond)
+    query = "timestamp=#{timestamp}"
+
+    signature =
+      :crypto.mac(:hmac, :sha256, state.api_secret, query)
+      |> Base.encode16(case: :lower)
+
+    # Note: Listen key creation is via REST API, not WebSocket
+    # This shows the HMAC pattern used by Binance
+    {:reply, {:ok, signature}, state}
+  end
+
+  @impl true
+  def handle_info({:DOWN, ref, :process, _pid, reason}, %{client_ref: ref} = state) do
+    Logger.warning("Binance client down: #{inspect(reason)}")
+
+    new_state = %{state | client: nil, client_ref: nil}
+    Process.send_after(self(), :reconnect, 5_000)
+    {:noreply, new_state}
+  end
+
+  @impl true
+  def handle_info(:reconnect, state) do
+    case do_connect(state) do
+      {:ok, connected_state} ->
+        restore_subscriptions(connected_state)
+      {:error, _} ->
+        Process.send_after(self(), :reconnect, 10_000)
+        {:noreply, state}
+    end
+  end
+
+  defp do_connect(state) do
+    connect_opts = [
+      heartbeat_config: %{type: :ping_pong, interval: 30_000},
+      reconnect_on_error: false
+    ]
+
+    case Client.connect(@base_url, connect_opts) do
+      {:ok, client} ->
+        ref = Process.monitor(client.server_pid)
+        {:ok, %{state | client: client, client_ref: ref}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp restore_subscriptions(state) do
+    streams = MapSet.to_list(state.subscriptions)
+
+    if streams != [] do
+      msg = %{"method" => "SUBSCRIBE", "params" => streams, "id" => state.request_id}
+      Client.send_message(state.client, msg)
+    end
+
+    {:noreply, %{state | request_id: state.request_id + 1}}
+  end
+end
+```
+
+**Key differences from Deribit:**
+- Uses `"method" => "SUBSCRIBE"` instead of JSON-RPC
+- Authentication via HMAC signatures (typically for REST, user data streams)
+- Stream names like `"btcusdt@trade"` instead of channel objects
+- Ping/pong heartbeats handled at WebSocket frame level
 
 ## Testing Your Adapter
 
@@ -445,3 +765,7 @@ Building a robust exchange adapter requires:
 - Testing reconnection scenarios thoroughly
 
 Follow the patterns in this guide and study the Deribit adapter example for a production-ready implementation.
+
+## Related Guides
+
+- [Performance Tuning Guide](performance_tuning.md) - Optimize timeouts, reconnection, rate limiting, and memory usage

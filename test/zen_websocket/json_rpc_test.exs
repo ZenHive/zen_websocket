@@ -1,5 +1,5 @@
 defmodule ZenWebsocket.JsonRpcTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   alias ZenWebsocket.JsonRpc
 
@@ -55,6 +55,91 @@ defmodule ZenWebsocket.JsonRpcTest do
       }
 
       assert {:notification, "heartbeat", %{"type" => "test_request"}} = JsonRpc.match_response(response)
+    end
+
+    test "matches result with extra fields" do
+      response = %{
+        "jsonrpc" => "2.0",
+        "id" => 123,
+        "result" => %{"data" => "value"},
+        "usIn" => 1_234_567_890,
+        "usOut" => 1_234_567_900,
+        "usDiff" => 10
+      }
+
+      assert {:ok, %{"data" => "value"}} = JsonRpc.match_response(response)
+    end
+
+    test "matches null result" do
+      response = %{"jsonrpc" => "2.0", "id" => 123, "result" => nil}
+      assert {:ok, nil} = JsonRpc.match_response(response)
+    end
+
+    test "matches empty map result" do
+      response = %{"jsonrpc" => "2.0", "id" => 123, "result" => %{}}
+      assert {:ok, %{}} = JsonRpc.match_response(response)
+    end
+  end
+
+  describe "match_response/1 edge cases" do
+    test "returns function clause error for missing result and error" do
+      response = %{"jsonrpc" => "2.0", "id" => 123}
+
+      assert_raise FunctionClauseError, fn ->
+        JsonRpc.match_response(response)
+      end
+    end
+
+    test "returns function clause error for empty map" do
+      assert_raise FunctionClauseError, fn ->
+        JsonRpc.match_response(%{})
+      end
+    end
+
+    test "notification without params raises" do
+      response = %{"jsonrpc" => "2.0", "method" => "heartbeat"}
+
+      assert_raise FunctionClauseError, fn ->
+        JsonRpc.match_response(response)
+      end
+    end
+  end
+
+  describe "build_request/2 edge cases" do
+    test "nil params excludes params key from request" do
+      {:ok, request} = JsonRpc.build_request("test/method", nil)
+
+      refute Map.has_key?(request, "params")
+      assert request["method"] == "test/method"
+    end
+
+    test "empty map params includes params key" do
+      {:ok, request} = JsonRpc.build_request("test/method", %{})
+
+      assert Map.has_key?(request, "params")
+      assert request["params"] == %{}
+    end
+
+    test "empty string method is allowed" do
+      {:ok, request} = JsonRpc.build_request("")
+
+      assert request["method"] == ""
+      assert request["jsonrpc"] == "2.0"
+      assert is_integer(request["id"])
+      assert request["id"] > 0
+    end
+
+    test "build_request/1 and build_request/2 with nil are equivalent" do
+      {:ok, request1} = JsonRpc.build_request("test/method")
+      {:ok, request2} = JsonRpc.build_request("test/method", nil)
+
+      # Both should exclude params key
+      refute Map.has_key?(request1, "params")
+      refute Map.has_key?(request2, "params")
+
+      # Both should have the same structure (except unique IDs)
+      assert request1["method"] == request2["method"]
+      assert request1["jsonrpc"] == request2["jsonrpc"]
     end
   end
 

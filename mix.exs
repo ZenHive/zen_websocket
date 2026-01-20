@@ -1,7 +1,7 @@
 defmodule ZenWebsocket.MixProject do
   use Mix.Project
 
-  @version "0.1.5"
+  @version "0.2.0"
 
   def project do
     [
@@ -41,6 +41,7 @@ defmodule ZenWebsocket.MixProject do
           "docs/Architecture.md",
           "docs/Examples.md",
           "docs/guides/building_adapters.md",
+          "docs/guides/performance_tuning.md",
           "docs/guides/troubleshooting_reconnection.md",
           "docs/architecture/reconnection.md",
           "docs/gun_integration.md",
@@ -51,6 +52,7 @@ defmodule ZenWebsocket.MixProject do
           "Getting Started": ["README.md", "USAGE_RULES.md", "CHANGELOG.md", "docs/Examples.md"],
           Guides: [
             "docs/guides/building_adapters.md",
+            "docs/guides/performance_tuning.md",
             "docs/guides/troubleshooting_reconnection.md"
           ],
           Architecture: [

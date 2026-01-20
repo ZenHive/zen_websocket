@@ -35,18 +35,22 @@ end
 ### Basic Connection
 
 ```elixir
-# Connect to a WebSocket endpoint
-{:ok, client} = ZenWebsocket.Client.connect("wss://echo.websocket.org", [
+# Connect to a WebSocket endpoint (use your actual endpoint)
+{:ok, client} = ZenWebsocket.Client.connect("wss://api.example.com/ws", [
   timeout: 5000,
   heartbeat_interval: 30000
 ])
 
 # Send a message
-{:ok, _} = ZenWebsocket.Client.send_message(client, "Hello, WebSocket!")
+{:ok, _} = ZenWebsocket.Client.send_message(client, %{action: "ping"})
 
 # Receive messages in your process
 receive do
-  {:websocket_message, message} -> IO.inspect(message)
+  {:websocket_message, message} ->
+    # Process the incoming message
+    handle_message(message)
+after
+  5_000 -> {:error, :timeout}
 end
 
 # Close the connection
@@ -153,6 +157,18 @@ The library includes a complete Deribit adapter as a reference implementation. T
 4. Add comprehensive tests against the real API
 
 See `lib/zen_websocket/examples/deribit_adapter.ex` for a complete example.
+
+## Documentation
+
+Comprehensive guides are available in the `docs/guides/` directory:
+
+| Guide | Description |
+|-------|-------------|
+| [Building Adapters](docs/guides/building_adapters.md) | Create platform adapters with heartbeat, auth, and reconnection patterns |
+| [Performance Tuning](docs/guides/performance_tuning.md) | Configure timeouts, rate limiting, and memory for your use case |
+| [Troubleshooting Reconnection](docs/guides/troubleshooting_reconnection.md) | Debug connection issues and reconnection logic |
+
+See the full [HexDocs documentation](https://hexdocs.pm/zen_websocket) for API reference and module documentation.
 
 ## Configuration Options
 

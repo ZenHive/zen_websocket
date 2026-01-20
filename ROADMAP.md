@@ -1,9 +1,7 @@
 # ZenWebsocket Refactor Roadmap
 
 **Created:** January 2026
-**Library Version:** 0.1.5 (published on hex.pm)
-**Next Version:** 0.2.0 (after refactoring)
-**Status:** Production-ready, architectural improvements recommended
+**Status:** Production-ready, published on hex.pm
 
 ---
 
@@ -15,22 +13,20 @@ ZenWebsocket is a mature, production-grade WebSocket client library with excelle
 
 ## 🎯 Current Focus
 
-**Published:** ✅ v0.1.5 on hex.pm (Jan 2026)
-
-**Next:** v0.2.0 — User Experience Features
+**Latest:** v0.2.0 published Jan 2026
 
 > **Philosophy reminder:** Maximum 5 functions per module, 15 lines per function, direct Gun API usage, real API testing only.
 
-### v0.2.0 Priority Queue
+### v0.2.0 Status: ✅ COMPLETE
 
 | Task | Priority | What It Does |
 |------|----------|--------------|
 | ~~**R018**: Error Explanations~~ | ✅ Done | Human-readable error messages with fix suggestions |
 | ~~**R017**: Latency Telemetry~~ | ✅ Done | Round-trip timing, connection metrics, p50/p99 stats |
 | ~~**R021**: Backpressure Signaling~~ | ✅ Done | Proactive notifications before rate limits hit |
-| R012: Building Adapters Guide | 🚀 1.7 | Documentation for creating platform adapters |
+| ~~**R012**: Building Adapters Guide~~ | ✅ Done | Documentation for creating platform adapters |
 
-All v0.2.0 tasks are parallelizable `[P]` — can work multiple simultaneously.
+**Next focus:** v0.3.0 tasks below.
 
 ### Quick Commands
 ```bash
@@ -192,26 +188,24 @@ Audit test files and properly tag integration tests. See [CHANGELOG.md](CHANGELO
 
 ---
 
-### Task R016: Unit Test Coverage `[P]`
+### Task R016: Unit Test Coverage ✅ COMPLETE
 
-**[D:4/B:6 → Priority:1.5]** 🚀
+**[D:4/B:6 → Priority:1.5]** 🚀 — January 2026
 
-After R015 tagging audit, identify and create missing unit tests for pure functions.
+Verified all target modules have comprehensive unit tests. Added edge case tests to JsonRpc.
 
 **Target modules for unit test coverage:**
-- `Config` - validation logic, defaults, merging
-- `Frame` - encoding/decoding without network
-- `JsonRpc` - message formatting, ID generation
-- `ErrorHandler` - error categorization logic
-- `Reconnection` - backoff calculation, retry logic
+- `Config` - validation logic, defaults, merging ✅ (126 lines)
+- `Frame` - encoding/decoding without network ✅ (99 lines)
+- `JsonRpc` - message formatting, ID generation ✅ (enhanced with edge cases)
+- `ErrorHandler` - error categorization logic ✅ (172 lines)
+- `Reconnection` - backoff calculation, retry logic ✅ (103 lines)
 
 **Success criteria:**
-- [ ] Each core module has dedicated unit test file
-- [ ] Unit tests cover edge cases (nil, empty, invalid inputs)
-- [ ] Unit tests run without MockWebSockServer or network
-- [ ] `mix test` (unit only) completes quickly
-
-**Depends on:** R015 (tagging audit identifies gaps)
+- [x] Each core module has dedicated unit test file
+- [x] Unit tests cover edge cases (nil, empty, invalid inputs)
+- [x] Unit tests run without MockWebSockServer or network
+- [x] `mix test` (unit only) completes quickly (~5 seconds)
 
 ---
 
@@ -219,33 +213,64 @@ After R015 tagging audit, identify and create missing unit tests for pure functi
 
 > Complete deferred documentation.
 
-### Task R012: Building Adapters Guide
+### Task R012: Building Adapters Guide ✅ COMPLETE
 
-**[D:3/B:5 → Priority:1.7]** 🚀
+**[D:3/B:5 → Priority:1.7]** 🚀 — January 2026
 
-Complete the stub guide for building platform adapters.
-
-**Current:** `docs/guides/building_adapters.md` exists but incomplete.
+Enhanced the adapters guide with comprehensive documentation. See [CHANGELOG.md](CHANGELOG.md).
 
 **Success criteria:**
-- [ ] Step-by-step guide for creating new platform adapter
-- [ ] Example using non-Deribit platform
-- [ ] Document heartbeat handler interface
-- [ ] Document authentication patterns
+- [x] Step-by-step guide for creating new platform adapter
+- [x] Example using non-Deribit platform (Binance Spot adapter)
+- [x] Document heartbeat handler interface
+- [x] Document authentication patterns (API key, HMAC, OAuth)
 
 ---
 
-### Task R013: Performance Tuning Guide
+### Task R013: Performance Tuning Guide ✅ COMPLETE
 
-**[D:2/B:4 → Priority:2.0]** 🎯
+**[D:2/B:4 → Priority:2.0]** 🎯 — January 2026
 
-Document performance characteristics and tuning options.
+Created comprehensive performance tuning guide. See [CHANGELOG.md](CHANGELOG.md).
 
 **Success criteria:**
-- [ ] Document memory usage per connection
-- [ ] Document optimal timeout configurations
-- [ ] Document rate limiter tuning
-- [ ] Benchmark results included
+- [x] Document memory usage per connection
+- [x] Document optimal timeout configurations
+- [x] Document rate limiter tuning
+- [ ] Benchmark results included (deferred - telemetry provides runtime metrics)
+
+---
+
+### Task R023: Rewrite USAGE_RULES.md and Add AGENTS.md
+
+**[D:2/B:5 → Priority:2.5]** 🎯
+
+Modernize AI agent documentation files to follow current conventions.
+
+**Approach:** Use CHANGELOG.md as source of truth for feature coverage. Audit changelog entries to ensure all user-facing features are documented in USAGE_RULES.md.
+
+**USAGE_RULES.md rewrite:**
+- Audit CHANGELOG.md for features missing from current docs
+- Update to match current API (latency stats, backpressure, etc.)
+- Add new telemetry events from R017/R021
+- Reference new guides (building_adapters, performance_tuning)
+- Add ErrorHandler.explain/1 usage patterns
+- Document LatencyStats.summary/1 and RateLimiter.status/1
+
+**AGENTS.md (new file):**
+- Provide AI coding agent guidance for contributing to zen_websocket
+- Document module limits (5 functions, 15 lines)
+- Explain real API testing requirement
+- Link to roadmap for task coordination
+- Document file organization and where new code belongs
+- Reference CHANGELOG.md for understanding recent changes
+
+**Success criteria:**
+- [ ] CHANGELOG.md audited for undocumented features
+- [ ] USAGE_RULES.md updated with v0.2.0 features
+- [ ] AGENTS.md created with contributor guidance
+- [ ] Both files follow hex.pm conventions for discoverability
+- [ ] Cross-referenced from README.md
 
 ---
 
@@ -450,14 +475,14 @@ See [docs/test_roadmap.md](docs/test_roadmap.md) for detailed test coverage anal
 | R002: Extract SubscriptionManager | 🚀 1.75 | D:4 | ✅ Complete |
 | R003: Extract RequestCorrelator | 🚀 1.4 | D:5 | ✅ Complete |
 
-### Short-term (v0.2.0)
+### Short-term (v0.2.0) ✅ COMPLETE
 
 | Task | Priority | Effort | Status |
 |------|----------|--------|--------|
 | R018: Error Explanations | 🎯 3.5 | D:2 | ✅ Complete |
 | R017: Latency Telemetry | 🎯 2.7 | D:3 | ✅ Complete |
 | R021: Backpressure Signaling | 🎯 2.0 | D:3 | ✅ Complete |
-| R012: Building Adapters Guide | 🚀 1.7 | D:3 | ⬜ Pending |
+| R012: Building Adapters Guide | 🚀 1.7 | D:3 | ✅ Complete |
 | R004: Slim Down Client.ex | 🚀 1.5 | D:6 | ✅ Complete |
 | R009: Standardize Debug Logging | 🚀 1.5 | D:2 | ✅ Complete |
 
@@ -465,8 +490,9 @@ See [docs/test_roadmap.md](docs/test_roadmap.md) for detailed test coverage anal
 
 | Task | Priority | Effort | Status |
 |------|----------|--------|--------|
-| R013: Performance Tuning Guide | 🎯 2.0 | D:2 | ⬜ Pending |
-| R016: Unit Test Coverage | 🚀 1.5 | D:4 | ⬜ Pending |
+| R023: Rewrite USAGE_RULES.md + AGENTS.md | 🎯 2.5 | D:2 | ⬜ Pending |
+| R013: Performance Tuning Guide | 🎯 2.0 | D:2 | ✅ Complete |
+| R016: Unit Test Coverage | 🚀 1.5 | D:4 | ✅ Complete |
 | R020: Test Helpers Module | 🚀 1.5 | D:4 | ⬜ Pending |
 | R014: Migrate Deribit Examples | 🚀 1.5 | D:4 | ⬜ Blocked |
 | R019: Session Recording | 🚀 1.4 | D:5 | ⬜ Pending |
@@ -486,17 +512,18 @@ See [docs/test_roadmap.md](docs/test_roadmap.md) for detailed test coverage anal
 These tasks can be worked on simultaneously:
 
 ```
-v0.2.0 Parallelizable:
-R017 ✅  - Latency Telemetry (COMPLETE)
-R018 ✅  - Error Explanations (COMPLETE)
-R021 ✅  - Backpressure Signaling (COMPLETE)
-R012 [P] - Building Adapters Guide (docs)
+v0.2.0 COMPLETE:
+R017 ✅  - Latency Telemetry
+R018 ✅  - Error Explanations
+R021 ✅  - Backpressure Signaling
+R012 ✅  - Building Adapters Guide
 
 v0.3.0 Parallelizable:
-R013 [P] - Performance Tuning Guide (docs)
-R016 [P] - Unit Test Coverage (tests)
+R013 ✅  - Performance Tuning Guide (COMPLETE)
+R016 ✅  - Unit Test Coverage (COMPLETE)
 R019 [P] - Session Recording (Client)
 R020 [P] - Test Helpers Module (test support)
+R023 [P] - USAGE_RULES.md + AGENTS.md (documentation)
 ```
 
 **Coordination rule:** Update status to 🔄 with branch name before starting.

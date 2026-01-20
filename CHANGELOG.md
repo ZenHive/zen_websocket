@@ -5,9 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-01-20
 
 ### Added
+- Building Adapters Guide enhanced at `docs/guides/building_adapters.md` (R012)
+  - Adapter decision tree (plain client vs struct vs GenServer)
+  - Heartbeat interface documentation (`:deribit`, `:ping_pong`, `:binance`, custom)
+  - Authentication patterns (API key+secret, HMAC signature, OAuth token flow)
+  - Binance Spot adapter example (non-JSON-RPC pattern)
+- Performance Tuning Guide at `docs/guides/performance_tuning.md` (R013)
+  - Configuration parameter tuning (timeouts, reconnection, latency buffer)
+  - Rate limiter tuning with exchange-specific cost functions
+  - Telemetry events reference table
+  - Memory characteristics documentation
+  - Common tuning scenarios (HFT, market data, resource-constrained)
+- JsonRpc edge case tests for nil/empty params, empty methods, malformed responses (R016)
 - `ErrorHandler.explain/1` returns human-readable error messages with fix suggestions (R018)
 - `ZenWebsocket.LatencyStats` module for bounded circular buffer latency statistics (R017)
 - `Client.get_latency_stats/1` returns p50/p99/last/count latency metrics (R017)
@@ -121,7 +133,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Real-world tested against live WebSocket endpoints
 - Strict code quality standards (max 5 functions per module, 15 lines per function)
 
-[Unreleased]: https://github.com/ZenHive/zen_websocket/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/ZenHive/zen_websocket/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ZenHive/zen_websocket/compare/v0.1.5...v0.2.0
+[0.1.5]: https://github.com/ZenHive/zen_websocket/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/ZenHive/zen_websocket/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/ZenHive/zen_websocket/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/ZenHive/zen_websocket/compare/v0.1.1...v0.1.2
