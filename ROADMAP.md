@@ -185,11 +185,11 @@ Tasks blocked on external dependencies or deferred for later consideration.
 
 ### Task R014: Migrate Deribit Examples to market_maker
 
-**[D:4/B:6 → Priority:1.5]** 🚀 — **Blocked**
+**[D:4/B:6 → Priority:1.5]** — **Superseded by R026**
 
-Move Deribit-specific business logic to market_maker project (per WNX0028 analysis).
+~~Move Deribit-specific business logic to market_maker project (per WNX0028 analysis).~~
 
-**Blocked on:** market_maker project exists and is ready for migration.
+**Superseded:** R026 takes a better approach - keep examples in zen_websocket repo as separate mix projects. This keeps examples maintained and tested alongside the library while still separating application code from library code.
 
 **Files to migrate:**
 - `deribit_adapter.ex` → `market_maker/lib/market_maker/deribit/`
@@ -288,6 +288,48 @@ Add deployment considerations guide for trading applications using zen_websocket
 
 ---
 
+### Task R026: Create Deribit Example Project
+
+**[D:3/B:7 → Priority:2.3]** 🚀 — **Pending**
+
+Move Deribit adapter code to a separate mix project within the repo.
+
+**Supersedes R014:** Instead of moving to external market_maker project, keep examples in zen_websocket repo as separate mix projects. This keeps examples tested and maintained alongside the library.
+
+**Files to migrate:**
+- `lib/zen_websocket/examples/deribit_adapter.ex` → `examples/deribit/lib/`
+- `lib/zen_websocket/examples/deribit_genserver_adapter.ex` → `examples/deribit/lib/`
+- `lib/zen_websocket/examples/deribit_rpc.ex` → `examples/deribit/lib/`
+- Related tests → `examples/deribit/test/`
+
+**New structure:**
+```
+examples/deribit/
+├── lib/
+│   ├── deribit_adapter.ex
+│   ├── deribit_genserver_adapter.ex
+│   └── deribit_rpc.ex
+├── test/
+├── mix.exs  # deps: [{:zen_websocket, path: "../.."}]
+└── README.md
+```
+
+**Success criteria:**
+- [ ] `examples/deribit/` is a valid mix project
+- [ ] Uses `{:zen_websocket, path: "../.."}` as dependency
+- [ ] All existing tests pass in new location
+- [ ] CI runs tests for both main library and examples
+- [ ] `lib/zen_websocket/examples/` contains only small pattern examples (< 50 lines)
+- [ ] README.md explains the example and how to run it
+
+**Why this approach:**
+- Examples use library exactly as consumers would
+- Large adapters can exceed 5-function/15-line limits (they're applications)
+- Library namespace stays clean
+- Examples still maintained and tested in same repo
+
+---
+
 ## Parallel Work Opportunities
 
 These tasks can be worked on simultaneously:
@@ -324,12 +366,15 @@ The original Client module handled too many concerns (connection lifecycle, mess
 
 **Result:** Extracted HeartbeatManager, SubscriptionManager, RequestCorrelator. Client.ex reduced from 870 to ~200 lines.
 
-### Why Keep Some Large Examples?
+### Example Code Policy
 
-Example files like `deribit_rpc.ex` are:
-- Example/documentation code, not core library
-- Scheduled for migration to market_maker (R014)
-- Acceptable complexity for demonstration purposes
+**Non-negotiable workflow:** All examples must be written and tested in `lib/` and `test/` first with full validation.
+
+**After validation:**
+- Small patterns (< 50 lines): Stay in `lib/zen_websocket/examples/`
+- Large applications: Move to `examples/<name>/` as separate mix project (see R026)
+
+Large examples like Deribit adapters will move to `examples/deribit/` - a separate mix project that uses zen_websocket as a dependency. This keeps examples tested while separating application code from library code.
 
 ---
 
@@ -339,8 +384,9 @@ Key context for picking up this roadmap:
 
 1. **The library works well** - This is improvement, not emergency repair
 2. **v0.3.0 is published** - Pool routing, session recording, test helpers, docs rewrite
-3. **R014 is blocked** - Depends on external market_maker project
+3. **R026 is next** - Move Deribit examples to `examples/deribit/` as separate mix project (supersedes R014)
 4. **Real API testing is non-negotiable** - Project principle, don't add mocks
+5. **Example code policy** - Write/test in lib/ first, then move large examples to separate mix projects
 
 **What was implemented for v0.3.0:**
 - R019 (Recording) → `ZenWebsocket.Recorder` + `RecorderServer`, hooks in Client.ex

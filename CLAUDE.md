@@ -76,6 +76,13 @@ ZenWebsocket.Client.get_state(client)
 - Direct Gun API usage - no wrapper layers
 - Real API testing only - zero mocks
 
+### Example Code Policy
+**Non-negotiable:** All examples must be written and tested in `lib/` and `test/` first, with full validation (compile, Dialyzer, Credo, tests). After validation:
+- **Small patterns** (< 50 lines): Stay in `lib/zen_websocket/examples/`
+- **Large applications**: Move to `examples/<name>/` as separate mix project
+
+See AGENTS.md for full policy details.
+
 ## Configuration
 
 ### Environment Setup

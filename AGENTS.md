@@ -135,6 +135,40 @@ test "example", %{server: server} do
 end
 ```
 
+## Example Code Policy
+
+**Non-negotiable workflow for all examples:**
+
+1. **Write in lib/test first** - All example code starts in `lib/` with tests in `test/`
+2. **Full validation required** - Must compile, pass Dialyzer, pass Credo, have tests
+3. **Then decide location** - After validation, determine final home
+
+**Where examples live:**
+
+| Type | Location | Criteria |
+|------|----------|----------|
+| Small patterns | `lib/zen_websocket/examples/` | < 50 lines, shows single concept |
+| Large applications | `examples/<name>/` (separate mix project) | Full adapters, multi-module, business logic |
+
+**Separate mix project structure:**
+```
+examples/deribit/
+├── lib/
+├── test/
+└── mix.exs  # deps: [{:zen_websocket, path: "../.."}]
+```
+
+**Why separate projects for large examples:**
+- Uses library exactly as consumers would
+- Has own deps, constraints, CI
+- Doesn't pollute library namespace
+- Can exceed 5-function/15-line limits (it's application code)
+
+**What stays in lib/zen_websocket/examples/:**
+- Connection patterns (< 50 lines)
+- Message handling snippets
+- Configuration examples
+
 ## DO NOT
 
 | Anti-Pattern | Why |
