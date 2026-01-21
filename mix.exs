@@ -1,7 +1,7 @@
 defmodule ZenWebsocket.MixProject do
   use Mix.Project
 
-  @version "0.3.0"
+  @version "0.3.1"
 
   def project do
     [
@@ -120,7 +120,7 @@ defmodule ZenWebsocket.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
 
       # Documentation
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.40", only: :dev, runtime: false},
       {:doctor, "~> 0.22.0", only: :dev, runtime: false},
       # Tasks
       {:task_validator, "~> 0.9.5", only: [:dev, :test], runtime: false},
