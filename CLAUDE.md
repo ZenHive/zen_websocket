@@ -1,20 +1,22 @@
 # CLAUDE.md
 
-@include ~/.claude/includes/across-instances.md
-@include ~/.claude/includes/critical-rules.md
-@include ~/.claude/includes/skills-awareness.md
-@include ~/.claude/includes/task-prioritization.md
-@include ~/.claude/includes/task-writing.md
-@include ~/.claude/includes/web-command.md
-@include ~/.claude/includes/code-style.md
-@include ~/.claude/includes/development-philosophy.md
-@include ~/.claude/includes/documentation-guidelines.md
-@include ~/.claude/includes/api-integration.md
-@include ~/.claude/includes/development-commands.md
-@include ~/.claude/includes/elixir-patterns.md
-@include ~/.claude/includes/elixir-setup.md
-@include ~/.claude/includes/ex-unit-json.md
-@include ~/.claude/includes/library-design.md
+@~/.claude/includes/across-instances.md
+@~/.claude/includes/critical-rules.md
+@~/.claude/includes/skills-awareness.md
+@~/.claude/includes/task-prioritization.md
+@~/.claude/includes/task-writing.md
+@~/.claude/includes/web-command.md
+@~/.claude/includes/code-style.md
+@~/.claude/includes/development-philosophy.md
+@~/.claude/includes/documentation-guidelines.md
+@~/.claude/includes/workflow-philosophy.md
+@~/.claude/includes/dialyzer-json.md
+@~/.claude/includes/api-integration.md
+@~/.claude/includes/development-commands.md
+@~/.claude/includes/elixir-patterns.md
+@~/.claude/includes/elixir-setup.md
+@~/.claude/includes/ex-unit-json.md
+@~/.claude/includes/library-design.md
 
 ---
 
@@ -175,7 +177,7 @@ connect_opts = [
 - `telemetry ~> 1.3` - Metrics and monitoring
 
 ### Development
-- `credo`, `dialyxir`, `sobelow`, `ex_doc`
+- `credo`, `dialyxir`, `sobelow`, `ex_doc`, `ex_dna` (code duplication detection)
 
 ### Testing
 - `cowboy ~> 2.10`, `websock ~> 0.5`, `stream_data ~> 1.0`, `x509 ~> 0.8`
