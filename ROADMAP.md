@@ -7,9 +7,16 @@
 
 ## 🎯 Current Focus
 
-**Post v0.3.1: Bug Fixes & Testing**
+**2026-04 Review: Correctness & Release Hygiene**
 
-> **Philosophy reminder:** Maximum 5 functions per module, 15 lines per function, direct Gun API usage, real API testing only.
+> **Philosophy reminder:** Trust working quality gates, fail gracefully on dead connections, and preserve caller configuration across reconnects.
+
+### Review Snapshot
+- `mix lint` and `mix check` are currently broken by the `lint` alias definition.
+- `Client.send_message/2` and `ClientSupervisor.send_balanced/2` can exit on stale PIDs instead of returning error tuples.
+- `Client.reconnect/1` reconnects with default settings instead of the original config.
+- Gun upgrades currently send only the URI path, dropping any query string.
+- The root `ZenWebsocket` moduledoc still describes legacy APIs that are no longer present.
 
 ### ✅ Recently Completed
 | Task | Description | Notes |
@@ -20,17 +27,23 @@
 ### 📋 Remaining Tasks
 | Order | Task | Priority | What It Does | Status |
 |-------|------|----------|--------------|--------|
-| - | **R010**: Property-Based Testing | 📋 1.2 | stream_data tests | ⬜ Pending |
-| - | **R011**: Error Scenario Testing | 📋 1.25 | Edge case tests | ⬜ Pending |
-| - | **R025**: Deployment Guide | 📋 1.7 | Trading deployment docs | ⬜ Pending |
+| 1 | **R032**: Repair Mix Quality Aliases | **[D:2/B:8 → Priority:4.0]** 🎯 | Make `mix lint` and `mix check` reliable again | ⬜ Pending |
+| 2 | **R029**: Fail Gracefully on Stale Client PIDs | **[D:4/B:9 → Priority:2.25]** 🎯 | Return error tuples and fail over instead of exiting callers | ⬜ Pending |
+| 3 | **R031**: Preserve Query Params on WebSocket Upgrade | **[D:2/B:7 → Priority:3.5]** 🎯 | Keep `?query=` data when upgrading Gun connections | ⬜ Pending |
+| 4 | **R030**: Preserve Config Across Reconnect | **[D:5/B:8 → Priority:1.6]** 🚀 | Reconnect with the original connection contract, not defaults | ⬜ Pending |
+| 5 | **R033**: Reconnection Regression Coverage | **[D:4/B:7 → Priority:1.75]** 🚀 | Replace skipped reconnection TODO with executable tests | ⬜ Pending |
+| 6 | **R034**: Refresh Top-Level API Docs | **[D:2/B:6 → Priority:3.0]** 🎯 | Remove legacy `Connection/Platform/Behaviors` guidance from root docs | ⬜ Pending |
+| 7 | **R011**: Error Scenario Testing | **[D:4/B:5 → Priority:1.25]** 📋 | Edge case tests | ⬜ Pending |
+| 8 | **R010**: Property-Based Testing | **[D:5/B:6 → Priority:1.2]** 📋 | `stream_data` tests | ⬜ Pending |
+| 9 | **R025**: Deployment Guide | **[D:3/B:5 → Priority:1.7]** 🚀 | Trading deployment docs | ⬜ Pending |
 
 ### Quick Commands
 ```bash
-mix check                    # All quality checks
-mix test.json --quiet --summary-only  # Test health
-mix dialyzer                 # Type checking
-mix credo --strict           # Static analysis
-mix hex.publish --dry-run    # Verify before publishing
+mix test.json --quiet --summary-only      # Test health
+mix dialyzer.json --quiet --summary-only  # Dialyzer health
+mix credo --strict                        # Static analysis
+mix docs                                  # Local docs build
+# R032 should restore mix lint / mix check
 ```
 
 ---
@@ -122,6 +135,94 @@ Modernize AI agent documentation files to follow current conventions.
 ---
 
 ## Backlog
+
+### Phase 10: Review-Driven Correctness Fixes
+
+#### Task R029: Fail Gracefully on Stale Client PIDs
+
+**[D:4/B:9 → Priority:2.25]** 🎯
+
+Make stale or dead client references safe. Public API calls should return normal
+error tuples instead of exiting the caller when a stored `server_pid` is no
+longer alive.
+
+**Success criteria:**
+- [ ] `Client.send_message/2` does not exit on a dead `server_pid`
+- [ ] `ClientSupervisor.send_balanced/2` handles dead PIDs from custom discovery and racey shutdowns
+- [ ] Load balancing skips or fails over dead candidates instead of crashing the caller
+- [ ] Regression tests cover stale client structs and dead PIDs returned by `client_discovery`
+
+---
+
+#### Task R030: Preserve Config Across Reconnect
+
+**[D:5/B:8 → Priority:1.6]** 🚀
+
+Reconnect should preserve the connection contract the caller originally set up.
+Rebuilding from URL defaults loses important settings and changes behavior after
+the first reconnect.
+
+**Success criteria:**
+- [ ] Reconnect keeps validated config fields such as timeout, headers, retry config, request timeout, and recording path
+- [ ] Reconnect behavior for heartbeat and handler options is either preserved or explicitly documented if unsupported
+- [ ] Regression tests verify reconnect keeps the intended runtime contract
+
+---
+
+#### Task R031: Preserve Query Params on WebSocket Upgrade
+
+**[D:2/B:7 → Priority:3.5]** 🎯
+
+Upgrade requests should preserve the full request target when the WebSocket URL
+contains a query string.
+
+**Success criteria:**
+- [ ] Gun upgrade uses the path plus query when the URL includes `?query=...`
+- [ ] Plain path upgrades continue to behave exactly as before
+- [ ] Regression tests verify query-bearing URLs reach the server intact
+
+---
+
+#### Task R032: Repair Mix Quality Aliases
+
+**[D:2/B:8 → Priority:4.0]** 🎯
+
+Restore the documented quality workflow so contributors can trust the advertised
+commands again.
+
+**Success criteria:**
+- [ ] `mix lint` runs formatting and Credo without trying to invoke a `mix` task
+- [ ] `mix check` chains lint, typecheck, security, and coverage successfully
+- [ ] Command examples in roadmap/docs match the working workflow
+
+---
+
+#### Task R033: Reconnection Regression Coverage
+
+**[D:4/B:7 → Priority:1.75]** 🚀
+
+Replace the skipped reconnection placeholder with real automated coverage so
+future changes do not regress reconnect behavior silently.
+
+**Success criteria:**
+- [ ] The skipped TODO reconnection test is replaced with executable coverage
+- [ ] Tests exercise a real reconnect trigger using the project’s supported test infrastructure
+- [ ] The test suite remains Credo-clean with no placeholder TODO left behind
+
+---
+
+#### Task R034: Refresh Top-Level API Docs
+
+**[D:2/B:6 → Priority:3.0]** 🎯
+
+Bring the root moduledoc back in sync with the library that actually ships
+today. The current top-level docs still describe legacy APIs and behaviors that
+are no longer present in the codebase.
+
+**Success criteria:**
+- [ ] `lib/zen_websocket.ex` documents `Client`, `ClientSupervisor`, and current examples only
+- [ ] References to legacy `Connection`, `Platform`, `Behaviors`, and `Defaults` APIs are removed or rewritten
+- [ ] `mix docs` still builds cleanly after the rewrite
 
 ### Phase 5: Testing Enhancements
 
@@ -348,8 +449,8 @@ The original Client module handled too many concerns (connection lifecycle, mess
 
 Key context for picking up this roadmap:
 
-1. **The library works well** - This is improvement, not emergency repair
-2. **v0.3.1 is published** - Pool routing, session recording, test helpers, docs rewrite
+1. **v0.3.1 is published** - Pool routing, session recording, test helpers, docs rewrite
+2. **2026-04-10 review surfaced concrete follow-ups** - See R029-R034 before assuming only broad testing/docs remain
 3. **R026 was abandoned** - Moving examples to separate mix projects caused too many problems. Examples stay in `lib/zen_websocket/examples/`
 4. **Real API testing is non-negotiable** - Project principle, don't add mocks
 5. **Example code policy** - All examples live in `lib/zen_websocket/examples/`
@@ -360,7 +461,7 @@ Key context for picking up this roadmap:
 - R023 (Docs) → Updated USAGE_RULES.md with new features, created AGENTS.md for AI agents
 - R022 (Pool) → `ZenWebsocket.PoolRouter` + `ClientSupervisor.send_balanced/2` for health-based routing
 
-The project has excellent documentation. Read:
+Documentation is strong overall, but the root moduledoc needs refresh (R034). Read:
 - `CLAUDE.md` for project principles
 - `docs/Architecture.md` for system design
 - `CHANGELOG.md` for what's been done
