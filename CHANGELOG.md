@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `mix lint` and `mix check` aliases restored — `lint` used shell `&&` syntax which Mix can't parse; split into proper task list (R032)
 - `DeribitAdapter.subscribe/2`, `unsubscribe/2`, `authenticate/1`, and `send_request/3` now return `{:error, :not_connected}` when client is nil instead of raising `FunctionClauseError` (R027)
 - `BatchSubscriptionManager` now handles subscribe failures: marks request as failed with error reason and stops processing instead of silently ignoring the return value (R028)
 - `DeribitGenServerAdapter` `@doc` corrected from "handler module" to "handler function" (R028)

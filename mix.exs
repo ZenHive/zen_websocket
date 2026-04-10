@@ -171,7 +171,7 @@ defmodule ZenWebsocket.MixProject do
   # Add aliases for code quality tools
   defp aliases do
     [
-      lint: ["mix format && credo --strict"],
+      lint: ["format", "credo --strict"],
       typecheck: ["dialyzer"],
       security: ["sobelow --exit --config"],
       coverage: ["test --cover"],

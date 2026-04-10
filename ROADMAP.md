@@ -12,7 +12,7 @@
 > **Philosophy reminder:** Trust working quality gates, fail gracefully on dead connections, and preserve caller configuration across reconnects.
 
 ### Review Snapshot
-- `mix lint` and `mix check` are currently broken by the `lint` alias definition.
+- ~~`mix lint` and `mix check` are currently broken by the `lint` alias definition.~~ ✅ Fixed (R032)
 - `Client.send_message/2` and `ClientSupervisor.send_balanced/2` can exit on stale PIDs instead of returning error tuples.
 - `Client.reconnect/1` reconnects with default settings instead of the original config.
 - Gun upgrades currently send only the URI path, dropping any query string.
@@ -23,11 +23,12 @@
 |------|-------------|-------|
 | R027 | Nil-client guards on adapter | `subscribe/2`, `unsubscribe/2`, `authenticate/1`, `send_request/3` return `{:error, :not_connected}` |
 | R028 | BatchSubscriptionManager error handling | Marks request as failed and stops on subscribe error; handler doc fix |
+| R032 | Repair Mix quality aliases | `lint` alias used shell `&&` syntax; split into proper Mix task list |
 
 ### 📋 Remaining Tasks
 | Order | Task | Priority | What It Does | Status |
 |-------|------|----------|--------------|--------|
-| 1 | **R032**: Repair Mix Quality Aliases | **[D:2/B:8 → Priority:4.0]** 🎯 | Make `mix lint` and `mix check` reliable again | ⬜ Pending |
+| ~~1~~ | ~~**R032**: Repair Mix Quality Aliases~~ | ~~**[D:2/B:8 → Priority:4.0]**~~ | ~~Make `mix lint` and `mix check` reliable again~~ | ✅ Complete |
 | 2 | **R029**: Fail Gracefully on Stale Client PIDs | **[D:4/B:9 → Priority:2.25]** 🎯 | Return error tuples and fail over instead of exiting callers | ⬜ Pending |
 | 3 | **R031**: Preserve Query Params on WebSocket Upgrade | **[D:2/B:7 → Priority:3.5]** 🎯 | Keep `?query=` data when upgrading Gun connections | ⬜ Pending |
 | 4 | **R030**: Preserve Config Across Reconnect | **[D:5/B:8 → Priority:1.6]** 🚀 | Reconnect with the original connection contract, not defaults | ⬜ Pending |
@@ -43,7 +44,8 @@ mix test.json --quiet --summary-only      # Test health
 mix dialyzer.json --quiet --summary-only  # Dialyzer health
 mix credo --strict                        # Static analysis
 mix docs                                  # Local docs build
-# R032 should restore mix lint / mix check
+mix lint                                     # Format + Credo (restored by R032)
+mix check                                    # Full quality chain (restored by R032)
 ```
 
 ---
