@@ -10,10 +10,14 @@ defmodule ZenWebsocket.Examples.BatchSubscriptionManager do
 
   alias ZenWebsocket.Examples.DeribitAdapter
 
+  require Logger
+
   @type batch_status :: %{
           completed: non_neg_integer(),
           pending: non_neg_integer(),
-          total: non_neg_integer()
+          total: non_neg_integer(),
+          failed: boolean(),
+          error: term() | nil
         }
 
   ## Public API (exactly 5 functions)
@@ -120,7 +124,9 @@ defmodule ZenWebsocket.Examples.BatchSubscriptionManager do
         completed: 0,
         pending: total,
         total: total,
-        cancelled: false
+        cancelled: false,
+        failed: false,
+        error: nil
       })
 
     {:reply, {:ok, request_id}, state}
@@ -130,7 +136,7 @@ defmodule ZenWebsocket.Examples.BatchSubscriptionManager do
   def handle_call({:get_status, request_id}, _from, state) do
     case state.requests[request_id] do
       nil -> {:reply, {:error, :not_found}, state}
-      status -> {:reply, {:ok, Map.take(status, [:completed, :pending, :total])}, state}
+      status -> {:reply, {:ok, Map.take(status, [:completed, :pending, :total, :failed, :error])}, state}
     end
   end
 
@@ -146,7 +152,7 @@ defmodule ZenWebsocket.Examples.BatchSubscriptionManager do
   def handle_call(:get_all_statuses, _from, state) do
     statuses =
       Map.new(state.requests, fn {id, status} ->
-        {id, Map.take(status, [:completed, :pending, :total])}
+        {id, Map.take(status, [:completed, :pending, :total, :failed, :error])}
       end)
 
     {:reply, {:ok, statuses}, state}
@@ -154,28 +160,43 @@ defmodule ZenWebsocket.Examples.BatchSubscriptionManager do
 
   @impl true
   def handle_info({:process_batch, request_id, channels, processed}, state) do
-    if state.requests[request_id][:cancelled] or processed >= length(channels) do
+    if state.requests[request_id][:cancelled] or state.requests[request_id][:failed] or
+         processed >= length(channels) do
       {:noreply, state}
     else
-      # Take next batch
       batch = Enum.slice(channels, processed, state.batch_size)
-
-      # Subscribe and update status regardless of success/failure
-      DeribitAdapter.subscribe(state.adapter, batch)
-
-      completed = min(processed + length(batch), length(channels))
-
-      state =
-        update_in(state.requests[request_id], fn status ->
-          %{status | completed: completed, pending: status.total - completed}
-        end)
-
-      # Schedule next batch
-      if completed < length(channels) do
-        Process.send_after(self(), {:process_batch, request_id, channels, completed}, state.batch_delay)
-      end
-
-      {:noreply, state}
+      {:noreply, process_batch(state, request_id, batch, processed, channels)}
     end
+  end
+
+  # Attempts to subscribe a batch. On success, updates adapter and schedules
+  # the next batch. On failure, marks the request as failed and stops.
+  defp process_batch(state, request_id, batch, processed, channels) do
+    case DeribitAdapter.subscribe(state.adapter, batch) do
+      {:ok, updated_adapter} ->
+        completed = min(processed + length(batch), length(channels))
+        state = advance_batch(state, request_id, updated_adapter, completed)
+
+        if completed < length(channels) do
+          Process.send_after(self(), {:process_batch, request_id, channels, completed}, state.batch_delay)
+        end
+
+        state
+
+      {:error, reason} ->
+        Logger.warning("Batch subscribe failed for #{request_id}: #{inspect(reason)}")
+
+        state
+        |> put_in([:requests, request_id, :failed], true)
+        |> put_in([:requests, request_id, :error], reason)
+    end
+  end
+
+  # Updates state after a successful batch subscription
+  defp advance_batch(state, request_id, updated_adapter, completed) do
+    state
+    |> Map.put(:adapter, updated_adapter)
+    |> put_in([:requests, request_id, :completed], completed)
+    |> update_in([:requests, request_id], &%{&1 | pending: &1.total - completed})
   end
 end

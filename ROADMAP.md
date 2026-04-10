@@ -1,24 +1,28 @@
 # ZenWebsocket Roadmap
 
-**Status:** Production-ready, v0.3.0 published on hex.pm
+**Status:** Production-ready, v0.3.1 published on hex.pm
 **Completed work:** See [CHANGELOG.md](CHANGELOG.md) for finished tasks (search by task ID: R001, R017, etc.).
 
 ---
 
 ## 🎯 Current Focus
 
-**v0.3.0: Developer Experience**
+**Post v0.3.1: Bug Fixes & Testing**
 
 > **Philosophy reminder:** Maximum 5 functions per module, 15 lines per function, direct Gun API usage, real API testing only.
 
+### ✅ Recently Completed
+| Task | Description | Notes |
+|------|-------------|-------|
+| R027 | Nil-client guards on adapter | `subscribe/2`, `unsubscribe/2`, `authenticate/1`, `send_request/3` return `{:error, :not_connected}` |
+| R028 | BatchSubscriptionManager error handling | Marks request as failed and stops on subscribe error; handler doc fix |
+
+### 📋 Remaining Tasks
 | Order | Task | Priority | What It Does | Status |
 |-------|------|----------|--------------|--------|
-| 1 | **R020**: Test Helpers Module | 🚀 1.5 | Consumer-facing test utilities | ✅ Complete |
-| 2 | **R019**: Session Recording | 🚀 1.4 | Message recording for debugging | ✅ Complete |
-| 3 | **R023**: Docs Rewrite | 🎯 2.5 | USAGE_RULES.md + AGENTS.md | ✅ Complete |
-| 4 | **R022**: Pool Load Balancing | 📋 1.0 | Health-based connection routing | ✅ Complete |
-
-**Order:** All v0.3.0 tasks complete. Published 2026-01-21.
+| - | **R010**: Property-Based Testing | 📋 1.2 | stream_data tests | ⬜ Pending |
+| - | **R011**: Error Scenario Testing | 📋 1.25 | Edge case tests | ⬜ Pending |
+| - | **R025**: Deployment Guide | 📋 1.7 | Trading deployment docs | ⬜ Pending |
 
 ### Quick Commands
 ```bash
@@ -43,6 +47,8 @@ mix hex.publish --dry-run    # Verify before publishing
 | Phase 4 | Code Quality (Credo, magic numbers, logging) | 3 |
 | Phase 9 | Test Coverage Infrastructure | 4 |
 | v0.2.0 | User Experience (latency, errors, backpressure) | 7 |
+| v0.3.0 | Developer Experience (recording, testing, docs, pool) | 4 |
+| Post-v0.3.1 | Bug fixes (R027 nil-client guard, R028 batch error handling) | 2 |
 
 ---
 
@@ -185,11 +191,11 @@ Tasks blocked on external dependencies or deferred for later consideration.
 
 ### Task R014: Migrate Deribit Examples to market_maker
 
-**[D:4/B:6 → Priority:1.5]** — **Superseded by R026**
+**[D:4/B:6 → Priority:1.5]** — **Deferred**
 
 ~~Move Deribit-specific business logic to market_maker project (per WNX0028 analysis).~~
 
-**Superseded:** R026 takes a better approach - keep examples in zen_websocket repo as separate mix projects. This keeps examples maintained and tested alongside the library while still separating application code from library code.
+**Deferred:** R026 attempted moving examples to a separate mix project but was reverted — the ergonomic cost (broken Tidewave, broken .iex.exs, stale doc references) outweighed the architectural benefit. Examples stay in `lib/zen_websocket/examples/`.
 
 **Files to migrate:**
 - `deribit_adapter.ex` → `market_maker/lib/market_maker/deribit/`
@@ -288,45 +294,9 @@ Add deployment considerations guide for trading applications using zen_websocket
 
 ---
 
-### Task R026: Create Deribit Example Project
+### ~~Task R026: Create Deribit Example Project~~ — **Abandoned**
 
-**[D:3/B:7 → Priority:2.3]** 🚀 — **Pending**
-
-Move Deribit adapter code to a separate mix project within the repo.
-
-**Supersedes R014:** Instead of moving to external market_maker project, keep examples in zen_websocket repo as separate mix projects. This keeps examples tested and maintained alongside the library.
-
-**Files to migrate:**
-- `lib/zen_websocket/examples/deribit_adapter.ex` → `examples/deribit/lib/`
-- `lib/zen_websocket/examples/deribit_genserver_adapter.ex` → `examples/deribit/lib/`
-- `lib/zen_websocket/examples/deribit_rpc.ex` → `examples/deribit/lib/`
-- Related tests → `examples/deribit/test/`
-
-**New structure:**
-```
-examples/deribit/
-├── lib/
-│   ├── deribit_adapter.ex
-│   ├── deribit_genserver_adapter.ex
-│   └── deribit_rpc.ex
-├── test/
-├── mix.exs  # deps: [{:zen_websocket, path: "../.."}]
-└── README.md
-```
-
-**Success criteria:**
-- [ ] `examples/deribit/` is a valid mix project
-- [ ] Uses `{:zen_websocket, path: "../.."}` as dependency
-- [ ] All existing tests pass in new location
-- [ ] CI runs tests for both main library and examples
-- [ ] `lib/zen_websocket/examples/` contains only small pattern examples (< 50 lines)
-- [ ] README.md explains the example and how to run it
-
-**Why this approach:**
-- Examples use library exactly as consumers would
-- Large adapters can exceed 5-function/15-line limits (they're applications)
-- Library namespace stays clean
-- Examples still maintained and tested in same repo
+Attempted moving Deribit adapters to `examples/deribit/` as a separate mix project. Reverted because the ergonomic cost was too high: broken Tidewave access, broken `.iex.exs` aliases, 13+ stale doc references, and interactive debugging required a second IEx session. Examples stay in `lib/zen_websocket/examples/`.
 
 ---
 
@@ -370,11 +340,7 @@ The original Client module handled too many concerns (connection lifecycle, mess
 
 **Non-negotiable workflow:** All examples must be written and tested in `lib/` and `test/` first with full validation.
 
-**After validation:**
-- Small patterns (< 50 lines): Stay in `lib/zen_websocket/examples/`
-- Large applications: Move to `examples/<name>/` as separate mix project (see R026)
-
-Large examples like Deribit adapters will move to `examples/deribit/` - a separate mix project that uses zen_websocket as a dependency. This keeps examples tested while separating application code from library code.
+**All examples live in `lib/zen_websocket/examples/`.** R026 attempted moving large examples to separate mix projects but was reverted — the ergonomic cost (broken Tidewave, broken .iex.exs, stale doc references) outweighed the benefit.
 
 ---
 
@@ -383,10 +349,10 @@ Large examples like Deribit adapters will move to `examples/deribit/` - a separa
 Key context for picking up this roadmap:
 
 1. **The library works well** - This is improvement, not emergency repair
-2. **v0.3.0 is published** - Pool routing, session recording, test helpers, docs rewrite
-3. **R026 is next** - Move Deribit examples to `examples/deribit/` as separate mix project (supersedes R014)
+2. **v0.3.1 is published** - Pool routing, session recording, test helpers, docs rewrite
+3. **R026 was abandoned** - Moving examples to separate mix projects caused too many problems. Examples stay in `lib/zen_websocket/examples/`
 4. **Real API testing is non-negotiable** - Project principle, don't add mocks
-5. **Example code policy** - Write/test in lib/ first, then move large examples to separate mix projects
+5. **Example code policy** - All examples live in `lib/zen_websocket/examples/`
 
 **What was implemented for v0.3.0:**
 - R019 (Recording) → `ZenWebsocket.Recorder` + `RecorderServer`, hooks in Client.ex

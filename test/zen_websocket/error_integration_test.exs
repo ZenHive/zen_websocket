@@ -89,8 +89,6 @@ defmodule ZenWebsocket.ErrorIntegrationTest do
 
       Client.close(client)
     end
-
-    # This test was moved to market_maker project along with DeribitAdapter
   end
 
   describe "protocol errors" do

@@ -6,9 +6,12 @@ cowlib
 credo
 decimal
 dialyxir
+dialyzer_json
 doctor
 earmark_parser
 erlex
+ex_ast
+ex_dna
 ex_doc
 ex_unit_json
 file_system

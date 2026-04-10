@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- `DeribitAdapter.subscribe/2`, `unsubscribe/2`, `authenticate/1`, and `send_request/3` now return `{:error, :not_connected}` when client is nil instead of raising `FunctionClauseError` (R027)
+- `BatchSubscriptionManager` now handles subscribe failures: marks request as failed with error reason and stops processing instead of silently ignoring the return value (R028)
+- `DeribitGenServerAdapter` `@doc` corrected from "handler module" to "handler function" (R028)
+
+### Reverted
+- R026 (Deribit example as separate mix project) — ergonomic cost outweighed benefit: broken Tidewave access, broken `.iex.exs`, 13+ stale doc references. Examples stay in `lib/zen_websocket/examples/`
+
 ## [0.3.1] - 2026-01-21
 
 ### Changed

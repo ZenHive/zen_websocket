@@ -39,7 +39,7 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
   - `:client_secret` - Deribit API client secret
   - `:url` - WebSocket URL (defaults to test.deribit.com)
   - `:heartbeat_interval` - Heartbeat interval in seconds
-  - `:handler` - Optional message handler module
+  - `:handler` - Optional message handler function `(term() -> term())`
 
   ## Returns
   `{:ok, pid}` on success.

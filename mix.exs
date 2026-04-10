@@ -82,7 +82,8 @@ defmodule ZenWebsocket.MixProject do
         coverage: :test,
         check: :dev,
         docs: :dev,
-        "test.json": :test
+        "test.json": :test,
+        "dialyzer.json": :dev
       ]
     ]
   end
@@ -109,19 +110,27 @@ defmodule ZenWebsocket.MixProject do
 
       # Development and test dependencies
       # AI-friendly test output
-      {:ex_unit_json, "~> 0.2.0", only: [:dev, :test], runtime: false},
+      {:ex_unit_json, "~> 0.4", only: [:dev, :test], runtime: false},
+      # AI-friendly dialyzer output
+      {:dialyzer_json, "~> 0.1", only: [:dev, :test], runtime: false},
 
       # Tidewave for Claude Code MCP integration (non-Phoenix needs bandit)
       {:tidewave, "~> 0.5", only: :dev},
-      {:bandit, "~> 1.6", only: :dev},
+      {:bandit, "~> 1.10", only: :dev},
 
       # Static code analysis
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      # TODO: Using git branch as workaround for Credo 1.7.x crash on Elixir 1.20+ sigils.
+      # Switch back to hex {:credo, "~> 1.8"} when a compatible release is published.
+      {:credo, github: "rrrene/credo", branch: "release/1.7", only: [:dev, :test], runtime: false, override: true},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+
+      # Code analysis tools
+      {:ex_dna, "~> 1.1", only: [:dev, :test], runtime: false},
+      {:ex_ast, "~> 0.2", only: [:dev, :test], runtime: false},
 
       # Documentation
       {:ex_doc, "~> 0.40", only: :dev, runtime: false},
-      {:doctor, "~> 0.22.0", only: :dev, runtime: false},
+      {:doctor, "~> 0.22", only: [:dev, :test], runtime: false},
       # Tasks
       {:task_validator, "~> 0.9.5", only: [:dev, :test], runtime: false},
       # Usage rules for AI agents and documentation

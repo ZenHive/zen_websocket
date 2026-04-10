@@ -3,8 +3,6 @@ defmodule ZenWebsocket.ClientReconnectTest do
 
   alias ZenWebsocket.Client
 
-  require Logger
-
   @moduletag :integration
 
   describe "reconnect_on_error configuration" do

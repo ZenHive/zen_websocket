@@ -23,8 +23,6 @@ defmodule ZenWebsocket.RecorderServer do
 
   alias ZenWebsocket.Recorder
 
-  require Logger
-
   @flush_interval_ms 1000
   @flush_threshold 100
 

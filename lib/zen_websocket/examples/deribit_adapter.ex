@@ -68,6 +68,8 @@ defmodule ZenWebsocket.Examples.DeribitAdapter do
   Authenticate with Deribit using client credentials.
   """
   @spec authenticate(t()) :: {:ok, t()} | {:error, term()}
+  def authenticate(%__MODULE__{client: nil}), do: {:error, :not_connected}
+
   def authenticate(%__MODULE__{client_id: nil}), do: {:error, :missing_credentials}
 
   def authenticate(%__MODULE__{client: client} = adapter) do
@@ -83,6 +85,8 @@ defmodule ZenWebsocket.Examples.DeribitAdapter do
   Subscribe to Deribit channels.
   """
   @spec subscribe(t(), list(String.t())) :: {:ok, t()} | {:error, term()}
+  def subscribe(%__MODULE__{client: nil}, _channels), do: {:error, :not_connected}
+
   def subscribe(%__MODULE__{client: client, subscriptions: subs} = adapter, channels) do
     with {:ok, request} <- DeribitRpc.subscribe(channels),
          {:ok, %{"result" => _}} <- send_json_rpc(client, request) do
@@ -95,6 +99,8 @@ defmodule ZenWebsocket.Examples.DeribitAdapter do
   Unsubscribe from Deribit channels.
   """
   @spec unsubscribe(t(), list(String.t())) :: {:ok, t()} | {:error, term()}
+  def unsubscribe(%__MODULE__{client: nil}, _channels), do: {:error, :not_connected}
+
   def unsubscribe(%__MODULE__{client: client, subscriptions: subs} = adapter, channels) do
     with {:ok, request} <- DeribitRpc.unsubscribe(channels),
          {:ok, %{"result" => _}} <- send_json_rpc(client, request) do
@@ -107,7 +113,11 @@ defmodule ZenWebsocket.Examples.DeribitAdapter do
   Send a request to Deribit API using any supported method.
   """
   @spec send_request(t(), String.t(), map()) :: {:ok, term()} | {:error, term()}
-  def send_request(%__MODULE__{client: client}, method, params \\ %{}) do
+  def send_request(adapter, method, params \\ %{})
+
+  def send_request(%__MODULE__{client: nil}, _method, _params), do: {:error, :not_connected}
+
+  def send_request(%__MODULE__{client: client}, method, params) do
     with {:ok, request} <- DeribitRpc.build_request(method, params) do
       send_json_rpc(client, request)
     end
