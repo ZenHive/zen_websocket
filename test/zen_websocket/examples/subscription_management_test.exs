@@ -15,9 +15,9 @@ defmodule ZenWebsocket.Examples.SubscriptionManagementTest do
       assert %Client{} = client
       assert channels == ["trades.BTC-USD", "orderbook.ETH-USD", "ticker.SOL-USD"]
 
-      # Echo server should return our subscription message
+      # Echo server returns our subscription message (JSON-decoded by client)
       assert_receive {:websocket_message, message}, 2000
-      assert is_binary(message)
+      assert is_map(message) or is_binary(message)
 
       # Clean up
       Client.close(client)
@@ -26,21 +26,22 @@ defmodule ZenWebsocket.Examples.SubscriptionManagementTest do
 
   describe "handle_market_data/1" do
     test "processes JSON market update messages" do
-      # Simulate market update message
+      # Client now JSON-decodes text frames and delivers decoded maps
       market_update = %{
         "channel" => "trades.BTC-USD",
         "data" => %{"price" => 50_000, "amount" => 0.5}
       }
 
-      send(self(), {:websocket_message, Jason.encode!(market_update)})
+      send(self(), {:websocket_message, market_update})
 
       assert {:market_update, "trades.BTC-USD", %{"price" => 50_000, "amount" => 0.5}} =
                SubscriptionManagement.handle_market_data()
     end
 
     test "handles regular JSON messages" do
+      # Client delivers decoded maps for valid JSON
       message = %{"status" => "connected", "version" => "1.0"}
-      send(self(), {:websocket_message, Jason.encode!(message)})
+      send(self(), {:websocket_message, message})
 
       assert {:message, %{"status" => "connected", "version" => "1.0"}} =
                SubscriptionManagement.handle_market_data()
@@ -138,23 +139,8 @@ defmodule ZenWebsocket.Examples.SubscriptionManagementTest do
       pid = self()
 
       handler = fn
-        {:message, {:text, text}} ->
-          case Jason.decode(text) do
-            {:ok, %{"action" => "subscribe"} = decoded} ->
-              send(pid, {:subscription_confirmed, decoded})
-
-            {:error, _} ->
-              :ok
-          end
-
-        {:message, {:binary, data}} ->
-          case Jason.decode(data) do
-            {:ok, %{"action" => "subscribe"} = decoded} ->
-              send(pid, {:subscription_confirmed, decoded})
-
-            {:error, _} ->
-              :ok
-          end
+        {:message, %{"action" => "subscribe"} = decoded} ->
+          send(pid, {:subscription_confirmed, decoded})
 
         _other ->
           :ok
@@ -194,10 +180,11 @@ defmodule ZenWebsocket.Examples.SubscriptionManagementTest do
       :ok = Client.send_message(client, Jason.encode!(%{"valid" => true}))
 
       # Should receive both echoes
+      # "invalid" is not valid JSON, so client delivers as raw binary
       assert_receive {:websocket_message, "invalid"}, 2000
-      assert_receive {:websocket_message, valid_json}, 2000
-      # Echo server might return different format
-      assert is_binary(valid_json) or match?({:text, _}, valid_json)
+      # Valid JSON gets decoded by client into a map
+      assert_receive {:websocket_message, decoded}, 2000
+      assert is_map(decoded) or is_binary(decoded)
 
       Client.close(client)
     end

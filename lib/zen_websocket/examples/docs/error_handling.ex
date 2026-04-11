@@ -66,8 +66,13 @@ defmodule ZenWebsocket.Examples.Docs.ErrorHandling do
     {:noreply, state}
   end
 
-  def handle_info({:websocket_error, error}, state) do
-    Logger.error("WebSocket error: #{inspect(error)}")
+  def handle_info({:websocket_protocol_error, error}, state) do
+    Logger.error("WebSocket protocol error: #{inspect(error)}")
+    {:noreply, state}
+  end
+
+  def handle_info({:websocket_frame_error, error}, state) do
+    Logger.error("WebSocket frame error: #{inspect(error)}")
     {:noreply, state}
   end
 

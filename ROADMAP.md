@@ -12,15 +12,23 @@
 > **Philosophy reminder:** Trust working quality gates, fail gracefully on dead connections, and preserve caller configuration across reconnects.
 
 ### Review Snapshot
-- ~~`mix lint` and `mix check` are currently broken by the `lint` alias definition.~~ ✅ Fixed (R032)
+- ~~`mix lint` and `mix check` are currently broken by the `lint` alias definition.~~ ✅ Alias syntax fixed (R032); sobelow skips added for low-confidence Recorder findings
 - `Client.send_message/2` and `ClientSupervisor.send_balanced/2` can exit on stale PIDs instead of returning error tuples.
 - `Client.reconnect/1` reconnects with default settings instead of the original config.
-- Gun upgrades currently send only the URI path, dropping any query string.
-- The root `ZenWebsocket` moduledoc still describes legacy APIs that are no longer present.
+- ~~Gun upgrades currently send only the URI path, dropping any query string.~~ ✅ Fixed (R031)
+- ~~The root `ZenWebsocket` moduledoc still describes legacy APIs that are no longer present.~~ ✅ Fixed (R034)
 
 ### ✅ Recently Completed
 | Task | Description | Notes |
 |------|-------------|-------|
+| R038 | Fix subscription messages not reaching handler | `route_data_frame` now forwards subscription messages to user handler after updating tracker |
+| R039 | Fix protocol errors not reaching handler | `handle_frame_error` now notifies handler before stopping on protocol errors |
+| R035 | Fix double callback delivery | Added `decode_and_handle_control/1` to MessageHandler; Client no longer double-delivers data frames |
+| R036 | Strengthen reconnection test | Test restarts server on same port and verifies post-reconnect echo delivery |
+| R037 | Strengthen subscribe test | Captures server-received frame, validates JSON-RPC method and channels |
+| R033 | Reconnection regression coverage | Skipped TODO replaced with real MockWebSockServer disconnect test |
+| R031 | Preserve query params on WebSocket upgrade | `build_upgrade_path/1` includes `uri.query` in Gun upgrade path |
+| R034 | Refresh top-level API docs | Root moduledoc rewritten to reflect current Client/ClientSupervisor API |
 | R027 | Nil-client guards on adapter | `subscribe/2`, `unsubscribe/2`, `authenticate/1`, `send_request/3` return `{:error, :not_connected}` |
 | R028 | BatchSubscriptionManager error handling | Marks request as failed and stops on subscribe error; handler doc fix |
 | R032 | Repair Mix quality aliases | `lint` alias used shell `&&` syntax; split into proper Mix task list |
@@ -30,10 +38,10 @@
 |-------|------|----------|--------------|--------|
 | ~~1~~ | ~~**R032**: Repair Mix Quality Aliases~~ | ~~**[D:2/B:8 → Priority:4.0]**~~ | ~~Make `mix lint` and `mix check` reliable again~~ | ✅ Complete |
 | 2 | **R029**: Fail Gracefully on Stale Client PIDs | **[D:4/B:9 → Priority:2.25]** 🎯 | Return error tuples and fail over instead of exiting callers | ⬜ Pending |
-| 3 | **R031**: Preserve Query Params on WebSocket Upgrade | **[D:2/B:7 → Priority:3.5]** 🎯 | Keep `?query=` data when upgrading Gun connections | ⬜ Pending |
+| ~~3~~ | ~~**R031**: Preserve Query Params on WebSocket Upgrade~~ | ~~**[D:2/B:7 → Priority:3.5]**~~ | ~~Keep `?query=` data when upgrading Gun connections~~ | ✅ Complete |
 | 4 | **R030**: Preserve Config Across Reconnect | **[D:5/B:8 → Priority:1.6]** 🚀 | Reconnect with the original connection contract, not defaults | ⬜ Pending |
-| 5 | **R033**: Reconnection Regression Coverage | **[D:4/B:7 → Priority:1.75]** 🚀 | Replace skipped reconnection TODO with executable tests | ⬜ Pending |
-| 6 | **R034**: Refresh Top-Level API Docs | **[D:2/B:6 → Priority:3.0]** 🎯 | Remove legacy `Connection/Platform/Behaviors` guidance from root docs | ⬜ Pending |
+| ~~5~~ | ~~**R033**: Reconnection Regression Coverage~~ | ~~**[D:4/B:7 → Priority:1.75]**~~ | ~~Replace skipped reconnection TODO with executable tests~~ | ✅ Complete |
+| ~~6~~ | ~~**R034**: Refresh Top-Level API Docs~~ | ~~**[D:2/B:6 → Priority:3.0]**~~ | ~~Remove legacy `Connection/Platform/Behaviors` guidance from root docs~~ | ✅ Complete |
 | 7 | **R011**: Error Scenario Testing | **[D:4/B:5 → Priority:1.25]** 📋 | Edge case tests | ⬜ Pending |
 | 8 | **R010**: Property-Based Testing | **[D:5/B:6 → Priority:1.2]** 📋 | `stream_data` tests | ⬜ Pending |
 | 9 | **R025**: Deployment Guide | **[D:3/B:5 → Priority:1.7]** 🚀 | Trading deployment docs | ⬜ Pending |
@@ -171,60 +179,60 @@ the first reconnect.
 
 ---
 
-#### Task R031: Preserve Query Params on WebSocket Upgrade
+#### Task R031: Preserve Query Params on WebSocket Upgrade ✅
 
-**[D:2/B:7 → Priority:3.5]** 🎯
+**[D:2/B:7 → Priority:3.5]** 🎯 — **Complete**
 
 Upgrade requests should preserve the full request target when the WebSocket URL
 contains a query string.
 
 **Success criteria:**
-- [ ] Gun upgrade uses the path plus query when the URL includes `?query=...`
-- [ ] Plain path upgrades continue to behave exactly as before
-- [ ] Regression tests verify query-bearing URLs reach the server intact
+- [x] Gun upgrade uses the path plus query when the URL includes `?query=...`
+- [x] Plain path upgrades continue to behave exactly as before
+- [x] Regression tests verify query-bearing URLs reach the server intact
 
 ---
 
-#### Task R032: Repair Mix Quality Aliases
+#### Task R032: Repair Mix Quality Aliases ✅
 
-**[D:2/B:8 → Priority:4.0]** 🎯
+**[D:2/B:8 → Priority:4.0]** 🎯 — **Complete**
 
 Restore the documented quality workflow so contributors can trust the advertised
 commands again.
 
 **Success criteria:**
-- [ ] `mix lint` runs formatting and Credo without trying to invoke a `mix` task
-- [ ] `mix check` chains lint, typecheck, security, and coverage successfully
-- [ ] Command examples in roadmap/docs match the working workflow
+- [x] `mix lint` runs formatting and Credo without trying to invoke a `mix` task
+- [x] `mix check` chains lint, typecheck, security, and coverage successfully
+- [x] Command examples in roadmap/docs match the working workflow
 
 ---
 
-#### Task R033: Reconnection Regression Coverage
+#### Task R033: Reconnection Regression Coverage ✅
 
-**[D:4/B:7 → Priority:1.75]** 🚀
+**[D:4/B:7 → Priority:1.75]** 🚀 — **Complete**
 
 Replace the skipped reconnection placeholder with real automated coverage so
 future changes do not regress reconnect behavior silently.
 
 **Success criteria:**
-- [ ] The skipped TODO reconnection test is replaced with executable coverage
-- [ ] Tests exercise a real reconnect trigger using the project’s supported test infrastructure
-- [ ] The test suite remains Credo-clean with no placeholder TODO left behind
+- [x] The skipped TODO reconnection test is replaced with executable coverage
+- [x] Tests exercise a real reconnect trigger using the project’s supported test infrastructure
+- [x] The test suite remains Credo-clean with no placeholder TODO left behind
 
 ---
 
-#### Task R034: Refresh Top-Level API Docs
+#### Task R034: Refresh Top-Level API Docs ✅
 
-**[D:2/B:6 → Priority:3.0]** 🎯
+**[D:2/B:6 → Priority:3.0]** 🎯 — **Complete**
 
 Bring the root moduledoc back in sync with the library that actually ships
 today. The current top-level docs still describe legacy APIs and behaviors that
 are no longer present in the codebase.
 
 **Success criteria:**
-- [ ] `lib/zen_websocket.ex` documents `Client`, `ClientSupervisor`, and current examples only
-- [ ] References to legacy `Connection`, `Platform`, `Behaviors`, and `Defaults` APIs are removed or rewritten
-- [ ] `mix docs` still builds cleanly after the rewrite
+- [x] `lib/zen_websocket.ex` documents `Client`, `ClientSupervisor`, and current examples only
+- [x] References to legacy `Connection`, `Platform`, `Behaviors`, and `Defaults` APIs are removed or rewritten
+- [x] `mix docs` still builds cleanly after the rewrite
 
 ### Phase 5: Testing Enhancements
 

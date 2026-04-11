@@ -260,60 +260,66 @@ defmodule ZenWebsocket.Examples.RateLimitingTest do
       client_id = System.get_env("DERIBIT_CLIENT_ID")
       client_secret = System.get_env("DERIBIT_CLIENT_SECRET")
 
-      if client_id && client_secret do
-        {:ok, client} = Client.connect("wss://test.deribit.com/ws/api/v2")
+      if is_nil(client_id) or is_nil(client_secret) do
+        flunk("""
+        Missing Deribit testnet credentials!
 
-        # Auth request
-        auth_msg = %{
+        Set these environment variables:
+          export DERIBIT_CLIENT_ID="your_client_id"
+          export DERIBIT_CLIENT_SECRET="your_client_secret"
+
+        Get credentials at: https://test.deribit.com
+        """)
+      end
+
+      {:ok, client} = Client.connect("wss://test.deribit.com/ws/api/v2")
+
+      # Auth request
+      auth_msg = %{
+        "jsonrpc" => "2.0",
+        "method" => "public/auth",
+        "params" => %{
+          "grant_type" => "client_credentials",
+          "client_id" => client_id,
+          "client_secret" => client_secret
+        },
+        "id" => 1
+      }
+
+      # Check rate limit before sending
+      assert :ok = RateLimiter.consume(deribit_limiter, auth_msg)
+
+      # send_message blocks for correlated JSON-RPC (has "id") and returns response
+      case Client.send_message(client, Jason.encode!(auth_msg)) do
+        :ok -> :ok
+        {:ok, _} -> :ok
+        error -> flunk("Unexpected error: #{inspect(error)}")
+      end
+
+      # Multiple ticker requests
+      for i <- 1..5 do
+        ticker_msg = %{
           "jsonrpc" => "2.0",
-          "method" => "public/auth",
-          "params" => %{
-            "grant_type" => "client_credentials",
-            "client_id" => client_id,
-            "client_secret" => client_secret
-          },
-          "id" => 1
+          "method" => "public/get_ticker",
+          "params" => %{"instrument_name" => "BTC-PERPETUAL"},
+          "id" => i + 1
         }
 
-        # Check rate limit before sending
-        assert :ok = RateLimiter.consume(deribit_limiter, auth_msg)
+        case RateLimiter.consume(deribit_limiter, ticker_msg) do
+          :ok ->
+            case Client.send_message(client, Jason.encode!(ticker_msg)) do
+              :ok -> :ok
+              {:ok, _} -> :ok
+              error -> flunk("Unexpected error: #{inspect(error)}")
+            end
 
-        case Client.send_message(client, Jason.encode!(auth_msg)) do
-          :ok -> :ok
-          # JSON-RPC response
-          {:ok, _} -> :ok
-          error -> flunk("Unexpected error: #{inspect(error)}")
+          {:error, :rate_limited} ->
+            # Expected when we hit limits
+            :ok
         end
-
-        # Wait for auth response
-        assert_receive {:websocket_message, _}, 5_000
-
-        # Multiple ticker requests
-        for i <- 1..5 do
-          ticker_msg = %{
-            "jsonrpc" => "2.0",
-            "method" => "public/get_ticker",
-            "params" => %{"instrument_name" => "BTC-PERPETUAL"},
-            "id" => i + 1
-          }
-
-          case RateLimiter.consume(deribit_limiter, ticker_msg) do
-            :ok ->
-              case Client.send_message(client, Jason.encode!(ticker_msg)) do
-                :ok -> :ok
-                # JSON-RPC response
-                {:ok, _} -> :ok
-                error -> flunk("Unexpected error: #{inspect(error)}")
-              end
-
-            {:error, :rate_limited} ->
-              # Expected when we hit limits
-              :ok
-          end
-        end
-
-        :ok = Client.close(client)
       end
+
+      :ok = Client.close(client)
     end
   end
 end

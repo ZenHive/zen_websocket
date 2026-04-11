@@ -212,11 +212,11 @@ defmodule ZenWebsocket.Client do
         opts
       else
         default_handler = fn
-          {:message, {:text, data}} -> send(parent_pid, {:websocket_message, data})
-          {:message, {:binary, data}} -> send(parent_pid, {:websocket_message, data})
-          {:message, data} when is_binary(data) -> send(parent_pid, {:websocket_message, data})
+          {:message, data} -> send(parent_pid, {:websocket_message, data})
           {:binary, data} -> send(parent_pid, {:websocket_message, data})
           {:frame, frame} -> send(parent_pid, {:websocket_frame, frame})
+          {:protocol_error, reason} -> send(parent_pid, {:websocket_protocol_error, reason})
+          {:frame_error, reason} -> send(parent_pid, {:websocket_frame_error, reason})
           _other -> :ok
         end
 
@@ -656,20 +656,23 @@ defmodule ZenWebsocket.Client do
         Debug.log(state.config, "   🔍 Frame: #{inspect(other)}")
     end
 
-    # Route WebSocket frames through MessageHandler
-    case ZenWebsocket.MessageHandler.handle_message({:gun_ws, gun_pid, stream_ref, frame}, state.handler) do
-      {:ok, {:message, decoded_frame}} ->
-        # Data frame - route to subscriptions, heartbeat manager, etc.
+    # Decode frame and handle control frames (ping/pong auto-response).
+    # Uses decode_and_handle_control (not handle_message) to avoid double
+    # handler delivery — route_data_frame handles user callback dispatch.
+    case ZenWebsocket.MessageHandler.decode_and_handle_control({:gun_ws, gun_pid, stream_ref, frame}) do
+      {:ok, {:data, decoded_frame}} ->
         new_state = route_data_frame(decoded_frame, state)
         {:noreply, new_state}
 
       {:ok, :control_frame_handled} ->
-        # Control frame already handled (ping/pong)
         {:noreply, state}
 
-      {:error, reason} ->
-        # Frame decode error
-        handle_frame_error(state, reason)
+      # Exhaustive match — handle_frame_error/2 pattern-matches on error tag
+      {:error, {:protocol_error, _} = error} ->
+        handle_frame_error(state, error)
+
+      {:error, {:decode_error, _} = error} ->
+        handle_frame_error(state, error)
     end
   end
 
@@ -838,8 +841,10 @@ defmodule ZenWebsocket.Client do
             HeartbeatManager.handle_message(msg, state)
 
           {:ok, %{"method" => "subscription"} = msg} ->
-            # Handle subscription confirmation
-            SubscriptionManager.handle_message(msg, state)
+            # Update subscription tracker, then forward to user handler
+            new_state = SubscriptionManager.handle_message(msg, state)
+            new_state.handler.({:message, msg})
+            new_state
 
           {:ok, %{"id" => id} = msg} when is_integer(id) or is_binary(id) ->
             # JSON-RPC response - route to pending request
@@ -888,13 +893,14 @@ defmodule ZenWebsocket.Client do
 
   # Handles frame decode errors
   @spec handle_frame_error(state(), term()) :: {:noreply, state()} | {:stop, term(), state()}
-  defp handle_frame_error(state, {:protocol_error, _} = error) do
-    # Serious protocol error - stop the connection
+  defp handle_frame_error(state, {:protocol_error, reason} = error) do
+    # Notify handler before stopping — matches create_handler/1 contract
+    state.handler.({:protocol_error, reason})
     {:stop, error, state}
   end
 
-  defp handle_frame_error(state, error) do
-    # Other errors - log and continue
+  defp handle_frame_error(state, {:decode_error, _} = error) do
+    # Recoverable decode error - notify handler and continue
     state.handler.({:frame_error, error})
     {:noreply, state}
   end

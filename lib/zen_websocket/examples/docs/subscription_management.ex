@@ -31,17 +31,14 @@ defmodule ZenWebsocket.Examples.Docs.SubscriptionManagement do
   """
   def handle_market_data(timeout \\ 5000) do
     receive do
+      {:websocket_message, %{"channel" => channel, "data" => data}} ->
+        {:market_update, channel, data}
+
+      {:websocket_message, %{} = decoded} ->
+        {:message, decoded}
+
       {:websocket_message, message} when is_binary(message) ->
-        case Jason.decode(message) do
-          {:ok, %{"channel" => channel, "data" => data}} ->
-            {:market_update, channel, data}
-
-          {:ok, decoded} ->
-            {:message, decoded}
-
-          {:error, _} ->
-            {:text_message, message}
-        end
+        {:text_message, message}
 
       {:websocket_closed, reason} ->
         {:closed, reason}

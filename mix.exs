@@ -134,7 +134,7 @@ defmodule ZenWebsocket.MixProject do
       # Tasks
       {:task_validator, "~> 0.9.5", only: [:dev, :test], runtime: false},
       # Usage rules for AI agents and documentation
-      {:usage_rules, "~> 0.1", only: :dev, runtime: false},
+      {:usage_rules, "~> 1.2", only: :dev, runtime: false},
 
       # Security scanning
       {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false},

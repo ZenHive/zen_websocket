@@ -71,6 +71,35 @@ defmodule ZenWebsocket.MessageHandler do
   end
 
   @doc """
+  Decode a WebSocket frame and handle control frames automatically.
+  Returns decoded data frames without invoking any handler callback.
+
+  Used by the Client GenServer which has its own routing layer (route_data_frame)
+  for JSON parsing, subscription routing, and heartbeat handling.
+  """
+  @spec decode_and_handle_control(tuple()) ::
+          {:ok, {:data, {atom(), binary()}}}
+          | {:ok, :control_frame_handled}
+          | {:error, {:protocol_error, term()}}
+          | {:error, {:decode_error, term()}}
+  def decode_and_handle_control({:gun_ws, conn_pid, stream_ref, frame}) do
+    case Frame.decode(frame) do
+      {:ok, decoded_frame} ->
+        case handle_control_frame(decoded_frame, conn_pid, stream_ref) do
+          :handled -> {:ok, :control_frame_handled}
+          :not_control -> {:ok, {:data, decoded_frame}}
+        end
+
+      {:error, reason} ->
+        # Classify via ErrorHandler: bad_frame errors are fatal protocol errors
+        case ZenWebsocket.ErrorHandler.handle_error({:error, {:bad_frame, reason}}) do
+          :stop -> {:error, {:protocol_error, reason}}
+          _ -> {:error, {:decode_error, reason}}
+        end
+    end
+  end
+
+  @doc """
   Handle WebSocket control frames automatically.
   Returns :handled for control frames, :not_control for data frames.
   """

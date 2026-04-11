@@ -1,160 +1,72 @@
 defmodule ZenWebsocket do
   @moduledoc """
-  ZenWebsocket is a robust WebSocket client library for Elixir with a pluggable adapter architecture.
+  A robust WebSocket client library for Elixir, built on Gun transport.
 
-  ## Architecture Overview
+  Designed for financial APIs (cryptocurrency exchanges like Deribit) but
+  works with any WebSocket endpoint. Provides automatic reconnection,
+  heartbeat management, rate limiting, and request/response correlation.
 
-  ZenWebsocket employs a "thin adapter" architecture that separates concerns through:
+  ## Quick Start
 
-  1. **Behavioral Interfaces**: Well-defined behaviors for various aspects of WebSocket handling
-  2. **Default Implementations**: Ready-to-use default implementations of these behaviors
-  3. **Platform Adapters**: Thin adapters that bridge to specific platforms/services
-  4. **Connection Management**: Process-based connection handling with ownership semantics
+      # Connect to a WebSocket endpoint
+      {:ok, client} = ZenWebsocket.Client.connect("wss://test.deribit.com/ws/api/v2")
 
-  This modular design allows for maximum flexibility while minimizing boilerplate code.
+      # Send a message
+      :ok = ZenWebsocket.Client.send_message(client, Jason.encode!(%{method: "public/test"}))
 
-  ## Key Components
+      # Subscribe to channels
+      :ok = ZenWebsocket.Client.subscribe(client, ["trades.BTC-PERPETUAL.raw"])
 
-  * **Connection**: The core GenServer process managing the WebSocket lifecycle
-  * **Client**: A convenient API for interacting with connections
-  * **Behaviors**: Interfaces for connection, message, authentication, error handling, etc.
-  * **Defaults**: Ready-to-use implementations of all behaviors
-  * **Platform Adapters**: Thin adapters for specific WebSocket services
+      # Check connection state
+      :connected = ZenWebsocket.Client.get_state(client)
 
-  ## Basic Usage
+      # Close when done
+      :ok = ZenWebsocket.Client.close(client)
 
-  ```elixir
-  # Start a connection to the Echo service
-  {:ok, conn} = ZenWebsocket.Connection.start_link(
-    adapter: ZenWebsocket.Platform.Echo.Adapter
-  )
+  ## Supervised Connections
 
-  # Send a message and get the response
-  {:text, response} = ZenWebsocket.Client.send_text(conn, "Hello")
-  ```
+  For production use, `ZenWebsocket.ClientSupervisor` manages connection pools
+  with health-based load balancing:
 
-  ## Using with Custom Handlers
+      # Start the supervisor (add to your application supervision tree)
+      ZenWebsocket.ClientSupervisor.start_link([])
 
-  ```elixir
-  # Start a connection with custom handlers
-  {:ok, conn} = ZenWebsocket.Connection.start_link(
-    adapter: ZenWebsocket.Platform.Echo.Adapter,
-    message_handler: MyApp.MessageHandler,
-    connection_handler: MyApp.ConnectionHandler
-  )
-  ```
+      # Start managed connections
+      {:ok, client} = ZenWebsocket.ClientSupervisor.start_client("wss://example.com/ws")
 
-  ## Creating a Client Module
+      # Route to healthiest connection
+      :ok = ZenWebsocket.ClientSupervisor.send_balanced(message)
 
-  ```elixir
-  defmodule MyApp.WebSocketClient do
-    use GenServer
+  ## Key Modules
 
-    def start_link(opts \\\\ []) do
-      GenServer.start_link(__MODULE__, opts)
-    end
+  ### Client API
+  * `ZenWebsocket.Client` — 5-function public API: `connect/2`, `send_message/2`,
+    `close/1`, `subscribe/2`, `get_state/1`
+  * `ZenWebsocket.ClientSupervisor` — supervised connection pool with `send_balanced/2`
+  * `ZenWebsocket.Config` — connection configuration and validation
 
-    def init(opts) do
-      # Start the WebSocket connection
-      {:ok, conn} = ZenWebsocket.Connection.start_link(
-        adapter: ZenWebsocket.Platform.Echo.Adapter
-      )
+  ### Infrastructure
+  * `ZenWebsocket.Reconnection` — exponential backoff retry logic
+  * `ZenWebsocket.HeartbeatManager` — keepalive lifecycle management
+  * `ZenWebsocket.SubscriptionManager` — subscription tracking and restoration
+  * `ZenWebsocket.RequestCorrelator` — JSON-RPC request/response correlation
+  * `ZenWebsocket.RateLimiter` — token bucket rate limiting
+  * `ZenWebsocket.PoolRouter` — health-based connection routing
 
-      {:ok, %{conn: conn}}
-    end
+  ### Observability
+  * `ZenWebsocket.ErrorHandler` — error categorization with `explain/1`
+  * `ZenWebsocket.LatencyStats` — connection latency tracking (p50/p99)
+  * `ZenWebsocket.Recorder` — session recording for debugging (JSONL format)
+  * `ZenWebsocket.Testing` — test utilities with `MockWebSockServer` helpers
 
-    # API functions
-    def send_message(client, message) do
-      GenServer.call(client, {:send, message})
-    end
+  ### Protocol
+  * `ZenWebsocket.Frame` — WebSocket frame encoding/decoding
+  * `ZenWebsocket.JsonRpc` — JSON-RPC 2.0 message formatting
+  * `ZenWebsocket.MessageHandler` — message parsing and routing
 
-    # Callbacks
-    def handle_call({:send, message}, _from, %{conn: conn} = state) do
-      result = ZenWebsocket.Client.send_text(conn, message)
-      {:reply, result, state}
-    end
-  end
-  ```
+  ## Platform Examples
 
-  ## Implementing Custom Handlers
-
-  Each aspect of WebSocket communication can be customized by implementing one of
-  the behaviors in `ZenWebsocket.Behaviors`:
-
-  ```elixir
-  defmodule MyApp.MessageHandler do
-    @behaviour ZenWebsocket.Behaviors.MessageHandler
-
-    @impl true
-    def init(opts) do
-      {:ok, %{messages: []}}
-    end
-
-    @impl true
-    def handle_message(frame_type, data, state) do
-      Logger.debug("Received \#{frame_type} message: \#{inspect(data)}")
-      new_state = update_in(state.messages, &[{frame_type, data} | &1])
-      {:ok, new_state}
-    end
-  end
-  ```
-
-  ## Creating a Platform Adapter
-
-  To support a new WebSocket service, implement the `ZenWebsocket.Platform.Adapter` behavior:
-
-  ```elixir
-  defmodule MyApp.CustomAdapter do
-    use ZenWebsocket.Platform.Adapter,
-      default_host: "api.example.com",
-      default_port: 443,
-      default_path: "/websocket"
-
-    @impl true
-    def handle_platform_message(message, state) do
-      # Custom message handling
-      {:reply, {:text, "Processed: \#{inspect(message)}"}, state}
-    end
-
-    @impl true
-    def encode_auth_request(credentials) do
-      {:text, Jason.encode!(%{
-        type: "auth",
-        key: credentials.api_key,
-        secret: credentials.api_secret
-      })}
-    end
-
-    @impl true
-    def encode_subscription_request(channel, params) do
-      {:text, Jason.encode!(%{
-        type: "subscribe",
-        channel: channel,
-        params: params
-      })}
-    end
-
-    @impl true
-    def encode_unsubscription_request(channel) do
-      {:text, Jason.encode!(%{
-        type: "unsubscribe",
-        channel: channel
-      })}
-    end
-  end
-  ```
-
-  ## Available Behaviors
-
-  * `ConnectionHandler`: Handle connection lifecycle events
-  * `MessageHandler`: Process incoming WebSocket messages
-  * `SubscriptionHandler`: Manage channel subscriptions
-  * `AuthHandler`: Handle authentication
-  * `ErrorHandler`: Process error scenarios
-  * `RateLimitHandler`: Implement rate limiting
-  * `LoggingHandler`: Provide logging functionality
-  * `MetricsCollector`: Collect metrics about WebSocket operations
-
-  Each behavior has a corresponding default implementation in the `ZenWebsocket.Defaults` namespace.
+  See `ZenWebsocket.Examples.DeribitAdapter` for a production-ready adapter
+  demonstrating authentication, subscription management, and heartbeat handling.
   """
 end

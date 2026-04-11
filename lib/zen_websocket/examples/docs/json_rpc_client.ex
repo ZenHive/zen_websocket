@@ -60,28 +60,28 @@ defmodule ZenWebsocket.Examples.Docs.JsonRpcClient do
   @doc """
   Processes incoming WebSocket messages and returns JSON-RPC responses.
   """
-  @spec handle_message(String.t()) :: {:ok, map()} | {:error, term()} | :ignore
-  def handle_message(message) do
-    case Jason.decode(message) do
-      {:ok, decoded} ->
-        case JsonRpc.match_response(decoded) do
-          {:ok, result} ->
-            Logger.debug("JSON-RPC result: #{inspect(result)}")
-            {:ok, %{id: decoded["id"], result: result}}
+  @spec handle_message(map() | String.t()) :: {:ok, map()} | {:error, term()} | :ignore
+  def handle_message(%{} = decoded) do
+    # JSON frames arrive pre-decoded as maps
+    case JsonRpc.match_response(decoded) do
+      {:ok, result} ->
+        Logger.debug("JSON-RPC result: #{inspect(result)}")
+        {:ok, %{id: decoded["id"], result: result}}
 
-          {:error, {code, msg}} ->
-            Logger.error("JSON-RPC error: #{code} - #{msg}")
-            {:error, %{id: decoded["id"], code: code, message: msg}}
+      {:error, {code, msg}} ->
+        Logger.error("JSON-RPC error: #{code} - #{msg}")
+        {:error, %{id: decoded["id"], code: code, message: msg}}
 
-          {:notification, method, params} ->
-            Logger.info("JSON-RPC notification: #{method}")
-            handle_notification(method, params)
-        end
-
-      {:error, reason} ->
-        Logger.error("Failed to decode JSON: #{inspect(reason)}")
-        {:error, :invalid_json}
+      {:notification, method, params} ->
+        Logger.info("JSON-RPC notification: #{method}")
+        handle_notification(method, params)
     end
+  end
+
+  def handle_message(message) when is_binary(message) do
+    # Non-JSON text frames arrive as binary strings
+    Logger.warning("Received non-JSON message: #{inspect(message)}")
+    :ignore
   end
 
   # Note: wait_for_response is no longer needed!

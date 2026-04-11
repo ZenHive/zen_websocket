@@ -73,7 +73,10 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
     @behaviour :cowboy_websocket
 
     def init(req, state) do
-      {:cowboy_websocket, req, state}
+      # Capture request path and query for test assertions
+      qs = :cowboy_req.qs(req)
+      path = :cowboy_req.path(req)
+      {:cowboy_websocket, req, Map.merge(state, %{request_path: path, request_query: qs})}
     end
 
     def websocket_init(%{parent: parent} = state) do
@@ -85,6 +88,11 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
     def websocket_handle({:text, "internal:get_handler"}, %{parent: parent} = state) do
       send(parent, {:get_handler_request, self()})
       {:ok, state}
+    end
+
+    def websocket_handle({:text, "internal:get_request_info"}, state) do
+      info = Jason.encode!(%{path: state.request_path, query: state.request_query})
+      {:reply, {:text, info}, state}
     end
 
     def websocket_handle(frame, %{parent: _parent, handler: handler} = state) when is_function(handler) do

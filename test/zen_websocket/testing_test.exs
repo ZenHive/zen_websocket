@@ -73,8 +73,8 @@ defmodule ZenWebsocket.TestingTest do
       # Inject a message from server
       :ok = Testing.inject_message(server, ~s({"type": "notification"}))
 
-      # Client should receive the message
-      assert_receive {:websocket_message, ~s({"type": "notification"})}, 1000
+      # Client receives decoded map (route_data_frame parses JSON)
+      assert_receive {:websocket_message, %{"type" => "notification"}}, 1000
 
       ZenWebsocket.Client.close(client)
       Testing.stop_server(server)

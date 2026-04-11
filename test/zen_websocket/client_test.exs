@@ -57,7 +57,7 @@ defmodule ZenWebsocket.ClientTest do
     Client.close(client)
   end
 
-  test "subscribe formats message correctly" do
+  test "subscribe sends message to server" do
     {:ok, client} = Client.connect(@deribit_test_url)
 
     result = Client.subscribe(client, ["deribit_price_index.btc_usd"])
@@ -91,8 +91,9 @@ defmodule ZenWebsocket.ClientTest do
       test_message = "Hello, WebSocket!"
       assert :ok = Client.send_message(client, test_message)
 
-      # Should receive the echoed message as {:websocket_message, data}
+      # Should receive the echoed message exactly once
       assert_receive {:websocket_message, ^test_message}, 5_000
+      refute_receive {:websocket_message, _}, 200
 
       Client.close(client)
     end
@@ -152,6 +153,30 @@ defmodule ZenWebsocket.ClientTest do
 
       # Should not have received anything
       refute_receive _, 10
+    end
+
+    test "subscribe sends correct JSON-RPC payload", %{server: server, mock_url: mock_url} do
+      test_pid = self()
+
+      # Handler that captures raw frames received by the server
+      MockWebSockServer.set_handler(server, fn
+        {:text, msg} ->
+          send(test_pid, {:server_received, msg})
+          :ok
+      end)
+
+      {:ok, client} = Client.connect(mock_url)
+
+      channels = ["deribit_price_index.btc_usd", "trades.BTC-PERPETUAL"]
+      assert :ok = Client.subscribe(client, channels)
+
+      assert_receive {:server_received, raw}, 5_000
+      msg = Jason.decode!(raw)
+
+      assert msg["method"] == "public/subscribe"
+      assert msg["params"]["channels"] == channels
+
+      Client.close(client)
     end
   end
 
@@ -232,12 +257,183 @@ defmodule ZenWebsocket.ClientTest do
       Client.close(client)
     end
 
-    # TODO: Implement reconnection test - requires either:
-    # 1. Kill the Gun process and verify reconnection
-    # 2. Use MockWebSockServer with connection drop simulation
-    # Tracked as future work for reconnection testing infrastructure
-    @tag :skip
-    test "reconnection maintains Gun message ownership in Client GenServer" do
+    test "reconnection delivers frames after server restart" do
+      echo_handler = fn
+        {:text, msg} -> {:reply, {:text, msg}}
+        {:binary, data} -> {:reply, {:binary, data}}
+      end
+
+      # Start a mock server and capture its port
+      {:ok, server, port} = MockWebSockServer.start_link()
+      MockWebSockServer.set_handler(server, echo_handler)
+
+      mock_url = "ws://localhost:#{port}/ws"
+
+      {:ok, client} = Client.connect(mock_url, retry_count: 10, retry_delay: 100)
+      server_pid = client.server_pid
+
+      assert Client.get_state(client) == :connected
+
+      # Kill the mock server to trigger disconnect
+      MockWebSockServer.stop(server)
+
+      # Allow time for Gun to detect TCP close and Client to enter reconnection
+      disconnect_detection_ms = 300
+      Process.sleep(disconnect_detection_ms)
+      assert Process.alive?(server_pid), "Client GenServer crashed instead of reconnecting"
+
+      # Start a NEW server on the same port with echo handler
+      {:ok, server2, ^port} = MockWebSockServer.start_link(port: port)
+      MockWebSockServer.set_handler(server2, echo_handler)
+
+      # Wait for client to reconnect (poll up to 3 seconds)
+      reconnected =
+        Enum.reduce_while(1..30, false, fn _, _acc ->
+          Process.sleep(100)
+
+          if Client.get_state(client) == :connected do
+            {:halt, true}
+          else
+            {:cont, false}
+          end
+        end)
+
+      assert reconnected, "Client did not reconnect within 3 seconds"
+
+      # Send a message and verify the echo comes back through the new connection
+      test_message = "post-reconnect-echo"
+      assert :ok = Client.send_message(client, test_message)
+      assert_receive {:websocket_message, ^test_message}, 5_000
+
+      Client.close(client)
+      MockWebSockServer.stop(server2)
+    end
+  end
+
+  describe "handler callback regressions" do
+    setup do
+      {:ok, server, port} = MockWebSockServer.start_link()
+
+      mock_url = "ws://localhost:#{port}/ws"
+
+      on_exit(fn -> MockWebSockServer.stop(server) end)
+
+      {:ok, server: server, port: port, mock_url: mock_url}
+    end
+
+    test "subscription messages are forwarded to user handler", %{server: server, mock_url: mock_url} do
+      test_pid = self()
+
+      # Handler that captures all messages
+      handler = fn
+        {:message, data} -> send(test_pid, {:handler_received, data})
+        _other -> :ok
+      end
+
+      # Mock server replies with a subscription notification when it gets any text
+      subscription_msg =
+        Jason.encode!(%{
+          "method" => "subscription",
+          "params" => %{
+            "channel" => "trades.BTC-PERPETUAL",
+            "data" => %{"price" => 50_000, "amount" => 1.5}
+          }
+        })
+
+      MockWebSockServer.set_handler(server, fn
+        {:text, _msg} -> {:reply, {:text, subscription_msg}}
+      end)
+
+      {:ok, client} = Client.connect(mock_url, handler: handler)
+
+      # Trigger a subscription message from the server
+      :ok = Client.send_message(client, "trigger")
+
+      # The subscription message MUST reach the user handler
+      assert_receive {:handler_received, %{"method" => "subscription", "params" => params}}, 5_000
+      assert params["channel"] == "trades.BTC-PERPETUAL"
+      assert params["data"]["price"] == 50_000
+
+      Client.close(client)
+    end
+
+    test "protocol errors are delivered to handler before connection stops", %{mock_url: mock_url} do
+      test_pid = self()
+
+      # Handler that captures protocol errors
+      handler = fn
+        {:protocol_error, reason} -> send(test_pid, {:handler_protocol_error, reason})
+        _other -> :ok
+      end
+
+      {:ok, client} = Client.connect(mock_url, handler: handler)
+      server_pid = client.server_pid
+
+      # Monitor the GenServer to detect stop
+      ref = Process.monitor(server_pid)
+
+      # Send an invalid frame directly to the GenServer to trigger protocol error.
+      # We simulate what Gun would send for a malformed frame.
+      send(server_pid, {:gun_ws, client.gun_pid, client.stream_ref, {:invalid, "bad frame"}})
+
+      # The handler should receive the protocol error BEFORE the process stops
+      assert_receive {:handler_protocol_error, _reason}, 5_000
+
+      # The process should stop after notifying
+      assert_receive {:DOWN, ^ref, :process, ^server_pid, _reason}, 5_000
+    end
+
+    test "default handler delivers protocol errors to caller mailbox", %{mock_url: mock_url} do
+      # Connect WITHOUT a custom handler — uses the default handler
+      {:ok, client} = Client.connect(mock_url)
+      server_pid = client.server_pid
+      ref = Process.monitor(server_pid)
+
+      # Trigger a protocol error via invalid frame
+      send(server_pid, {:gun_ws, client.gun_pid, client.stream_ref, {:invalid, "bad frame"}})
+
+      # Default handler should deliver {:websocket_protocol_error, reason}
+      assert_receive {:websocket_protocol_error, _reason}, 5_000
+
+      # Process stops after notifying
+      assert_receive {:DOWN, ^ref, :process, ^server_pid, _reason}, 5_000
+    end
+
+    test "subscription tracker updates state alongside handler delivery", %{server: server, mock_url: mock_url} do
+      test_pid = self()
+
+      handler = fn
+        {:message, _data} -> send(test_pid, :handler_called)
+        _other -> :ok
+      end
+
+      # Server sends subscription confirmation with channel info
+      confirmation_msg =
+        Jason.encode!(%{
+          "method" => "subscription",
+          "params" => %{"channel" => "orderbook.ETH-PERPETUAL"}
+        })
+
+      MockWebSockServer.set_handler(server, fn
+        {:text, _msg} -> {:reply, {:text, confirmation_msg}}
+      end)
+
+      {:ok, client} = Client.connect(mock_url, handler: handler)
+
+      :ok = Client.send_message(client, "trigger")
+
+      # Handler receives the message
+      assert_receive :handler_called, 5_000
+
+      # Subscription tracker must have updated state.subscriptions
+      metrics = Client.get_state_metrics(client)
+
+      assert metrics.subscriptions_size >= 1,
+             "Expected subscriptions to be tracked, got size: #{metrics.subscriptions_size}"
+
+      assert metrics.connection_state == :connected
+
+      Client.close(client)
     end
   end
 end

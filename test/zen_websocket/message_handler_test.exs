@@ -217,6 +217,46 @@ defmodule ZenWebsocket.MessageHandlerTest do
     end
   end
 
+  describe "decode_and_handle_control/1" do
+    test "returns decoded data frame without calling any handler" do
+      conn_pid = self()
+      stream_ref = make_ref()
+      message = {:gun_ws, conn_pid, stream_ref, {:text, "hello"}}
+
+      assert {:ok, {:data, {:text, "hello"}}} =
+               MessageHandler.decode_and_handle_control(message)
+    end
+
+    test "returns decoded binary frame" do
+      conn_pid = self()
+      stream_ref = make_ref()
+      data = <<1, 2, 3>>
+      message = {:gun_ws, conn_pid, stream_ref, {:binary, data}}
+
+      assert {:ok, {:data, {:binary, ^data}}} =
+               MessageHandler.decode_and_handle_control(message)
+    end
+
+    test "handles control frames and returns :control_frame_handled" do
+      conn_pid = self()
+      stream_ref = make_ref()
+      message = {:gun_ws, conn_pid, stream_ref, {:pong, "data"}}
+
+      assert {:ok, :control_frame_handled} =
+               MessageHandler.decode_and_handle_control(message)
+    end
+
+    test "returns protocol error for invalid frames" do
+      conn_pid = self()
+      stream_ref = make_ref()
+      message = {:gun_ws, conn_pid, stream_ref, {:invalid, "bad"}}
+
+      # Invalid frames are classified as fatal protocol errors via ErrorHandler
+      assert {:error, {:protocol_error, _reason}} =
+               MessageHandler.decode_and_handle_control(message)
+    end
+  end
+
   describe "integration with automatic ping/pong handling" do
     test "ping frames are handled automatically without calling user handler" do
       conn_pid = self()

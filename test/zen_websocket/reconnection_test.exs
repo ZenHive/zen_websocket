@@ -1,7 +1,9 @@
 defmodule ZenWebsocket.ReconnectionTest do
   use ExUnit.Case
 
+  alias ZenWebsocket.Client
   alias ZenWebsocket.Reconnection
+  alias ZenWebsocket.Test.Support.MockWebSockServer
 
   describe "build_gun_opts/1" do
     test "WSS connections include TLS transport and ALPN for HTTP/1.1" do
@@ -98,6 +100,55 @@ defmodule ZenWebsocket.ReconnectionTest do
     test "returns false for non-recoverable errors" do
       refute Reconnection.should_reconnect?(:invalid_credentials)
       refute Reconnection.should_reconnect?(:protocol_error)
+    end
+  end
+
+  describe "query param preservation on upgrade" do
+    @describetag :integration
+
+    setup do
+      {:ok, server, port} = MockWebSockServer.start_link()
+      on_exit(fn -> MockWebSockServer.stop(server) end)
+      {:ok, port: port}
+    end
+
+    test "connects successfully with query params in URL", %{port: port} do
+      url = "ws://localhost:#{port}/ws?token=test123&session=abc"
+      {:ok, client} = Client.connect(url)
+
+      assert client.state == :connected
+      Client.close(client)
+    end
+
+    test "server receives query params from upgrade request", %{port: port} do
+      url = "ws://localhost:#{port}/ws?token=test123&session=abc"
+      {:ok, client} = Client.connect(url)
+
+      # Ask the server what request info it received
+      :ok = Client.send_message(client, "internal:get_request_info")
+
+      # route_data_frame delivers decoded maps for valid JSON
+      assert_receive {:websocket_message, info}, 5_000
+
+      assert info["path"] == "/ws"
+      assert info["query"] == "token=test123&session=abc"
+
+      Client.close(client)
+    end
+
+    test "plain path without query still works", %{port: port} do
+      url = "ws://localhost:#{port}/ws"
+      {:ok, client} = Client.connect(url)
+
+      :ok = Client.send_message(client, "internal:get_request_info")
+
+      # route_data_frame delivers decoded maps for valid JSON
+      assert_receive {:websocket_message, info}, 5_000
+
+      assert info["path"] == "/ws"
+      assert info["query"] == ""
+
+      Client.close(client)
     end
   end
 end

@@ -8,10 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- `mix lint` and `mix check` aliases restored — `lint` used shell `&&` syntax which Mix can't parse; split into proper task list (R032)
+- **Subscription messages not reaching user handler** — `route_data_frame/2` sent `"method" => "subscription"` messages only to `SubscriptionManager`, never forwarding to the user handler callback. Now updates tracker state and forwards to handler (R038)
+- **Protocol errors not reaching user handler** — `handle_frame_error/2` stopped the GenServer on protocol errors without notifying the user handler first. Now calls `handler.({:protocol_error, reason})` before stopping, matching the `create_handler/1` contract (R039)
+- **Double callback delivery bug** — `MessageHandler.handle_message/2` called user handler, then `route_data_frame` called it again for every data frame. Added `decode_and_handle_control/1` to MessageHandler for decode + control frame handling without handler invocation; Client GenServer uses this instead. Malformed frames are still classified as fatal protocol errors via ErrorHandler (R035)
+- Skipped reconnection TODO replaced with real integration test — verifies Client GenServer survives MockWebSockServer disconnect and enters reconnection mode (R033)
+- WebSocket upgrade now preserves query parameters from the connection URL — previously `wss://host/path?token=abc` would upgrade as just `/path`, dropping the query string (R031)
+- `mix lint` and `mix check` alias syntax restored — `lint` used shell `&&` syntax which Mix can't parse; split into proper task list. Sobelow low-confidence Recorder traversal findings added to `.sobelow-skips` so `mix check` exits cleanly (R032)
 - `DeribitAdapter.subscribe/2`, `unsubscribe/2`, `authenticate/1`, and `send_request/3` now return `{:error, :not_connected}` when client is nil instead of raising `FunctionClauseError` (R027)
 - `BatchSubscriptionManager` now handles subscribe failures: marks request as failed with error reason and stops processing instead of silently ignoring the return value (R028)
 - `DeribitGenServerAdapter` `@doc` corrected from "handler module" to "handler function" (R028)
+
+### Improved
+- Reconnection test now restarts mock server and verifies post-reconnect frame delivery — previously only proved GenServer survived disconnect (R036)
+- Subscribe test now captures server-received frame and validates JSON-RPC payload structure (method, channels) — previously only checked `:ok` return (R037)
+
+- **Example files updated for handler contract change** — `ErrorHandling` example now handles `{:websocket_protocol_error, ...}` and `{:websocket_frame_error, ...}` instead of non-existent `{:websocket_error, ...}`; `JsonRpcClient.handle_message/1` now accepts pre-decoded maps instead of assuming raw JSON strings (codex review)
+
+### Changed
+- **Handler callback contract** — valid JSON text frames are now delivered as decoded maps (`%{"key" => "value"}`) instead of raw binary strings. Non-JSON text frames remain as binary. If your handler pattern-matches on `{:websocket_message, msg} when is_binary(msg)` and calls `Jason.decode/1`, update to match on `{:websocket_message, %{} = msg}` for JSON and `{:websocket_message, msg} when is_binary(msg)` for non-JSON text (R035)
+- Root `ZenWebsocket` moduledoc rewritten to document current API — replaces legacy references to `Connection`, `Platform`, `Behaviors`, and `Defaults` with actual `Client`, `ClientSupervisor`, and module index (R034)
 
 ### Reverted
 - R026 (Deribit example as separate mix project) — ergonomic cost outweighed benefit: broken Tidewave access, broken `.iex.exs`, 13+ stale doc references. Examples stay in `lib/zen_websocket/examples/`

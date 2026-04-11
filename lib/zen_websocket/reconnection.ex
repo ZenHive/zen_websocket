@@ -45,7 +45,8 @@ defmodule ZenWebsocket.Reconnection do
     Debug.log(config, "   🌐 Host: #{uri.host}")
     Debug.log(config, "   🔌 Port: #{port}")
     Debug.log(config, "   📋 Scheme: #{uri.scheme}")
-    Debug.log(config, "   📍 Path: #{uri.path || "/"}")
+    upgrade_path = build_upgrade_path(uri)
+    Debug.log(config, "   📍 Path: #{upgrade_path}")
     Debug.log(config, "   🔄 Opening Gun connection...")
 
     # Gun sends messages to the calling process (Client GenServer)
@@ -68,7 +69,7 @@ defmodule ZenWebsocket.Reconnection do
             Debug.log(config, "   🔄 Upgrading to WebSocket...")
             Debug.log(config, "   📋 Headers: #{inspect(config.headers)}")
 
-            stream_ref = :gun.ws_upgrade(gun_pid, uri.path || "/", config.headers)
+            stream_ref = :gun.ws_upgrade(gun_pid, upgrade_path, config.headers)
             Debug.log(config, "   📡 WebSocket upgrade initiated")
             Debug.log(config, "   📡 Stream Ref: #{inspect(stream_ref)}")
             Debug.log(config, "   ✅ Connection establishment complete")
@@ -161,5 +162,12 @@ defmodule ZenWebsocket.Reconnection do
           boolean()
   def max_retries_exceeded?(attempt, max_retries) do
     attempt >= max_retries
+  end
+
+  # Builds the upgrade path for :gun.ws_upgrade/3, preserving query params
+  # when present in the original URL (e.g., wss://host/path?token=abc → /path?token=abc)
+  defp build_upgrade_path(%URI{path: path, query: query}) do
+    base = path || "/"
+    if query, do: base <> "?" <> query, else: base
   end
 end
