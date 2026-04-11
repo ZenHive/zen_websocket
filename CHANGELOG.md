@@ -13,7 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Double callback delivery bug** — `MessageHandler.handle_message/2` called user handler, then `route_data_frame` called it again for every data frame. Added `decode_and_handle_control/1` to MessageHandler for decode + control frame handling without handler invocation; Client GenServer uses this instead. Malformed frames are still classified as fatal protocol errors via ErrorHandler (R035)
 - Skipped reconnection TODO replaced with real integration test — verifies Client GenServer survives MockWebSockServer disconnect and enters reconnection mode (R033)
 - WebSocket upgrade now preserves query parameters from the connection URL — previously `wss://host/path?token=abc` would upgrade as just `/path`, dropping the query string (R031)
-- `mix lint` and `mix check` alias syntax restored — `lint` used shell `&&` syntax which Mix can't parse; split into proper task list. Sobelow low-confidence Recorder traversal findings added to `.sobelow-skips` so `mix check` exits cleanly (R032)
 - `DeribitAdapter.subscribe/2`, `unsubscribe/2`, `authenticate/1`, and `send_request/3` now return `{:error, :not_connected}` when client is nil instead of raising `FunctionClauseError` (R027)
 - `BatchSubscriptionManager` now handles subscribe failures: marks request as failed with error reason and stops processing instead of silently ignoring the return value (R028)
 - `DeribitGenServerAdapter` `@doc` corrected from "handler module" to "handler function" (R028)
@@ -25,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Example files updated for handler contract change** — `ErrorHandling` example now handles `{:websocket_protocol_error, ...}` and `{:websocket_frame_error, ...}` instead of non-existent `{:websocket_error, ...}`; `JsonRpcClient.handle_message/1` now accepts pre-decoded maps instead of assuming raw JSON strings (codex review)
 
 ### Changed
-- **Quality aliases removed** — Removed `mix lint`, `mix typecheck`, `mix coverage`, `mix check`, `mix rebuild` aliases from mix.exs. Use `mix test.json`, `mix dialyzer.json --quiet`, `mix credo --strict --format json` directly for AI-friendly structured output. Only `mix security` (sobelow) retained as alias.
+- **Quality workflow updated** — Removed `mix lint`, `mix typecheck`, `mix coverage`, `mix check`, `mix rebuild` aliases from mix.exs. Use `mix test.json`, `mix dialyzer.json --quiet`, `mix credo --strict --format json` directly for AI-friendly structured output. `mix security` remains as the Sobelow alias and now includes `--skip` so `.sobelow-skips` is honored for the known low-confidence Recorder findings.
 - **CLAUDE.md imports updated** — Added `cli-aliases.md` and `agent-economy.md` includes; reordered to match Elixir Library template
 - **Roadmap reformatted** — Migrated to `[D:X/B:Y/U:Z → Eff:W]` priority format; archived completed task details to CHANGELOG; added doc-update requirement to all pending tasks
 - **Added `descripex ~> 0.6`** dependency for self-describing APIs

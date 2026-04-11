@@ -165,7 +165,7 @@ defmodule ZenWebsocket.MixProject do
 
   defp aliases do
     [
-      security: ["sobelow --exit --config"],
+      security: ["sobelow --exit --skip --config"],
       # Tidewave MCP server for Claude Code integration (non-Phoenix)
       tidewave: [
         "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4001) end)'"
