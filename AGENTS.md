@@ -8,8 +8,11 @@ Guide for AI coding agents contributing to zen_websocket.
 # Check test health
 mix test.json --quiet --summary-only
 
-# Run all quality checks before making changes
-mix check
+# Run the explicit verification workflow from CLAUDE.md
+mix dialyzer.json --quiet
+mix credo --strict --format json
+mix security
+mix docs
 ```
 
 ## Project Constraints
@@ -30,9 +33,9 @@ These constraints are **non-negotiable**:
 |---------|---------|
 | `mix test.json --quiet --summary-only` | Test health check |
 | `mix test.json --quiet --failed --first-failure` | Fast iteration on failures |
-| `mix check` | All quality checks |
-| `mix lint` | Credo strict mode |
-| `mix typecheck` | Dialyzer |
+| `mix dialyzer.json --quiet` | Type checking |
+| `mix credo --strict --format json` | Static analysis |
+| `mix security` | Sobelow security scan |
 | `mix docs` | Generate documentation |
 | `mix test --include integration` | Full test suite with integration |
 
@@ -61,7 +64,7 @@ These constraints are **non-negotiable**:
 
 ### Unit Tests (Default)
 - Pure function logic, no network
-- Run with `mix test` or `mix test.json --quiet --summary-only`
+- Run with `mix test.json --quiet --summary-only`
 - Located in `test/zen_websocket/`
 
 ### Integration Tests
@@ -232,15 +235,19 @@ See `ROADMAP.md` in the repository for:
 
 1. Check ROADMAP.md for current status
 2. Update task status to `🔄` with branch name
-3. Run `mix check` to verify starting state
+3. Run `mix test.json --quiet --summary-only` to verify starting state
 4. Create branch if doing parallel work
 
 ### After Completing a Task
 
-1. Run `mix check` - all must pass
-2. Update ROADMAP.md status to `✅`
-3. Add entry to CHANGELOG.md under `[Unreleased]`
-4. Commit with task ID in message
+1. Run `mix test.json --quiet --summary-only`
+2. Run `mix dialyzer.json --quiet`
+3. Run `mix credo --strict --format json`
+4. Run `mix security`
+5. Run `mix docs`
+6. Update ROADMAP.md status to `✅`
+7. Add entry to CHANGELOG.md under `[Unreleased]`
+8. Commit with task ID in message
 
 ## File Organization
 

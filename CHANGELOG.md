@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Example files updated for handler contract change** — `ErrorHandling` example now handles `{:websocket_protocol_error, ...}` and `{:websocket_frame_error, ...}` instead of non-existent `{:websocket_error, ...}`; `JsonRpcClient.handle_message/1` now accepts pre-decoded maps instead of assuming raw JSON strings (codex review)
 
 ### Changed
+- **Quality aliases removed** — Removed `mix lint`, `mix typecheck`, `mix coverage`, `mix check`, `mix rebuild` aliases from mix.exs. Use `mix test.json`, `mix dialyzer.json --quiet`, `mix credo --strict --format json` directly for AI-friendly structured output. Only `mix security` (sobelow) retained as alias.
+- **CLAUDE.md imports updated** — Added `cli-aliases.md` and `agent-economy.md` includes; reordered to match Elixir Library template
+- **Roadmap reformatted** — Migrated to `[D:X/B:Y/U:Z → Eff:W]` priority format; archived completed task details to CHANGELOG; added doc-update requirement to all pending tasks
+- **Added `descripex ~> 0.6`** dependency for self-describing APIs
+- **All docs updated** — README, AGENTS.md, CONTRIBUTING.md, USAGE_RULES.md updated to reference JSON output commands instead of removed aliases
 - **Handler callback contract** — valid JSON text frames are now delivered as decoded maps (`%{"key" => "value"}`) instead of raw binary strings. Non-JSON text frames remain as binary. If your handler pattern-matches on `{:websocket_message, msg} when is_binary(msg)` and calls `Jason.decode/1`, update to match on `{:websocket_message, %{} = msg}` for JSON and `{:websocket_message, msg} when is_binary(msg)` for non-JSON text (R035)
 - Root `ZenWebsocket` moduledoc rewritten to document current API — replaces legacy references to `Connection`, `Platform`, `Behaviors`, and `Defaults` with actual `Client`, `ClientSupervisor`, and module index (R034)
 

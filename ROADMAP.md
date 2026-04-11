@@ -1,66 +1,59 @@
 # ZenWebsocket Roadmap
 
-**Status:** Production-ready, v0.3.1 published on hex.pm
-**Completed work:** See [CHANGELOG.md](CHANGELOG.md) for finished tasks (search by task ID: R001, R017, etc.).
+**Vision:** Production-grade WebSocket client library for Elixir, designed for financial APIs.
+
+**Status:** v0.3.1 published on hex.pm
+
+**Completed work:** See [CHANGELOG.md](CHANGELOG.md) for finished tasks.
 
 ---
 
-## 🎯 Current Focus
+## Current Focus
 
-**2026-04 Review: Correctness & Release Hygiene**
+**Post-v0.3.1: Correctness & Stability**
 
 > **Philosophy reminder:** Trust working quality gates, fail gracefully on dead connections, and preserve caller configuration across reconnects.
 
-### Review Snapshot
-- ~~`mix lint` and `mix check` are currently broken by the `lint` alias definition.~~ ✅ Alias syntax fixed (R032); sobelow skips added for low-confidence Recorder findings
-- `Client.send_message/2` and `ClientSupervisor.send_balanced/2` can exit on stale PIDs instead of returning error tuples.
-- `Client.reconnect/1` reconnects with default settings instead of the original config.
-- ~~Gun upgrades currently send only the URI path, dropping any query string.~~ ✅ Fixed (R031)
-- ~~The root `ZenWebsocket` moduledoc still describes legacy APIs that are no longer present.~~ ✅ Fixed (R034)
-
-### ✅ Recently Completed
+### Recently Completed
 | Task | Description | Notes |
 |------|-------------|-------|
-| R038 | Fix subscription messages not reaching handler | `route_data_frame` now forwards subscription messages to user handler after updating tracker |
-| R039 | Fix protocol errors not reaching handler | `handle_frame_error` now notifies handler before stopping on protocol errors |
-| R035 | Fix double callback delivery | Added `decode_and_handle_control/1` to MessageHandler; Client no longer double-delivers data frames |
-| R036 | Strengthen reconnection test | Test restarts server on same port and verifies post-reconnect echo delivery |
-| R037 | Strengthen subscribe test | Captures server-received frame, validates JSON-RPC method and channels |
-| R033 | Reconnection regression coverage | Skipped TODO replaced with real MockWebSockServer disconnect test |
-| R031 | Preserve query params on WebSocket upgrade | `build_upgrade_path/1` includes `uri.query` in Gun upgrade path |
-| R034 | Refresh top-level API docs | Root moduledoc rewritten to reflect current Client/ClientSupervisor API |
-| R027 | Nil-client guards on adapter | `subscribe/2`, `unsubscribe/2`, `authenticate/1`, `send_request/3` return `{:error, :not_connected}` |
-| R028 | BatchSubscriptionManager error handling | Marks request as failed and stops on subscribe error; handler doc fix |
-| R032 | Repair Mix quality aliases | `lint` alias used shell `&&` syntax; split into proper Mix task list |
+| R038 | Subscription messages forwarded to handler | See CHANGELOG [Unreleased] |
+| R039 | Protocol errors forwarded to handler | See CHANGELOG [Unreleased] |
+| R035 | Fix double callback delivery | See CHANGELOG [Unreleased] |
+| R036 | Strengthen reconnection test | See CHANGELOG [Unreleased] |
+| R037 | Strengthen subscribe test | See CHANGELOG [Unreleased] |
+| R033 | Reconnection regression coverage | See CHANGELOG [Unreleased] |
+| R031 | Preserve query params on upgrade | See CHANGELOG [Unreleased] |
+| R034 | Refresh top-level API docs | See CHANGELOG [Unreleased] |
+| R027 | Nil-client guards on adapter | See CHANGELOG [Unreleased] |
+| R028 | BatchSubscriptionManager error handling | See CHANGELOG [Unreleased] |
 
-### 📋 Remaining Tasks
-| Order | Task | Priority | What It Does | Status |
-|-------|------|----------|--------------|--------|
-| ~~1~~ | ~~**R032**: Repair Mix Quality Aliases~~ | ~~**[D:2/B:8 → Priority:4.0]**~~ | ~~Make `mix lint` and `mix check` reliable again~~ | ✅ Complete |
-| 2 | **R029**: Fail Gracefully on Stale Client PIDs | **[D:4/B:9 → Priority:2.25]** 🎯 | Return error tuples and fail over instead of exiting callers | ⬜ Pending |
-| ~~3~~ | ~~**R031**: Preserve Query Params on WebSocket Upgrade~~ | ~~**[D:2/B:7 → Priority:3.5]**~~ | ~~Keep `?query=` data when upgrading Gun connections~~ | ✅ Complete |
-| 4 | **R030**: Preserve Config Across Reconnect | **[D:5/B:8 → Priority:1.6]** 🚀 | Reconnect with the original connection contract, not defaults | ⬜ Pending |
-| ~~5~~ | ~~**R033**: Reconnection Regression Coverage~~ | ~~**[D:4/B:7 → Priority:1.75]**~~ | ~~Replace skipped reconnection TODO with executable tests~~ | ✅ Complete |
-| ~~6~~ | ~~**R034**: Refresh Top-Level API Docs~~ | ~~**[D:2/B:6 → Priority:3.0]**~~ | ~~Remove legacy `Connection/Platform/Behaviors` guidance from root docs~~ | ✅ Complete |
-| 7 | **R011**: Error Scenario Testing | **[D:4/B:5 → Priority:1.25]** 📋 | Edge case tests | ⬜ Pending |
-| 8 | **R010**: Property-Based Testing | **[D:5/B:6 → Priority:1.2]** 📋 | `stream_data` tests | ⬜ Pending |
-| 9 | **R025**: Deployment Guide | **[D:3/B:5 → Priority:1.7]** 🚀 | Trading deployment docs | ⬜ Pending |
+### Current Tasks
+| Task | Status | Priority | Description |
+|------|--------|----------|-------------|
+| R029 `[P]` | ⬜ | [D:4/B:9/U:8 → Eff:2.13] | Fail gracefully on stale client PIDs |
+| R040 `[P]` | ⬜ | [D:3/B:7/U:7 → Eff:2.33] | Wire in descripex to public modules |
+| R041 | ⬜ | [D:3/B:7/U:6 → Eff:2.17] | Doc review (USAGE_RULES.md, guides, examples) |
+| R025 | ⬜ | [D:3/B:5/U:5 → Eff:1.67] | Deployment guide for trading apps |
+| R030 `[P]` | ⬜ | [D:5/B:8/U:6 → Eff:1.4] | Preserve config across reconnect |
+| R011 | ⬜ | [D:4/B:5/U:3 → Eff:1.0] | Error scenario testing |
+| R010 | ⬜ | [D:5/B:6/U:2 → Eff:0.8] | Property-based testing |
 
 ### Quick Commands
 ```bash
-mix test.json --quiet --summary-only      # Test health
-mix dialyzer.json --quiet --summary-only  # Dialyzer health
-mix credo --strict                        # Static analysis
-mix docs                                  # Local docs build
-mix lint                                     # Format + Credo (restored by R032)
-mix check                                    # Full quality chain (restored by R032)
+mix test.json                                  # Tests (with logs/warnings)
+mix test.json --quiet --failed --first-failure # Iterate on failures
+mix dialyzer.json --quiet --summary-only       # Dialyzer health
+mix credo --strict --format json               # Static analysis
+mix security                                   # Sobelow
+mix docs                                       # Local docs build
 ```
 
 ---
 
 ## Completed Phases
 
-> Task details in [CHANGELOG.md](CHANGELOG.md) under [0.2.0] section.
+> Task details in [CHANGELOG.md](CHANGELOG.md).
 
 | Phase | Description | Tasks |
 |-------|-------------|-------|
@@ -71,86 +64,15 @@ mix check                                    # Full quality chain (restored by R
 | Phase 9 | Test Coverage Infrastructure | 4 |
 | v0.2.0 | User Experience (latency, errors, backpressure) | 7 |
 | v0.3.0 | Developer Experience (recording, testing, docs, pool) | 4 |
-| Post-v0.3.1 | Bug fixes (R027 nil-client guard, R028 batch error handling) | 2 |
-
----
-
-## Active Tasks
-
-### Task R020: Test Helpers Module ✅
-
-**[D:4/B:6 → Priority:1.5]** 🚀 — **Complete**
-
-Create consumer-facing test utilities building on MockWebSockServer.
-
-**Builds on:** MockWebSockServer exists in `test/support/` but isn't exposed to consumers.
-
-**Success criteria:**
-- [x] `ZenWebsocket.Testing` module with public helpers
-- [x] `start_mock_server/1` - simplified server startup
-- [x] `simulate_disconnect/2` - trigger disconnect scenarios
-- [x] `assert_message_sent/3` - verify client sent expected message
-- [x] `inject_message/2` - send message from server to client
-- [x] Helpers work with ExUnit (setup/on_exit integration)
-- [x] Documentation with usage examples
-
----
-
-### Task R019: Session Recording ✅
-
-**[D:5/B:7 → Priority:1.4]** 🚀 — **Complete**
-
-Add optional message recording for debugging and testing.
-
-**Builds on:** Client already routes all messages through `route_data_frame/2`.
-
-**Success criteria:**
-- [x] Config option `record_to: path` enables recording
-- [x] Records: timestamps, direction (in/out), raw frames, parsed messages
-- [x] JSONL format (one JSON object per line) for streaming writes
-- [x] `ZenWebsocket.Recorder.replay/2` plays back to a handler module
-- [x] Recording has minimal performance impact (<1ms overhead per message)
-- [x] Integration test with real connection recording/replay
-
----
-
-### Task R023: Rewrite USAGE_RULES.md and Add AGENTS.md ✅
-
-**[D:2/B:5 → Priority:2.5]** 🎯 — **Complete**
-
-Modernize AI agent documentation files to follow current conventions.
-
-**Approach:** Use CHANGELOG.md as source of truth for feature coverage.
-
-**USAGE_RULES.md rewrite:**
-- Audit CHANGELOG.md for features missing from current docs
-- Update to match current API (latency stats, backpressure, etc.)
-- Add new telemetry events from R017/R021
-- Document ErrorHandler.explain/1 usage patterns
-- Document LatencyStats.summary/1 and RateLimiter.status/1
-
-**AGENTS.md (new file):**
-- AI coding agent guidance for contributing to zen_websocket
-- Document module limits (5 functions, 15 lines)
-- Explain real API testing requirement
-- Link to roadmap for task coordination
-
-**Success criteria:**
-- [x] CHANGELOG.md audited for undocumented features
-- [x] USAGE_RULES.md updated with v0.2.0 features
-- [x] AGENTS.md created with contributor guidance
-- [x] Both files follow hex.pm conventions
-- [x] Cross-referenced from README.md
+| Post-v0.3.1 | Review fixes (R027-R039) | 12 |
 
 ---
 
 ## Backlog
 
-### Phase 10: Review-Driven Correctness Fixes
+### Task R029: Fail Gracefully on Stale Client PIDs
 
-#### Task R029: Fail Gracefully on Stale Client PIDs
-
-**[D:4/B:9 → Priority:2.25]** 🎯
+**[D:4/B:9/U:8 → Eff:2.13]** `[P]`
 
 Make stale or dead client references safe. Public API calls should return normal
 error tuples instead of exiting the caller when a stored `server_pid` is no
@@ -162,11 +84,53 @@ longer alive.
 - [ ] Load balancing skips or fails over dead candidates instead of crashing the caller
 - [ ] Regression tests cover stale client structs and dead PIDs returned by `client_discovery`
 
+**Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
+
 ---
 
-#### Task R030: Preserve Config Across Reconnect
+### Task R040: Wire in Descripex to Public Modules
 
-**[D:5/B:8 → Priority:1.6]** 🚀
+**[D:3/B:7/U:7 → Eff:2.33]** `[P]`
+
+Add `use Descripex` to all public-facing modules so the library is self-describing. This enables JSON Schema generation, MCP tool discovery, and progressive disclosure via `describe/0-2`.
+
+**Success criteria:**
+- [ ] `use Descripex` added to public modules (Client, Config, Recorder, Testing, ClientSupervisor, PoolRouter, etc.)
+- [ ] `api()` macro configured with function descriptions for each module
+- [ ] `ZenWebsocket.describe/0` returns library-level overview
+- [ ] `mix docs` still builds cleanly
+- [ ] Dialyzer and Credo pass
+
+**Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
+
+---
+
+### Task R041: Doc Review (USAGE_RULES.md, Guides, Examples)
+
+**[D:3/B:7/U:6 → Eff:2.17]**
+
+Audit all documentation files for accuracy against current codebase. The codebase has evolved significantly since docs were last updated — stale API references, removed aliases, and outdated examples need cleanup.
+
+**Scope:**
+- `USAGE_RULES.md` — verify all code examples compile, API signatures match current code, telemetry events are current
+- `docs/guides/*.md` — verify building_adapters, performance_tuning, troubleshooting_reconnection are accurate
+- `docs/Architecture.md` — verify module list and descriptions match reality
+- `AGENTS.md` — verify module overview table, example code snippets
+- Example code in `lib/zen_websocket/examples/` — verify compiles and matches documented patterns
+
+**Success criteria:**
+- [ ] All code examples in docs compile against current codebase
+- [ ] No references to removed APIs, aliases, or modules
+- [ ] Telemetry event table matches actual emitted events
+- [ ] Module overview tables match actual public functions
+
+**Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
+
+---
+
+### Task R030: Preserve Config Across Reconnect
+
+**[D:5/B:8/U:6 → Eff:1.4]** `[P]`
 
 Reconnect should preserve the connection contract the caller originally set up.
 Rebuilding from URL defaults loses important settings and changes behavior after
@@ -177,264 +141,100 @@ the first reconnect.
 - [ ] Reconnect behavior for heartbeat and handler options is either preserved or explicitly documented if unsupported
 - [ ] Regression tests verify reconnect keeps the intended runtime contract
 
----
-
-#### Task R031: Preserve Query Params on WebSocket Upgrade ✅
-
-**[D:2/B:7 → Priority:3.5]** 🎯 — **Complete**
-
-Upgrade requests should preserve the full request target when the WebSocket URL
-contains a query string.
-
-**Success criteria:**
-- [x] Gun upgrade uses the path plus query when the URL includes `?query=...`
-- [x] Plain path upgrades continue to behave exactly as before
-- [x] Regression tests verify query-bearing URLs reach the server intact
+**Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
 
 ---
 
-#### Task R032: Repair Mix Quality Aliases ✅
+### Task R025: Deployment Guide for Trading Applications
 
-**[D:2/B:8 → Priority:4.0]** 🎯 — **Complete**
+**[D:3/B:5/U:5 → Eff:1.67]**
 
-Restore the documented quality workflow so contributors can trust the advertised
-commands again.
+Add deployment considerations guide for trading applications using zen_websocket.
+Educational documentation, not prescriptive.
+
+**Topics:** Latency considerations, cloud provider regions, connection architecture, monitoring in production.
 
 **Success criteria:**
-- [x] `mix lint` runs formatting and Credo without trying to invoke a `mix` task
-- [x] `mix check` chains lint, typecheck, security, and coverage successfully
-- [x] Command examples in roadmap/docs match the working workflow
+- [ ] `docs/guides/deployment_considerations.md` created
+- [ ] Covers latency, geography, architecture trade-offs
+- [ ] Includes "questions to ask yourself" framework
+- [ ] Not prescriptive — helps users decide based on their use case
+
+**Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
 
 ---
 
-#### Task R033: Reconnection Regression Coverage ✅
+### Task R011: Error Scenario Testing
 
-**[D:4/B:7 → Priority:1.75]** 🚀 — **Complete**
-
-Replace the skipped reconnection placeholder with real automated coverage so
-future changes do not regress reconnect behavior silently.
-
-**Success criteria:**
-- [x] The skipped TODO reconnection test is replaced with executable coverage
-- [x] Tests exercise a real reconnect trigger using the project’s supported test infrastructure
-- [x] The test suite remains Credo-clean with no placeholder TODO left behind
-
----
-
-#### Task R034: Refresh Top-Level API Docs ✅
-
-**[D:2/B:6 → Priority:3.0]** 🎯 — **Complete**
-
-Bring the root moduledoc back in sync with the library that actually ships
-today. The current top-level docs still describe legacy APIs and behaviors that
-are no longer present in the codebase.
-
-**Success criteria:**
-- [x] `lib/zen_websocket.ex` documents `Client`, `ClientSupervisor`, and current examples only
-- [x] References to legacy `Connection`, `Platform`, `Behaviors`, and `Defaults` APIs are removed or rewritten
-- [x] `mix docs` still builds cleanly after the rewrite
-
-### Phase 5: Testing Enhancements
-
-#### Task R010: Property-Based Testing
-
-**[D:5/B:6 → Priority:1.2]** 📋
-
-Implement property-based tests using stream_data (already installed but unused).
-
-**Target areas:**
-- Frame encoding/decoding (round-trip properties)
-- Config validation (valid configs always pass, invalid always fail)
-- Message routing (pattern matching completeness)
-
-**Success criteria:**
-- [ ] Property tests for Frame module
-- [ ] Property tests for Config validation
-- [ ] At least 3 property-based test files
-- [ ] Document property testing patterns
-
----
-
-#### Task R011: Error Scenario Testing
-
-**[D:4/B:5 → Priority:1.25]** 📋
+**[D:4/B:5/U:3 → Eff:1.0]**
 
 Add tests for edge cases and error scenarios.
 
-**Target areas:**
-- Gun error types not currently tested
-- Frame corruption handling
-- Correlation timeout cleanup
-- Rate limit recovery
+**Target areas:** Gun error types not currently tested, frame corruption handling, correlation timeout cleanup, rate limit recovery.
 
 **Success criteria:**
 - [ ] Each error category has explicit test
 - [ ] Recovery paths verified
 - [ ] Error messages are clear and actionable
 
+**Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
+
 ---
 
-### Phase 8: User Experience (Continued)
+### Task R010: Property-Based Testing
 
-#### Task R022: Connection Pool Load Balancing ✅
+**[D:5/B:6/U:2 → Eff:0.8]**
 
-**[D:6/B:6 → Priority:1.0]** 📋 — **Complete**
+Implement property-based tests using stream_data (already installed but unused).
 
-Add load balancing to existing ClientSupervisor infrastructure.
-
-**Builds on:** ClientSupervisor + ConnectionRegistry already manage multiple clients.
-
-**Depends on:** R017 (latency metrics needed for health scoring) ✅ Complete
+**Target areas:** Frame encoding/decoding (round-trip properties), Config validation (valid configs always pass, invalid always fail), message routing (pattern matching completeness).
 
 **Success criteria:**
-- [x] `ClientSupervisor.send_balanced/2` routes to healthiest connection
-- [x] Health score based on: pending requests, latency, error rate
-- [x] Round-robin fallback when all connections have equal health
-- [x] Automatic failover when connection dies
-- [x] Telemetry for pool utilization metrics
-- [x] Integration tests with multiple connections
+- [ ] Property tests for Frame module
+- [ ] Property tests for Config validation
+- [ ] At least 3 property-based test files
+
+**Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
 
 ---
 
 ## Future / Deferred
 
-Tasks blocked on external dependencies or deferred for later consideration.
-
-### Task R014: Migrate Deribit Examples to market_maker
-
-**[D:4/B:6 → Priority:1.5]** — **Deferred**
-
-~~Move Deribit-specific business logic to market_maker project (per WNX0028 analysis).~~
-
-**Deferred:** R026 attempted moving examples to a separate mix project but was reverted — the ergonomic cost (broken Tidewave, broken .iex.exs, stale doc references) outweighed the architectural benefit. Examples stay in `lib/zen_websocket/examples/`.
-
-**Files to migrate:**
-- `deribit_adapter.ex` → `market_maker/lib/market_maker/deribit/`
-- `deribit_genserver_adapter.ex` → `market_maker/lib/market_maker/deribit/`
-- `deribit_rpc.ex` → `market_maker/lib/market_maker/deribit/`
-- `batch_subscription_manager.ex` → `market_maker/lib/market_maker/`
-
-**Success criteria:**
-- [ ] All Deribit business logic moved
-- [ ] Tests migrated with code
-- [ ] zen_websocket examples remain framework-only
-- [ ] No broken imports or dependencies
-
-**Revisit when:** market_maker project has core infrastructure in place.
-
----
-
 ### Task R024: Custom Client Discovery Hooks
 
-**[D:4/B:6 → Priority:1.5]** 📋 — **Future**
+**[D:4/B:6/U:4 → Eff:1.25]** — **Future**
 
-Add hooks for applications to integrate their own client discovery/registry.
-
-**Philosophy:** Clustering is application concern, not library concern. The library should provide hooks, not mandate solutions.
-
-**Current state:** `ClientSupervisor.list_clients/0` only discovers local children. This is correct for a library - applications own distribution.
-
-**Goal:** Enable applications to plug in custom registries (pg, Horde, :global, etc.) without library changes.
-
-**Proposed API:**
-```elixir
-# Option 1: Discovery function
-ClientSupervisor.send_balanced(msg, client_discovery: fn -> MyRegistry.list_ws_clients() end)
-
-# Option 2: Callbacks for registration
-ClientSupervisor.start_client(url,
-  on_connect: fn pid -> :pg.join(:ws_pool, pid) end,
-  on_disconnect: fn pid -> :pg.leave(:ws_pool, pid) end
-)
-```
+Enable applications to plug in custom registries (pg, Horde, :global, etc.) for `send_balanced/2` client discovery without library changes.
 
 **Success criteria:**
 - [ ] `send_balanced/2` accepts optional `client_discovery` function
 - [ ] Optional `on_connect`/`on_disconnect` callbacks in `start_client/2`
 - [ ] Default behavior unchanged (local discovery)
 - [ ] Documentation with pg/Horde integration examples
-- [ ] Tests with custom discovery function
 
-**Implementation notes:**
-- Keep changes minimal - just hooks, no clustering logic
-- Applications bring their own registry
-- Health checks already work with remote PIDs (GenServer.call)
+**Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
 
 ---
 
-### Task R025: Deployment Guide for Trading Applications
+### ~~Task R014: Migrate Deribit Examples to market_maker~~ — **Deferred**
 
-**[D:3/B:5 → Priority:1.7]** 📋 — **Future**
-
-Add deployment considerations guide for trading applications using zen_websocket.
-
-**Scope:** Educational documentation, not prescriptive. Help users make informed decisions.
-
-**Topics to cover:**
-- **Latency considerations**
-  - Geographic proximity to exchanges matters for HFT
-  - Common exchange locations (Tokyo, Frankfurt, Chicago, Singapore, London)
-  - Co-location vs cloud trade-offs
-
-- **Cloud provider regions**
-  - AWS regions near major exchanges
-  - Fly.io edge locations
-  - When cloud latency is "good enough" (non-HFT strategies)
-
-- **Connection architecture**
-  - Single node vs distributed
-  - When to use connection pools
-  - Failover patterns
-
-- **Monitoring in production**
-  - Telemetry events to watch
-  - Latency percentiles that matter
-  - Alert thresholds
-
-**Success criteria:**
-- [ ] `docs/guides/deployment_considerations.md` created
-- [ ] Covers latency, geography, architecture trade-offs
-- [ ] Includes "questions to ask yourself" framework
-- [ ] Links to exchange-specific latency data where available
-- [ ] Not prescriptive - helps users decide based on their use case
-
-**Implementation notes:**
-- This is guidance, not the library's responsibility
-- Focus on "things to consider" not "do this"
-- Acknowledge different strategies have different needs
+Deferred: R026 attempted moving examples to a separate mix project but was reverted. Examples stay in `lib/zen_websocket/examples/`. Revisit when market_maker project has core infrastructure in place.
 
 ---
 
 ### ~~Task R026: Create Deribit Example Project~~ — **Abandoned**
 
-Attempted moving Deribit adapters to `examples/deribit/` as a separate mix project. Reverted because the ergonomic cost was too high: broken Tidewave access, broken `.iex.exs` aliases, 13+ stale doc references, and interactive debugging required a second IEx session. Examples stay in `lib/zen_websocket/examples/`.
-
----
-
-## Parallel Work Opportunities
-
-These tasks can be worked on simultaneously:
-
-```
-v0.3.0 Complete:
-R019 ✅ - Session Recording (Client)
-R020 ✅ - Test Helpers Module (test support)
-R023 ✅ - USAGE_RULES.md + AGENTS.md (documentation)
-```
-
-**Coordination rule:** Update status to 🔄 with branch name before starting.
+Reverted — ergonomic cost too high (broken Tidewave, broken `.iex.exs`, 13+ stale doc references).
 
 ---
 
 ## Quality Gates
 
-Quality gates that must pass before each release:
-
 ```bash
-mix test.json --quiet --summary-only  # All tests pass
-mix dialyzer                          # No new warnings
-mix credo --strict                    # Score ≥8.0
-mix doctor                            # 100% moduledoc coverage
+mix test.json --quiet --summary-only           # All tests pass
+mix dialyzer.json --quiet --summary-only       # No new warnings
+mix credo --strict --format json               # Clean static analysis
+mix doctor                                     # 100% moduledoc coverage
 ```
 
 ---
@@ -443,35 +243,19 @@ mix doctor                            # 100% moduledoc coverage
 
 ### Why Split Client.ex?
 
-The original Client module handled too many concerns (connection lifecycle, message routing, heartbeat, subscriptions, correlation, state). This violated "max 5 functions per module" and Single Responsibility Principle.
-
-**Result:** Extracted HeartbeatManager, SubscriptionManager, RequestCorrelator. Client.ex reduced from 870 to ~200 lines.
+Original Client handled too many concerns. Extracted HeartbeatManager, SubscriptionManager, RequestCorrelator. Client.ex reduced from 870 to ~200 lines.
 
 ### Example Code Policy
 
-**Non-negotiable workflow:** All examples must be written and tested in `lib/` and `test/` first with full validation.
-
-**All examples live in `lib/zen_websocket/examples/`.** R026 attempted moving large examples to separate mix projects but was reverted — the ergonomic cost (broken Tidewave, broken .iex.exs, stale doc references) outweighed the benefit.
+All examples live in `lib/zen_websocket/examples/`. R026 attempted separate mix projects but was reverted.
 
 ---
 
 ## Notes for Future Claude Instances
 
-Key context for picking up this roadmap:
-
-1. **v0.3.1 is published** - Pool routing, session recording, test helpers, docs rewrite
-2. **2026-04-10 review surfaced concrete follow-ups** - See R029-R034 before assuming only broad testing/docs remain
-3. **R026 was abandoned** - Moving examples to separate mix projects caused too many problems. Examples stay in `lib/zen_websocket/examples/`
-4. **Real API testing is non-negotiable** - Project principle, don't add mocks
-5. **Example code policy** - All examples live in `lib/zen_websocket/examples/`
-
-**What was implemented for v0.3.0:**
-- R019 (Recording) → `ZenWebsocket.Recorder` + `RecorderServer`, hooks in Client.ex
-- R020 (Test Helpers) → `ZenWebsocket.Testing` exposes MockWebSockServer to consumers
-- R023 (Docs) → Updated USAGE_RULES.md with new features, created AGENTS.md for AI agents
-- R022 (Pool) → `ZenWebsocket.PoolRouter` + `ClientSupervisor.send_balanced/2` for health-based routing
-
-Documentation is strong overall, but the root moduledoc needs refresh (R034). Read:
-- `CLAUDE.md` for project principles
-- `docs/Architecture.md` for system design
-- `CHANGELOG.md` for what's been done
+1. **v0.3.1 is published** — Pool routing, session recording, test helpers, docs rewrite
+2. **2026-04-10 review surfaced R029-R039** — Most now complete, R029/R030 remain
+3. **R026 was abandoned** — Moving examples to separate mix projects caused too many problems
+4. **Real API testing is non-negotiable** — Project principle, don't add mocks
+5. **Quality aliases removed** — No `mix lint/check/typecheck/coverage/rebuild`. Use `mix test.json`, `mix dialyzer.json --quiet`, `mix credo --strict --format json` directly
+6. **Every task updates docs** — A task without updated `.md` files is incomplete

@@ -73,17 +73,9 @@ defmodule ZenWebsocket.MixProject do
   def cli do
     [
       preferred_envs: [
-        dialyzer: :dev,
-        credo: :dev,
-        sobelow: :dev,
-        lint: :dev,
-        typecheck: :dev,
-        security: :dev,
-        coverage: :test,
-        check: :dev,
-        docs: :dev,
         "test.json": :test,
-        "dialyzer.json": :dev
+        "dialyzer.json": :dev,
+        security: :dev
       ]
     ]
   end
@@ -128,6 +120,9 @@ defmodule ZenWebsocket.MixProject do
       {:ex_dna, "~> 1.1", only: [:dev, :test], runtime: false},
       {:ex_ast, "~> 0.2", only: [:dev, :test], runtime: false},
 
+      # Self-describing APIs — full dep, macros expand at compile time
+      {:descripex, "~> 0.6"},
+
       # Documentation
       {:ex_doc, "~> 0.40", only: :dev, runtime: false},
       {:doctor, "~> 0.22", only: [:dev, :test], runtime: false},
@@ -168,21 +163,9 @@ defmodule ZenWebsocket.MixProject do
     ]
   end
 
-  # Add aliases for code quality tools
   defp aliases do
     [
-      lint: ["format", "credo --strict"],
-      typecheck: ["dialyzer"],
       security: ["sobelow --exit --config"],
-      coverage: ["test --cover"],
-      docs: ["docs"],
-      check: [
-        "lint",
-        "typecheck",
-        "security",
-        "coverage"
-      ],
-      rebuild: ["deps.clean --all", "clean", "deps.get", "compile", "dialyzer", "credo --strict"],
       # Tidewave MCP server for Claude Code integration (non-Phoenix)
       tidewave: [
         "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4001) end)'"

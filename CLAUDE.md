@@ -2,7 +2,6 @@
 
 @~/.claude/includes/across-instances.md
 @~/.claude/includes/critical-rules.md
-@~/.claude/includes/skills-awareness.md
 @~/.claude/includes/task-prioritization.md
 @~/.claude/includes/task-writing.md
 @~/.claude/includes/web-command.md
@@ -10,13 +9,16 @@
 @~/.claude/includes/development-philosophy.md
 @~/.claude/includes/documentation-guidelines.md
 @~/.claude/includes/workflow-philosophy.md
-@~/.claude/includes/dialyzer-json.md
-@~/.claude/includes/api-integration.md
-@~/.claude/includes/development-commands.md
+@~/.claude/includes/skills-awareness.md
+@~/.claude/includes/cli-aliases.md
+@~/.claude/includes/agent-economy.md
 @~/.claude/includes/elixir-patterns.md
 @~/.claude/includes/elixir-setup.md
+@~/.claude/includes/development-commands.md
 @~/.claude/includes/ex-unit-json.md
+@~/.claude/includes/dialyzer-json.md
 @~/.claude/includes/library-design.md
+@~/.claude/includes/api-integration.md
 
 ---
 
@@ -29,15 +31,16 @@
 ## Project-Specific Commands
 
 ```bash
-# Code Quality (project aliases)
-mix lint          # Credo strict mode
-mix typecheck     # Dialyzer
-mix security      # Sobelow
-mix check         # All quality checks (lint + typecheck + security + coverage)
-mix rebuild       # Full rebuild with all checks
+# Code Quality (use JSON output for AI-friendly results)
+mix test.json                                  # Run tests (see logs/warnings)
+mix test.json --quiet                          # Run tests (clean JSON only)
+mix test.json --quiet --failed --first-failure # Iterate on failures
+mix dialyzer.json --quiet                      # Type checking
+mix credo --strict --format json               # Static analysis
+mix security                                   # Sobelow security scan
 
 # Testing (integration tests excluded by default)
-mix test.json --quiet --summary-only   # Unit tests only (fast, default)
+mix test.json --quiet --summary-only   # Quick health check
 mix test --include integration         # Include integration tests
 mix test.api              # Real API integration tests
 mix test.api --deribit    # Deribit-specific tests

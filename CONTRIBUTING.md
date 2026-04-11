@@ -12,8 +12,8 @@ By participating in this project, you agree to abide by the [Hex.pm Code of Cond
 2. Clone your fork: `git clone https://github.com/YOUR-USERNAME/zen_websocket.git`
 3. Create a feature branch: `git checkout -b my-feature`
 4. Make your changes
-5. Run tests: `mix test`
-6. Run quality checks: `mix check`
+5. Run tests: `mix test.json --quiet --summary-only`
+6. Run quality checks (see Development Commands below)
 7. Commit your changes
 8. Push to your fork and submit a pull request
 
@@ -24,10 +24,12 @@ By participating in this project, you agree to abide by the [Hex.pm Code of Cond
 mix deps.get
 
 # Run tests
-mix test
+mix test.json --quiet --summary-only
 
-# Run all quality checks
-mix check
+# Quality checks
+mix dialyzer.json --quiet              # Type checking
+mix credo --strict --format json       # Static analysis
+mix security                           # Sobelow security scan
 
 # Generate documentation
 mix docs

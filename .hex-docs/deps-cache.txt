@@ -5,6 +5,7 @@ circular_buffer
 cowlib
 credo
 decimal
+descripex
 dialyxir
 dialyzer_json
 doctor
@@ -21,6 +22,7 @@ gun
 hpax
 igniter
 jason
+json_spec
 makeup
 makeup_elixir
 makeup_erlang

@@ -385,6 +385,7 @@ Each module follows strict simplicity rules:
 - **Tests**: Review `test/` for usage patterns
 - **Deribit**: See `DeribitAdapter` for complete platform integration
 - **Guides**: See `docs/guides/` for performance tuning and adapter building
+- **Verification workflow**: See `CLAUDE.md` for the current JSON-oriented commands (`mix test.json --quiet --summary-only`, `mix dialyzer.json --quiet`, `mix credo --strict --format json`, `mix security`, `mix docs`)
 
 ## Common Mistakes to Avoid
 

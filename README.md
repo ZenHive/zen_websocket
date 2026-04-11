@@ -329,14 +329,14 @@ end
 This library uses **real API testing exclusively**. No mocks or stubs - every test runs against actual WebSocket endpoints or local test servers. This ensures the library handles real-world conditions including network latency, connection drops, and API quirks.
 
 ```bash
-# Run all tests
-mix test
+# Quick test health check
+mix test.json --quiet --summary-only
 
-# Run with coverage
-mix test --cover
+# Iterate on failures
+mix test.json --quiet --failed --first-failure
 
-# Run quality checks
-mix check
+# Include integration tests
+mix test --include integration
 ```
 
 ## Contributing
@@ -344,7 +344,7 @@ mix check
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
 3. Write tests using real APIs (no mocks)
-4. Ensure all quality checks pass (`mix check`)
+4. Ensure the verification workflow passes (see Development Commands below)
 5. Commit your changes
 6. Push to the branch
 7. Open a Pull Request
@@ -353,11 +353,13 @@ mix check
 
 ```bash
 mix compile           # Compile the project
-mix test             # Run test suite
-mix lint             # Run Credo analysis
-mix typecheck        # Run Dialyzer
+mix test.json --quiet --summary-only   # Quick test health check
+mix test.json --quiet --failed --first-failure # Iterate on failures
+mix dialyzer.json --quiet              # Type checking
+mix credo --strict --format json       # Static analysis
+mix security                           # Sobelow security scan
 mix docs             # Generate documentation
-mix check            # Run all quality checks
+mix test --include integration         # Full test suite with integration
 ```
 
 ## License
