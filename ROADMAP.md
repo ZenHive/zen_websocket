@@ -17,9 +17,11 @@
 ### Recently Completed
 | Task | Description | Notes |
 |------|-------------|-------|
+| R029 | Fail gracefully on stale client PIDs | See CHANGELOG [Unreleased] |
 | R038 | Subscription messages forwarded to handler | See CHANGELOG [Unreleased] |
 | R039 | Protocol errors forwarded to handler | See CHANGELOG [Unreleased] |
 | R035 | Fix double callback delivery | See CHANGELOG [Unreleased] |
+| R024 | Custom client discovery hooks | See CHANGELOG [Unreleased] |
 | R036 | Strengthen reconnection test | See CHANGELOG [Unreleased] |
 | R037 | Strengthen subscribe test | See CHANGELOG [Unreleased] |
 | R033 | Reconnection regression coverage | See CHANGELOG [Unreleased] |
@@ -31,7 +33,6 @@
 ### Current Tasks
 | Task | Status | Priority | Description |
 |------|--------|----------|-------------|
-| R029 `[P]` | ⬜ | [D:4/B:9/U:8 → Eff:2.13] | Fail gracefully on stale client PIDs |
 | R040 `[P]` | ⬜ | [D:3/B:7/U:7 → Eff:2.33] | Wire in descripex to public modules |
 | R041 | ⬜ | [D:3/B:7/U:6 → Eff:2.17] | Doc review (USAGE_RULES.md, guides, examples) |
 | R025 | ⬜ | [D:3/B:5/U:5 → Eff:1.67] | Deployment guide for trading apps |
@@ -64,27 +65,25 @@ mix docs                                       # Local docs build
 | Phase 9 | Test Coverage Infrastructure | 4 |
 | v0.2.0 | User Experience (latency, errors, backpressure) | 7 |
 | v0.3.0 | Developer Experience (recording, testing, docs, pool) | 4 |
-| Post-v0.3.1 | Review fixes (R027-R039) | 12 |
+| Post-v0.3.1 | Review fixes (R024-R039) | 14 |
 
 ---
 
 ## Backlog
 
-### Task R029: Fail Gracefully on Stale Client PIDs
+### Task R029: Fail Gracefully on Stale Client PIDs ✅
 
-**[D:4/B:9/U:8 → Eff:2.13]** `[P]`
+**[D:4/B:9/U:8 → Eff:2.13]** — **Complete**
 
 Make stale or dead client references safe. Public API calls should return normal
 error tuples instead of exiting the caller when a stored `server_pid` is no
 longer alive.
 
 **Success criteria:**
-- [ ] `Client.send_message/2` does not exit on a dead `server_pid`
-- [ ] `ClientSupervisor.send_balanced/2` handles dead PIDs from custom discovery and racey shutdowns
-- [ ] Load balancing skips or fails over dead candidates instead of crashing the caller
-- [ ] Regression tests cover stale client structs and dead PIDs returned by `client_discovery`
-
-**Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
+- [x] `Client.send_message/2` does not exit on a dead `server_pid`
+- [x] `ClientSupervisor.send_balanced/2` handles dead PIDs from custom discovery and racey shutdowns
+- [x] Load balancing skips or fails over dead candidates instead of crashing the caller
+- [x] Regression tests cover stale client structs and dead PIDs returned by `client_discovery`
 
 ---
 
@@ -200,19 +199,17 @@ Implement property-based tests using stream_data (already installed but unused).
 
 ## Future / Deferred
 
-### Task R024: Custom Client Discovery Hooks
+### Task R024: Custom Client Discovery Hooks ✅
 
-**[D:4/B:6/U:4 → Eff:1.25]** — **Future**
+**[D:4/B:7/U:7 → Eff:1.75]** — **Complete**
 
 Enable applications to plug in custom registries (pg, Horde, :global, etc.) for `send_balanced/2` client discovery without library changes.
 
 **Success criteria:**
-- [ ] `send_balanced/2` accepts optional `client_discovery` function
-- [ ] Optional `on_connect`/`on_disconnect` callbacks in `start_client/2`
-- [ ] Default behavior unchanged (local discovery)
-- [ ] Documentation with pg/Horde integration examples
-
-**Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
+- [x] `send_balanced/2` accepts optional `client_discovery` function
+- [x] Optional `on_connect`/`on_disconnect` callbacks in `start_client/2`
+- [x] Default behavior unchanged (local discovery)
+- [x] Documentation with pg/Horde integration examples
 
 ---
 

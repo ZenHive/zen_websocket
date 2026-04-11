@@ -248,9 +248,22 @@ defmodule ZenWebsocket.Client do
     end
   end
 
+  @doc """
+  Sends a message through the WebSocket connection.
+
+  Returns `:ok`, `{:ok, response}`, or `{:error, reason}`.
+
+  ## Process-down safety
+
+  Client structs hold the GenServer PID by value. If the server process has
+  exited, this function returns `{:error, {:not_connected, :process_down}}`
+  instead of crashing the caller, including races where the process dies during
+  the `GenServer.call/3`. For pool-level failover across multiple candidates,
+  use `ClientSupervisor.send_balanced/2` with the `:client_discovery` option.
+  """
   @spec send_message(t(), binary()) :: :ok | {:ok, map()} | {:error, term()}
   def send_message(%__MODULE__{server_pid: server_pid}, message) when is_pid(server_pid) do
-    GenServer.call(server_pid, {:send_message, message})
+    safe_server_call(server_pid, {:send_message, message}, {:error, {:not_connected, :process_down}})
   end
 
   def send_message(%__MODULE__{gun_pid: gun_pid, stream_ref: stream_ref, state: :connected}, message) do
@@ -263,11 +276,15 @@ defmodule ZenWebsocket.Client do
 
   @spec close(t()) :: :ok
   def close(%__MODULE__{server_pid: server_pid}) when is_pid(server_pid) do
-    if Process.alive?(server_pid) do
-      GenServer.stop(server_pid)
-    end
-
+    GenServer.stop(server_pid)
     :ok
+  catch
+    :exit, reason ->
+      if process_down_exit?(reason) do
+        :ok
+      else
+        exit(reason)
+      end
   end
 
   def close(%__MODULE__{gun_pid: gun_pid, monitor_ref: monitor_ref}) when is_pid(gun_pid) do
@@ -283,16 +300,22 @@ defmodule ZenWebsocket.Client do
     send_message(client, message)
   end
 
+  @doc """
+  Returns the current connection state.
+
+  Returns `:disconnected` if the server process is no longer alive (see
+  "Process-down safety" in `send_message/2`).
+  """
   @spec get_state(t()) :: :connecting | :connected | :disconnected
   def get_state(%__MODULE__{server_pid: server_pid}) when is_pid(server_pid) do
-    GenServer.call(server_pid, :get_state)
+    safe_server_call(server_pid, :get_state, :disconnected)
   end
 
   def get_state(%__MODULE__{state: state}), do: state
 
   @spec get_heartbeat_health(t()) :: map() | nil
   def get_heartbeat_health(%__MODULE__{server_pid: server_pid}) when is_pid(server_pid) do
-    GenServer.call(server_pid, :get_heartbeat_health)
+    safe_server_call(server_pid, :get_heartbeat_health, nil)
   end
 
   def get_heartbeat_health(%__MODULE__{}), do: nil
@@ -304,10 +327,13 @@ defmodule ZenWebsocket.Client do
   - Data structure sizes (heartbeats, subscriptions, pending requests)
   - Memory usage information
   - Process statistics
+
+  Returns `nil` if the server process is no longer alive (see
+  "Process-down safety" in `send_message/2`).
   """
   @spec get_state_metrics(t()) :: map() | nil
   def get_state_metrics(%__MODULE__{server_pid: server_pid}) when is_pid(server_pid) do
-    GenServer.call(server_pid, :get_state_metrics)
+    safe_server_call(server_pid, :get_state_metrics, nil)
   end
 
   def get_state_metrics(%__MODULE__{}), do: nil
@@ -316,11 +342,13 @@ defmodule ZenWebsocket.Client do
   Gets latency statistics for request/response round-trip times.
 
   Returns a map with p50, p99, last sample, and count, or nil if no samples yet.
+  Returns `nil` if the server process is no longer alive (see
+  "Process-down safety" in `send_message/2`).
   """
   @spec get_latency_stats(t()) ::
           %{p50: non_neg_integer(), p99: non_neg_integer(), last: non_neg_integer(), count: non_neg_integer()} | nil
   def get_latency_stats(%__MODULE__{server_pid: server_pid}) when is_pid(server_pid) do
-    GenServer.call(server_pid, :get_latency_stats)
+    safe_server_call(server_pid, :get_latency_stats, nil)
   end
 
   def get_latency_stats(%__MODULE__{}), do: nil
@@ -341,6 +369,27 @@ defmodule ZenWebsocket.Client do
         end
     end
   end
+
+  @doc false
+  @spec safe_server_call(pid(), term(), term()) :: term()
+  defp safe_server_call(server_pid, request, fallback) do
+    GenServer.call(server_pid, request)
+  catch
+    :exit, reason ->
+      if process_down_exit?(reason) do
+        fallback
+      else
+        exit(reason)
+      end
+  end
+
+  @doc false
+  @spec process_down_exit?(term()) :: boolean()
+  defp process_down_exit?({:noproc, _details}), do: true
+  defp process_down_exit?({:normal, _details}), do: true
+  defp process_down_exit?({:shutdown, _details}), do: true
+  defp process_down_exit?({{:shutdown, _reason}, _details}), do: true
+  defp process_down_exit?(_reason), do: false
 
   # GenServer callbacks
 

@@ -2,6 +2,7 @@ defmodule ZenWebsocket.ClientTest do
   use ExUnit.Case
 
   alias ZenWebsocket.Client
+  alias ZenWebsocket.ClientSupervisor
   alias ZenWebsocket.Config
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
@@ -434,6 +435,85 @@ defmodule ZenWebsocket.ClientTest do
       assert metrics.connection_state == :connected
 
       Client.close(client)
+    end
+  end
+
+  describe "dead PID safety (R029)" do
+    setup do
+      # Create a guaranteed-dead PID by spawning and waiting for exit
+      pid = spawn(fn -> :ok end)
+      ref = Process.monitor(pid)
+      receive do: ({:DOWN, ^ref, :process, ^pid, _} -> :ok)
+
+      dead_client = %Client{server_pid: pid, state: :connected}
+      {:ok, client: dead_client}
+    end
+
+    test "send_message/2 returns error tuple for dead server_pid", %{client: client} do
+      assert {:error, {:not_connected, :process_down}} = Client.send_message(client, "test")
+    end
+
+    test "get_state/1 returns :disconnected for dead server_pid", %{client: client} do
+      assert :disconnected = Client.get_state(client)
+    end
+
+    test "close/1 returns :ok for dead server_pid", %{client: client} do
+      assert :ok = Client.close(client)
+    end
+
+    test "get_heartbeat_health/1 returns nil for dead server_pid", %{client: client} do
+      assert is_nil(Client.get_heartbeat_health(client))
+    end
+
+    test "get_state_metrics/1 returns nil for dead server_pid", %{client: client} do
+      assert is_nil(Client.get_state_metrics(client))
+    end
+
+    test "get_latency_stats/1 returns nil for dead server_pid", %{client: client} do
+      assert is_nil(Client.get_latency_stats(client))
+    end
+  end
+
+  describe "dead PID failover with send_balanced/2 (R029)" do
+    setup do
+      start_supervised!({ClientSupervisor, []})
+
+      {:ok, server, port} = MockWebSockServer.start_link()
+
+      MockWebSockServer.set_handler(server, fn
+        {:text, msg} -> {:reply, {:text, msg}}
+        {:binary, data} -> {:reply, {:binary, data}}
+      end)
+
+      mock_url = "ws://localhost:#{port}/ws"
+
+      on_exit(fn -> MockWebSockServer.stop(server) end)
+
+      {:ok, mock_url: mock_url}
+    end
+
+    test "fails over when custom discovery returns a dead pid before a live client", %{mock_url: mock_url} do
+      dead_pid = spawn(fn -> :ok end)
+      ref = Process.monitor(dead_pid)
+      receive do: ({:DOWN, ^ref, :process, ^dead_pid, _} -> :ok)
+
+      {:ok, client} = ClientSupervisor.start_client(mock_url)
+      discovery = fn -> [dead_pid, client.server_pid] end
+
+      assert :ok = ClientSupervisor.send_balanced("failover works", client_discovery: discovery)
+
+      Client.close(client)
+    end
+
+    test "returns process_down when custom discovery only returns dead pids" do
+      dead_pid = spawn(fn -> :ok end)
+      ref = Process.monitor(dead_pid)
+      receive do: ({:DOWN, ^ref, :process, ^dead_pid, _} -> :ok)
+
+      discovery = fn -> [dead_pid] end
+
+      assert {:error, {:not_connected, :process_down}} =
+               ClientSupervisor.send_balanced("no live clients", client_discovery: discovery)
     end
   end
 end

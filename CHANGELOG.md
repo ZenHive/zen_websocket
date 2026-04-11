@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Custom client discovery hooks** — `send_balanced/2` accepts optional `:client_discovery` function for plugging in custom registries (pg, Horde, :global) instead of local-only discovery. `start_client/2` accepts `:on_connect` and `:on_disconnect` lifecycle callbacks for external registry integration. Default behavior (local discovery via `list_clients/0`) unchanged. Documentation with pg and Horde examples in USAGE_RULES.md (R024)
+
 ### Fixed
+- **Stale client PIDs no longer crash callers** — `send_message/2`, `get_state/1`, `get_heartbeat_health/1`, `get_state_metrics/1`, and `get_latency_stats/1` now check `Process.alive?` before `GenServer.call`. Dead PIDs return appropriate fallbacks (error tuple, `:disconnected`, or `nil`) instead of raising `:exit`. `send_balanced/2` benefits automatically via existing failover logic. Best-effort guard — callers needing race-proof delivery should use `send_balanced/2` with `:client_discovery` (R024) (R029)
 - **Subscription messages not reaching user handler** — `route_data_frame/2` sent `"method" => "subscription"` messages only to `SubscriptionManager`, never forwarding to the user handler callback. Now updates tracker state and forwards to handler (R038)
 - **Protocol errors not reaching user handler** — `handle_frame_error/2` stopped the GenServer on protocol errors without notifying the user handler first. Now calls `handler.({:protocol_error, reason})` before stopping, matching the `create_handler/1` contract (R039)
 - **Double callback delivery bug** — `MessageHandler.handle_message/2` called user handler, then `route_data_frame` called it again for every data frame. Added `decode_and_handle_control/1` to MessageHandler for decode + control frame handling without handler invocation; Client GenServer uses this instead. Malformed frames are still classified as fatal protocol errors via ErrorHandler (R035)
