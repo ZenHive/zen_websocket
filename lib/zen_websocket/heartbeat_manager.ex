@@ -6,6 +6,8 @@ defmodule ZenWebsocket.HeartbeatManager do
   Timer ownership stays with Client (Process.send_after needs self()).
   """
 
+  use Descripex, namespace: "/heartbeat"
+
   alias ZenWebsocket.Helpers.Deribit
 
   require Logger
@@ -32,6 +34,11 @@ defmodule ZenWebsocket.HeartbeatManager do
           timer_active: boolean()
         }
 
+  api(:start_timer, "Start heartbeat timer if configured. Call on connection upgrade.",
+    params: [state: [kind: :value, description: "Client state map with heartbeat config"]],
+    returns: %{type: "state()", description: "Updated state with timer reference"}
+  )
+
   @doc """
   Starts heartbeat timer if configured. Call on connection upgrade.
 
@@ -48,6 +55,11 @@ defmodule ZenWebsocket.HeartbeatManager do
 
   def start_timer(state), do: state
 
+  api(:cancel_timer, "Cancel active heartbeat timer. Call on disconnect/error.",
+    params: [state: [kind: :value, description: "Client state map with active timer"]],
+    returns: %{type: "state()", description: "Updated state with timer and failure count reset"}
+  )
+
   @doc """
   Cancels active heartbeat timer. Call on disconnect/error.
 
@@ -60,6 +72,14 @@ defmodule ZenWebsocket.HeartbeatManager do
     Process.cancel_timer(timer_ref)
     %{state | heartbeat_timer: nil, heartbeat_failures: 0}
   end
+
+  api(:handle_message, "Route incoming heartbeat message to platform-specific handler.",
+    params: [
+      msg: [kind: :value, description: "Incoming heartbeat message map"],
+      state: [kind: :value, description: "Client state map with heartbeat config"]
+    ],
+    returns: %{type: "state()", description: "Updated state after processing heartbeat"}
+  )
 
   @doc """
   Routes incoming heartbeat messages to platform-specific handlers.
@@ -81,6 +101,11 @@ defmodule ZenWebsocket.HeartbeatManager do
     end
   end
 
+  api(:send_heartbeat, "Send platform-specific heartbeat message.",
+    params: [state: [kind: :value, description: "Client state map with heartbeat config and gun connection"]],
+    returns: %{type: "state()", description: "Updated state with last_heartbeat_at timestamp"}
+  )
+
   @doc """
   Sends platform-specific heartbeat message.
 
@@ -101,6 +126,14 @@ defmodule ZenWebsocket.HeartbeatManager do
     # Fallback: unrecognized heartbeat types are no-ops (state unchanged)
     state
   end
+
+  api(:get_health, "Return heartbeat health metrics.",
+    params: [state: [kind: :value, description: "Client state map with heartbeat fields"]],
+    returns: %{
+      type: "health()",
+      description: "Health metrics including active heartbeats, failure count, and timer status"
+    }
+  )
 
   @doc """
   Returns heartbeat health metrics map.

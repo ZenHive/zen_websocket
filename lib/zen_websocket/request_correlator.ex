@@ -22,11 +22,18 @@ defmodule ZenWebsocket.RequestCorrelator do
     * Metadata: `%{id: id}`
   """
 
+  use Descripex, namespace: "/correlation"
+
   @typedoc "Client state map containing pending_requests field (subset of Client.state)"
   @type state :: %{
           :pending_requests => %{optional(term()) => {GenServer.from(), reference(), integer()}},
           optional(atom()) => term()
         }
+
+  api(:extract_id, "Extract the request ID from a JSON message.",
+    params: [message: [kind: :value, description: "Raw JSON binary message"]],
+    returns: %{type: "{:ok, term()} | :no_id", description: "Extracted ID or :no_id if absent/invalid"}
+  )
 
   @doc """
   Extracts the request ID from a JSON message.
@@ -44,6 +51,16 @@ defmodule ZenWebsocket.RequestCorrelator do
   end
 
   def extract_id(_), do: :no_id
+
+  api(:track, "Track a pending request with a timeout timer.",
+    params: [
+      state: [kind: :value, description: "Client state containing pending_requests"],
+      id: [kind: :value, description: "Request ID to track"],
+      from: [kind: :value, description: "GenServer caller reference"],
+      timeout_ms: [kind: :value, description: "Timeout in milliseconds"]
+    ],
+    returns: %{type: "state()", description: "Updated state with request tracked"}
+  )
 
   @doc """
   Tracks a pending request with a timeout timer.
@@ -65,6 +82,17 @@ defmodule ZenWebsocket.RequestCorrelator do
 
     %{state | pending_requests: pending}
   end
+
+  api(:resolve, "Resolve a pending request by ID, returning the caller info.",
+    params: [
+      state: [kind: :value, description: "Client state containing pending_requests"],
+      id: [kind: :value, description: "Request ID to resolve"]
+    ],
+    returns: %{
+      type: "{{GenServer.from(), reference(), integer()} | nil, state()}",
+      description: "Entry tuple (or nil) and updated state"
+    }
+  )
 
   @doc """
   Resolves a pending request by ID, returning the caller info.
@@ -92,6 +120,17 @@ defmodule ZenWebsocket.RequestCorrelator do
     end
   end
 
+  api(:timeout, "Handle a timeout for a pending request.",
+    params: [
+      state: [kind: :value, description: "Client state containing pending_requests"],
+      id: [kind: :value, description: "Request ID that timed out"]
+    ],
+    returns: %{
+      type: "{{GenServer.from(), reference(), integer()} | nil, state()}",
+      description: "Entry tuple (or nil) and updated state"
+    }
+  )
+
   @doc """
   Handles a timeout for a pending request.
 
@@ -114,6 +153,11 @@ defmodule ZenWebsocket.RequestCorrelator do
         {entry, %{state | pending_requests: new_pending}}
     end
   end
+
+  api(:pending_count, "Return the count of pending requests.",
+    params: [state: [kind: :value, description: "Client state containing pending_requests"]],
+    returns: %{type: "non_neg_integer()", description: "Number of requests awaiting response"}
+  )
 
   @doc """
   Returns the count of pending requests.

@@ -68,6 +68,7 @@ defmodule ZenWebsocket.Client do
   See `ZenWebsocket.Config` for all available options.
   """
 
+  use Descripex, namespace: "/client"
   use GenServer
 
   alias ZenWebsocket.Debug
@@ -192,6 +193,15 @@ defmodule ZenWebsocket.Client do
     end
   end
 
+  api(:connect, "Establish a WebSocket connection.",
+    params: [
+      url_or_config: [kind: :value, description: "WebSocket URL string or Config struct"],
+      opts: [kind: :value, description: "Connection options keyword list", default: []]
+    ],
+    returns: %{type: "{:ok, t()} | {:error, term()}", description: "Client struct or error"},
+    errors: [:timeout, :invalid_url, :connection_refused]
+  )
+
   @spec connect(String.t() | ZenWebsocket.Config.t(), keyword()) :: {:ok, t()} | {:error, term()}
   def connect(url_or_config, opts \\ [])
 
@@ -248,6 +258,15 @@ defmodule ZenWebsocket.Client do
     end
   end
 
+  api(:send_message, "Send a message through the WebSocket connection.",
+    params: [
+      client: [kind: :value, description: "Client struct from connect/2"],
+      message: [kind: :value, description: "Message binary to send"]
+    ],
+    returns: %{type: ":ok | {:ok, map()} | {:error, term()}", description: "Success or error"},
+    errors: [:not_connected, :process_down]
+  )
+
   @doc """
   Sends a message through the WebSocket connection.
 
@@ -274,6 +293,13 @@ defmodule ZenWebsocket.Client do
     {:error, {:not_connected, state}}
   end
 
+  api(:close, "Close the WebSocket connection.",
+    params: [
+      client: [kind: :value, description: "Client struct from connect/2"]
+    ],
+    returns: %{type: ":ok", description: "Always succeeds"}
+  )
+
   @spec close(t()) :: :ok
   def close(%__MODULE__{server_pid: server_pid}) when is_pid(server_pid) do
     GenServer.stop(server_pid)
@@ -294,11 +320,27 @@ defmodule ZenWebsocket.Client do
 
   def close(_client), do: :ok
 
+  api(:subscribe, "Subscribe to WebSocket channels.",
+    params: [
+      client: [kind: :value, description: "Client struct from connect/2"],
+      channels: [kind: :value, description: "List of channel names to subscribe to"]
+    ],
+    returns: %{type: ":ok | {:error, term()}", description: "Success or error"},
+    errors: [:not_connected]
+  )
+
   @spec subscribe(t(), list()) :: :ok | {:error, term()}
   def subscribe(client, channels) when is_list(channels) do
     message = Jason.encode!(%{method: "public/subscribe", params: %{channels: channels}})
     send_message(client, message)
   end
+
+  api(:get_state, "Get the current connection state.",
+    params: [
+      client: [kind: :value, description: "Client struct from connect/2"]
+    ],
+    returns: %{type: ":connecting | :connected | :disconnected", description: "Current connection state"}
+  )
 
   @doc """
   Returns the current connection state.
@@ -313,12 +355,26 @@ defmodule ZenWebsocket.Client do
 
   def get_state(%__MODULE__{state: state}), do: state
 
+  api(:get_heartbeat_health, "Get heartbeat health status.",
+    params: [
+      client: [kind: :value, description: "Client struct from connect/2"]
+    ],
+    returns: %{type: "map() | nil", description: "Heartbeat health map or nil if unavailable"}
+  )
+
   @spec get_heartbeat_health(t()) :: map() | nil
   def get_heartbeat_health(%__MODULE__{server_pid: server_pid}) when is_pid(server_pid) do
     safe_server_call(server_pid, :get_heartbeat_health, nil)
   end
 
   def get_heartbeat_health(%__MODULE__{}), do: nil
+
+  api(:get_state_metrics, "Get detailed metrics about the client's internal state.",
+    params: [
+      client: [kind: :value, description: "Client struct from connect/2"]
+    ],
+    returns: %{type: "map() | nil", description: "Metrics map with sizes, memory, process stats, or nil"}
+  )
 
   @doc """
   Gets detailed metrics about the client's internal state.
@@ -338,6 +394,13 @@ defmodule ZenWebsocket.Client do
 
   def get_state_metrics(%__MODULE__{}), do: nil
 
+  api(:get_latency_stats, "Get latency statistics for request/response round-trip times.",
+    params: [
+      client: [kind: :value, description: "Client struct from connect/2"]
+    ],
+    returns: %{type: "map() | nil", description: "Map with p50, p99, last, count or nil"}
+  )
+
   @doc """
   Gets latency statistics for request/response round-trip times.
 
@@ -352,6 +415,14 @@ defmodule ZenWebsocket.Client do
   end
 
   def get_latency_stats(%__MODULE__{}), do: nil
+
+  api(:reconnect, "Force reconnection by closing and re-establishing the connection.",
+    params: [
+      client: [kind: :value, description: "Client struct from connect/2"]
+    ],
+    returns: %{type: "{:ok, t()} | {:error, term()}", description: "New client struct or error"},
+    errors: [:timeout, :connection_refused]
+  )
 
   @spec reconnect(t()) :: {:ok, t()} | {:error, term()}
   def reconnect(%__MODULE__{url: url} = client) do

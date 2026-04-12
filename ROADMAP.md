@@ -17,6 +17,7 @@
 ### Recently Completed
 | Task | Description | Notes |
 |------|-------------|-------|
+| R040 | Wire in descripex to public modules | See CHANGELOG [Unreleased] |
 | R029 | Fail gracefully on stale client PIDs | See CHANGELOG [Unreleased] |
 | R038 | Subscription messages forwarded to handler | See CHANGELOG [Unreleased] |
 | R039 | Protocol errors forwarded to handler | See CHANGELOG [Unreleased] |
@@ -33,7 +34,7 @@
 ### Current Tasks
 | Task | Status | Priority | Description |
 |------|--------|----------|-------------|
-| R040 `[P]` | ⬜ | [D:3/B:7/U:7 → Eff:2.33] | Wire in descripex to public modules |
+| R040 `[P]` | ✅ | [D:3/B:7/U:7 → Eff:2.33] | Wire in descripex to public modules |
 | R041 | ⬜ | [D:3/B:7/U:6 → Eff:2.17] | Doc review (USAGE_RULES.md, guides, examples) |
 | R025 | ⬜ | [D:3/B:5/U:5 → Eff:1.67] | Deployment guide for trading apps |
 | R030 `[P]` | ⬜ | [D:5/B:8/U:6 → Eff:1.4] | Preserve config across reconnect |
@@ -87,18 +88,18 @@ longer alive.
 
 ---
 
-### Task R040: Wire in Descripex to Public Modules
+### Task R040: Wire in Descripex to Public Modules ✅
 
-**[D:3/B:7/U:7 → Eff:2.33]** `[P]`
+**[D:3/B:7/U:7 → Eff:2.33]** — **Complete**
 
 Add `use Descripex` to all public-facing modules so the library is self-describing. This enables JSON Schema generation, MCP tool discovery, and progressive disclosure via `describe/0-2`.
 
 **Success criteria:**
-- [ ] `use Descripex` added to public modules (Client, Config, Recorder, Testing, ClientSupervisor, PoolRouter, etc.)
-- [ ] `api()` macro configured with function descriptions for each module
-- [ ] `ZenWebsocket.describe/0` returns library-level overview
-- [ ] `mix docs` still builds cleanly
-- [ ] Dialyzer and Credo pass
+- [x] `use Descripex` added to public modules (Client, Config, Recorder, Testing, ClientSupervisor, PoolRouter, etc.)
+- [x] `api()` macro configured with function descriptions for each module
+- [x] `ZenWebsocket.describe/0` returns library-level overview
+- [x] `mix docs` still builds cleanly
+- [x] Dialyzer and Credo pass
 
 **Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
 

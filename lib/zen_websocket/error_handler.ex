@@ -12,12 +12,14 @@ defmodule ZenWebsocket.ErrorHandler do
   Provides human-readable explanations via `explain/1`.
   """
 
+  use Descripex, namespace: "/errors"
+
   @typedoc """
   Human-readable error explanation with fix suggestions.
 
   - `message` - What went wrong
   - `suggestion` - How to fix it
-  - `docs_url` - Link to relevant docs (currently always nil, reserved for future use)
+  - `docs_url` - Link to relevant docs (nil unless overridden)
   """
   @type explanation :: %{
           message: String.t(),
@@ -25,10 +27,16 @@ defmodule ZenWebsocket.ErrorHandler do
           docs_url: String.t() | nil
         }
 
+  api(:categorize_error, "Categorize an error as recoverable or fatal.",
+    params: [error: [kind: :value, description: "Raw error term to categorize"]],
+    returns: %{type: "{:recoverable | :fatal, term()}", description: "Category and original error"}
+  )
+
   @doc """
   Categorizes errors into recoverable vs non-recoverable types.
 
-  Returns the raw error unchanged to preserve all original information.
+  Tags the error as `{:recoverable, error}` (network/transient) or
+  `{:fatal, error}` (protocol/auth) based on pattern matching.
   """
   @spec categorize_error(term()) :: {:recoverable | :fatal, term()}
   def categorize_error(error) do
@@ -64,6 +72,11 @@ defmodule ZenWebsocket.ErrorHandler do
   defp check_fatal({:error, {:bad_frame, _}} = error), do: {:fatal, error}
   defp check_fatal(error), do: {:fatal, error}
 
+  api(:recoverable?, "Check if an error is recoverable through reconnection.",
+    params: [error: [kind: :value, description: "Error term to check"]],
+    returns: %{type: "boolean()", description: "True if error is transient/recoverable"}
+  )
+
   @doc """
   Determines if an error is recoverable through reconnection.
   """
@@ -74,6 +87,11 @@ defmodule ZenWebsocket.ErrorHandler do
       {:fatal, _} -> false
     end
   end
+
+  api(:handle_error, "Return the appropriate action for an error.",
+    params: [error: [kind: :value, description: "Error term to handle"]],
+    returns: %{type: ":reconnect | :stop", description: "Action based on error recoverability"}
+  )
 
   @doc """
   Handles errors by returning appropriate actions.
@@ -87,6 +105,11 @@ defmodule ZenWebsocket.ErrorHandler do
       {:fatal, _} -> :stop
     end
   end
+
+  api(:explain, "Get a human-readable explanation with fix suggestions for an error.",
+    params: [error: [kind: :value, description: "Error term to explain"]],
+    returns: %{type: "explanation()", description: "Map with message, suggestion, and docs_url fields"}
+  )
 
   @doc """
   Returns a human-readable explanation for an error.

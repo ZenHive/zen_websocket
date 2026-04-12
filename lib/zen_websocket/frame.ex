@@ -3,8 +3,15 @@ defmodule ZenWebsocket.Frame do
   WebSocket frame encoding and decoding utilities.
   """
 
+  use Descripex, namespace: "/frame"
+
   @type frame_type :: :text | :binary | :ping | :pong | :close
   @type frame :: {frame_type(), binary()}
+
+  api(:text, "Encode a text message as a WebSocket frame.",
+    params: [message: [kind: :value, description: "Text message string"]],
+    returns: %{type: "frame()", description: "{:text, message} frame tuple"}
+  )
 
   @doc """
   Encode text message as WebSocket frame.
@@ -14,6 +21,11 @@ defmodule ZenWebsocket.Frame do
     {:text, message}
   end
 
+  api(:binary, "Encode binary data as a WebSocket frame.",
+    params: [data: [kind: :value, description: "Binary data to encode"]],
+    returns: %{type: "frame()", description: "{:binary, data} frame tuple"}
+  )
+
   @doc """
   Encode binary message as WebSocket frame.
   """
@@ -21,6 +33,8 @@ defmodule ZenWebsocket.Frame do
   def binary(data) when is_binary(data) do
     {:binary, data}
   end
+
+  api(:ping, "Create a WebSocket ping frame.", returns: %{type: "frame()", description: "{:ping, <<>>} frame tuple"})
 
   @doc """
   Create ping frame.
@@ -30,6 +44,11 @@ defmodule ZenWebsocket.Frame do
     {:ping, <<>>}
   end
 
+  api(:pong, "Create a WebSocket pong frame with optional payload.",
+    params: [payload: [kind: :value, description: "Pong payload bytes", default: "<<>>"]],
+    returns: %{type: "frame()", description: "{:pong, payload} frame tuple"}
+  )
+
   @doc """
   Create pong frame with payload.
   """
@@ -37,6 +56,12 @@ defmodule ZenWebsocket.Frame do
   def pong(payload \\ <<>>) when is_binary(payload) do
     {:pong, payload}
   end
+
+  api(:decode, "Decode an incoming WebSocket frame from Gun or direct format.",
+    params: [frame: [kind: :value, description: "Raw frame tuple ({:ws, type, data} or {type, data})"]],
+    returns: %{type: "{:ok, frame()} | {:error, String.t()}", description: "Decoded frame or error"},
+    errors: [:unknown_frame_type]
+  )
 
   @doc """
   Decode incoming WebSocket frame.

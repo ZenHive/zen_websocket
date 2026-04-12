@@ -28,6 +28,8 @@ defmodule ZenWebsocket.RateLimiter do
   Tables are NOT automatically cleaned up on process termination.
   """
 
+  use Descripex, namespace: "/rate_limiting"
+
   @type config :: %{
           optional(:max_queue_size) => pos_integer(),
           tokens: pos_integer(),
@@ -46,6 +48,14 @@ defmodule ZenWebsocket.RateLimiter do
           queue: :queue.queue(),
           pressure_level: pressure_level()
         }
+
+  api(:init, "Initialize a token bucket rate limiter with ETS storage.",
+    params: [
+      name: [kind: :value, description: "Unique atom name for the rate limiter ETS table"],
+      config: [kind: :value, description: "Configuration map with tokens, refill_rate, refill_interval, request_cost"]
+    ],
+    returns: %{type: "{:ok, atom()} | {:error, term()}", description: "The rate limiter name on success"}
+  )
 
   @doc """
   Initializes rate limiter with configuration.
@@ -69,6 +79,17 @@ defmodule ZenWebsocket.RateLimiter do
 
     {:ok, name}
   end
+
+  api(:consume, "Attempt to consume tokens for a request.",
+    params: [
+      name: [kind: :value, description: "Rate limiter name"],
+      request: [kind: :value, description: "Request term passed to the cost function"]
+    ],
+    returns: %{
+      type: ":ok | {:error, :rate_limited | :queue_full}",
+      description: "Ok if tokens available, error if rate limited or queue full"
+    }
+  )
 
   @doc """
   Attempts to consume tokens for a request.
@@ -99,6 +120,13 @@ defmodule ZenWebsocket.RateLimiter do
     end
   end
 
+  api(:refill, "Refill tokens at the configured rate.",
+    params: [
+      name: [kind: :value, description: "Rate limiter name"]
+    ],
+    returns: %{type: ":ok", description: "Always succeeds"}
+  )
+
   @doc """
   Refills tokens at configured rate.
 
@@ -125,6 +153,16 @@ defmodule ZenWebsocket.RateLimiter do
 
     :ok
   end
+
+  api(:status, "Get current rate limiter status with backpressure guidance.",
+    params: [
+      name: [kind: :value, description: "Rate limiter name"]
+    ],
+    returns: %{
+      type: "{:ok, map()}",
+      description: "Map with tokens, queue_size, pressure_level, and suggested_delay_ms"
+    }
+  )
 
   @doc """
   Returns current token count, queue size, pressure level, and suggested delay.
@@ -159,6 +197,13 @@ defmodule ZenWebsocket.RateLimiter do
        suggested_delay_ms: suggested_delay
      }}
   end
+
+  api(:shutdown, "Clean up rate limiter resources by deleting the ETS table.",
+    params: [
+      name: [kind: :value, description: "Rate limiter name to shut down"]
+    ],
+    returns: %{type: ":ok", description: "Always succeeds, even if table already deleted"}
+  )
 
   @doc """
   Cleans up rate limiter resources.
@@ -278,6 +323,13 @@ defmodule ZenWebsocket.RateLimiter do
 
   # Exchange-specific cost functions
 
+  api(:deribit_cost, "Calculate token cost for a Deribit API request using credit-based pricing.",
+    params: [
+      request: [kind: :value, description: "Request map with a \"method\" key"]
+    ],
+    returns: %{type: "pos_integer()", description: "Token cost (1 public, 5 read, 10 write, 15 trade)"}
+  )
+
   @doc """
   Deribit credit-based cost function.
   """
@@ -293,6 +345,13 @@ defmodule ZenWebsocket.RateLimiter do
     end
   end
 
+  api(:binance_cost, "Calculate token cost for a Binance API request using weight-based pricing.",
+    params: [
+      request: [kind: :value, description: "Request map with a \"method\" key"]
+    ],
+    returns: %{type: "pos_integer()", description: "Token cost (2 for klines, 1 for most others)"}
+  )
+
   @doc """
   Binance weight-based cost function.
   """
@@ -306,6 +365,13 @@ defmodule ZenWebsocket.RateLimiter do
       _ -> 1
     end
   end
+
+  api(:simple_cost, "Fixed cost function returning 1 for every request.",
+    params: [
+      request: [kind: :value, description: "Any request term (ignored)"]
+    ],
+    returns: %{type: "pos_integer()", description: "Always returns 1"}
+  )
 
   @doc """
   Simple cost function for fixed-rate exchanges.

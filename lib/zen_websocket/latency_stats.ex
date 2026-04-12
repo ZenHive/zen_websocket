@@ -15,6 +15,8 @@ defmodule ZenWebsocket.LatencyStats do
   providing aggregated latency metrics from individual measurements.
   """
 
+  use Descripex, namespace: "/latency"
+
   @default_max_size 100
 
   defstruct samples: :queue.new(), max_size: @default_max_size, count: 0
@@ -24,6 +26,13 @@ defmodule ZenWebsocket.LatencyStats do
           max_size: pos_integer(),
           count: non_neg_integer()
         }
+
+  api(:new, "Create a new latency stats buffer.",
+    params: [
+      opts: [kind: :value, description: "Options: :max_size (default 100)", default: []]
+    ],
+    returns: %{type: "t()", description: "New LatencyStats struct with empty buffer"}
+  )
 
   @doc """
   Creates a new latency stats buffer with configurable max size.
@@ -47,6 +56,14 @@ defmodule ZenWebsocket.LatencyStats do
     max_size = Keyword.get(opts, :max_size, @default_max_size)
     %__MODULE__{max_size: max_size}
   end
+
+  api(:add, "Add a latency sample to the buffer.",
+    params: [
+      stats: [kind: :value, description: "LatencyStats struct"],
+      sample_ms: [kind: :value, description: "Latency sample in milliseconds (non-negative integer)"]
+    ],
+    returns: %{type: "t()", description: "Updated stats with new sample (oldest evicted if at capacity)"}
+  )
 
   @doc """
   Adds a latency sample in milliseconds to the buffer.
@@ -76,6 +93,14 @@ defmodule ZenWebsocket.LatencyStats do
     %{stats | samples: new_samples, count: new_count}
   end
 
+  api(:percentile, "Calculate a percentile from buffered latency samples.",
+    params: [
+      stats: [kind: :value, description: "LatencyStats struct"],
+      percentile: [kind: :value, description: "Percentile to calculate (0-100)"]
+    ],
+    returns: %{type: "non_neg_integer() | nil", description: "Percentile value in ms, or nil if buffer is empty"}
+  )
+
   @doc """
   Calculates the specified percentile from buffered samples.
 
@@ -101,6 +126,16 @@ defmodule ZenWebsocket.LatencyStats do
     index = round(percentile / 100 * (count - 1))
     Enum.at(sorted, index)
   end
+
+  api(:summary, "Get a summary of latency statistics.",
+    params: [
+      stats: [kind: :value, description: "LatencyStats struct"]
+    ],
+    returns: %{
+      type: "%{p50: integer(), p99: integer(), last: integer(), count: integer()} | nil",
+      description: "Summary map or nil if buffer is empty"
+    }
+  )
 
   @doc """
   Returns a summary map with p50, p99, last sample, and count.

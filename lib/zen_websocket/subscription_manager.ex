@@ -22,6 +22,8 @@ defmodule ZenWebsocket.SubscriptionManager do
     * Metadata: `%{channels: [String.t()]}`
   """
 
+  use Descripex, namespace: "/subscriptions"
+
   require Logger
 
   @typedoc "Client state map containing subscription fields (subset of Client.state)"
@@ -30,6 +32,14 @@ defmodule ZenWebsocket.SubscriptionManager do
           :config => %{:restore_subscriptions => boolean(), optional(atom()) => term()},
           optional(atom()) => term()
         }
+
+  api(:add, "Add a channel to the tracked subscription set.",
+    params: [
+      state: [kind: :value, description: "Client state map containing subscription fields"],
+      channel: [kind: :value, description: "Channel name to subscribe to"]
+    ],
+    returns: %{type: "state()", description: "Updated state with channel added to subscriptions"}
+  )
 
   @doc """
   Adds a channel to the tracked subscription set.
@@ -49,6 +59,14 @@ defmodule ZenWebsocket.SubscriptionManager do
     %{state | subscriptions: new_subscriptions}
   end
 
+  api(:remove, "Remove a channel from the tracked subscription set.",
+    params: [
+      state: [kind: :value, description: "Client state map containing subscription fields"],
+      channel: [kind: :value, description: "Channel name to unsubscribe from"]
+    ],
+    returns: %{type: "state()", description: "Updated state with channel removed from subscriptions"}
+  )
+
   @doc """
   Removes a channel from the tracked subscription set.
 
@@ -67,6 +85,13 @@ defmodule ZenWebsocket.SubscriptionManager do
     %{state | subscriptions: new_subscriptions}
   end
 
+  api(:list, "List all currently tracked subscriptions.",
+    params: [
+      state: [kind: :value, description: "Client state map containing subscription fields"]
+    ],
+    returns: %{type: "[String.t()]", description: "List of subscribed channel names"}
+  )
+
   @doc """
   Lists all currently tracked subscriptions.
   """
@@ -74,6 +99,13 @@ defmodule ZenWebsocket.SubscriptionManager do
   def list(state) do
     MapSet.to_list(state.subscriptions)
   end
+
+  api(:build_restore_message, "Build a restore message for reconnection.",
+    params: [
+      state: [kind: :value, description: "Client state map containing subscription fields and config"]
+    ],
+    returns: %{type: "binary() | nil", description: "JSON-encoded subscribe message, or nil if no restore needed"}
+  )
 
   @doc """
   Builds a restore message for reconnection.
@@ -104,6 +136,14 @@ defmodule ZenWebsocket.SubscriptionManager do
       Jason.encode!(%{method: "public/subscribe", params: %{channels: channels}})
     end
   end
+
+  api(:handle_message, "Handle incoming subscription confirmation messages.",
+    params: [
+      msg: [kind: :value, description: "Parsed WebSocket message map with subscription confirmation"],
+      state: [kind: :value, description: "Client state map containing subscription fields"]
+    ],
+    returns: %{type: "state()", description: "Updated state with confirmed channel tracked"}
+  )
 
   @doc """
   Handles incoming subscription confirmation messages.

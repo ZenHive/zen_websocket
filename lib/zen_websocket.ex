@@ -68,5 +68,38 @@ defmodule ZenWebsocket do
 
   See `ZenWebsocket.Examples.DeribitAdapter` for a production-ready adapter
   demonstrating authentication, subscription management, and heartbeat handling.
+
+  ## Self-Describing API
+
+  All public modules are annotated with `descripex` for progressive discovery:
+
+      ZenWebsocket.describe()                        # Library overview
+      ZenWebsocket.describe(:client)                 # Client functions
+      ZenWebsocket.describe(:client, :connect)       # Full connect details
   """
+
+  use Descripex.Discoverable,
+    modules: [
+      # Client API
+      ZenWebsocket.Client,
+      ZenWebsocket.Config,
+      ZenWebsocket.ClientSupervisor,
+      # Infrastructure
+      ZenWebsocket.Reconnection,
+      ZenWebsocket.HeartbeatManager,
+      ZenWebsocket.SubscriptionManager,
+      ZenWebsocket.RequestCorrelator,
+      ZenWebsocket.RateLimiter,
+      ZenWebsocket.PoolRouter,
+      # Observability
+      ZenWebsocket.ErrorHandler,
+      ZenWebsocket.LatencyStats,
+      ZenWebsocket.Recorder,
+      ZenWebsocket.RecorderServer,
+      ZenWebsocket.Testing,
+      # Protocol
+      ZenWebsocket.Frame,
+      ZenWebsocket.JsonRpc,
+      ZenWebsocket.MessageHandler
+    ]
 end

@@ -40,6 +40,8 @@ defmodule ZenWebsocket.PoolRouter do
   Default is 60 seconds (60,000 ms).
   """
 
+  use Descripex, namespace: "/pool"
+
   alias ZenWebsocket.Client
 
   # Error tracking decay period in milliseconds (configurable for testing)
@@ -57,6 +59,14 @@ defmodule ZenWebsocket.PoolRouter do
   @error_penalty_per_error 15
 
   @type health_score() :: 0..100
+
+  api(:select_connection, "Select the healthiest connection from a pool.",
+    params: [
+      pids: [kind: :value, description: "List of client PIDs to choose from"]
+    ],
+    returns: %{type: "{:ok, pid()} | {:error, :no_connections}", description: "Healthiest PID or error"},
+    errors: [:no_connections]
+  )
 
   @doc """
   Selects the healthiest connection from a list of client PIDs.
@@ -110,11 +120,19 @@ defmodule ZenWebsocket.PoolRouter do
     {:ok, selected}
   end
 
+  api(:calculate_health, "Calculate health score (0-100) for a connection.",
+    params: [
+      pid: [kind: :value, description: "Client PID to score"]
+    ],
+    returns: %{type: "health_score()", description: "Score 0-100 based on pending, latency, errors, pressure"}
+  )
+
   @doc """
   Calculates health score (0-100) for a connection.
 
   Gathers metrics from the client and applies the scoring formula.
-  Returns 100 if metrics cannot be retrieved (optimistic default).
+  Returns 100 if metrics cannot be retrieved.
+  TODO: optimistic default (100) when metrics unavailable — acceptable for pool routing where unhealthy connections self-report via errors
   """
   @spec calculate_health(pid()) :: health_score()
   def calculate_health(pid) when is_pid(pid) do
@@ -134,6 +152,13 @@ defmodule ZenWebsocket.PoolRouter do
     score = 100 - pending_penalty - latency_penalty - error_penalty - pressure_penalty
     max(0, round(score))
   end
+
+  api(:record_error, "Record an error for a connection (decays after 60s).",
+    params: [
+      pid: [kind: :value, description: "Client PID that experienced an error"]
+    ],
+    returns: %{type: ":ok", description: "Always succeeds"}
+  )
 
   @doc """
   Records an error for a connection, incrementing the error count.
@@ -156,6 +181,13 @@ defmodule ZenWebsocket.PoolRouter do
     :ok
   end
 
+  api(:clear_errors, "Clear the error count for a connection.",
+    params: [
+      pid: [kind: :value, description: "Client PID to clear errors for"]
+    ],
+    returns: %{type: ":ok", description: "Always succeeds"}
+  )
+
   @doc """
   Clears the error count for a connection.
   """
@@ -165,6 +197,13 @@ defmodule ZenWebsocket.PoolRouter do
     :ets.delete(@table_name, {:error_count, pid})
     :ok
   end
+
+  api(:pool_health, "Get health information for all connections in the pool.",
+    params: [
+      pids: [kind: :value, description: "List of client PIDs"]
+    ],
+    returns: %{type: "[%{pid: pid(), health: health_score()}]", description: "Health snapshot for each connection"}
+  )
 
   @doc """
   Returns health information for all connections in the pool.

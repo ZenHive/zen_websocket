@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Self-describing API via Descripex** — All 17 library modules annotated with `use Descripex` and `api()` macro declarations. Root `ZenWebsocket` module uses `Descripex.Discoverable` for three-level progressive disclosure: `describe/0` (library overview), `describe/1` (module functions), `describe/2` (full function detail). Existing `@doc` strings preserved — `api()` writes machine-readable hints (BEAM slot 5) while `@doc` retains human prose (slot 4). Enables MCP tool discovery and JSON Schema generation. Tests cover all three describe levels and module registration completeness (R040)
 - **Custom client discovery hooks** — `send_balanced/2` accepts optional `:client_discovery` function for plugging in custom registries (pg, Horde, :global) instead of local-only discovery. `start_client/2` accepts `:on_connect` and `:on_disconnect` lifecycle callbacks for external registry integration. Default behavior (local discovery via `list_clients/0`) unchanged. Documentation with pg and Horde examples in USAGE_RULES.md (R024)
 
 ### Fixed
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Subscribe test now captures server-received frame and validates JSON-RPC payload structure (method, channels) — previously only checked `:ok` return (R037)
 
 - **Example files updated for handler contract change** — `ErrorHandling` example now handles `{:websocket_protocol_error, ...}` and `{:websocket_frame_error, ...}` instead of non-existent `{:websocket_error, ...}`; `JsonRpcClient.handle_message/1` now accepts pre-decoded maps instead of assuming raw JSON strings (codex review)
+- **AGENTS.md module overview corrected** — Fixed stale function names across 9 modules (Frame, ErrorHandler, JsonRpc, Reconnection, MessageHandler, HeartbeatManager, SubscriptionManager, RequestCorrelator, RateLimiter). Added missing LatencyStats entry. Fixed test code example using non-existent `Frame.encode/1` (codex review)
 
 ### Changed
 - **Quality workflow updated** — Removed `mix lint`, `mix typecheck`, `mix coverage`, `mix check`, `mix rebuild` aliases from mix.exs. Use `mix test.json`, `mix dialyzer.json --quiet`, `mix credo --strict --format json` directly for AI-friendly structured output. `mix security` remains as the Sobelow alias and now includes `--skip` so `.sobelow-skips` is honored for the known low-confidence Recorder findings.

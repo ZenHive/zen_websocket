@@ -37,6 +37,8 @@ defmodule ZenWebsocket.Config do
       )
   """
 
+  use Descripex, namespace: "/config"
+
   defstruct [
     :url,
     headers: [],
@@ -69,6 +71,15 @@ defmodule ZenWebsocket.Config do
           record_to: String.t() | nil
         }
 
+  api(:new, "Create and validate a new WebSocket configuration.",
+    params: [
+      url: [kind: :value, description: "WebSocket URL (ws:// or wss://)"],
+      opts: [kind: :value, description: "Configuration options keyword list", default: []]
+    ],
+    returns: %{type: "{:ok, t()} | {:error, String.t()}", description: "Validated config or error"},
+    errors: [:invalid_url, :invalid_timeout, :invalid_retry_config]
+  )
+
   @doc """
   Creates and validates a new configuration.
   """
@@ -77,6 +88,15 @@ defmodule ZenWebsocket.Config do
     config = struct(__MODULE__, [{:url, url} | opts])
     validate(config)
   end
+
+  api(:new!, "Create and validate a new configuration, raising on error.",
+    params: [
+      url: [kind: :value, description: "WebSocket URL (ws:// or wss://)"],
+      opts: [kind: :value, description: "Configuration options keyword list", default: []]
+    ],
+    returns: %{type: "t()", description: "Validated config struct"},
+    errors: [{:raise, "ArgumentError when validation fails"}]
+  )
 
   @doc """
   Creates and validates a new configuration, raising on error.
@@ -88,6 +108,14 @@ defmodule ZenWebsocket.Config do
       {:error, reason} -> raise ArgumentError, reason
     end
   end
+
+  api(:validate, "Validate an existing configuration struct.",
+    params: [
+      config: [kind: :value, description: "Config struct to validate"]
+    ],
+    returns: %{type: "{:ok, t()} | {:error, String.t()}", description: "Validated config or error"},
+    errors: [:invalid_url, :invalid_timeout, :invalid_retry_config, :missing_url]
+  )
 
   @doc """
   Validates a configuration struct.

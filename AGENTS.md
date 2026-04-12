@@ -45,20 +45,21 @@ These constraints are **non-negotiable**:
 |--------|---------|---------------|
 | `Client` | Main interface | `connect/2`, `send_message/2`, `subscribe/2`, `get_state/1`, `close/1` |
 | `Config` | Configuration | `new/2`, `new!/2`, `validate/1` |
-| `Frame` | WebSocket frames | `encode/1`, `decode/1` |
-| `Reconnection` | Retry logic | `calculate_delay/2`, `should_reconnect?/2` |
-| `MessageHandler` | Message routing | `handle/2`, `route/2` |
-| `ErrorHandler` | Error categorization | `categorize/1`, `explain/1` |
-| `RateLimiter` | Token bucket | `new/2`, `check/2`, `consume/2`, `status/1` |
-| `JsonRpc` | JSON-RPC 2.0 | `encode/3`, `decode/1`, `is_response?/1` |
-| `HeartbeatManager` | Heartbeat lifecycle | `new/1`, `start/1`, `handle_response/2` |
-| `SubscriptionManager` | Subscription tracking | `add/2`, `remove/2`, `restore/1` |
-| `RequestCorrelator` | Request/response tracking | `track/3`, `resolve/2`, `timeout/2` |
-| `Recorder` | Session recording | `format_entry/3`, `replay/3`, `metadata/1` |
-| `RecorderServer` | Async file I/O | `start_link/1`, `record/3`, `stats/1` |
+| `Frame` | WebSocket frames | `text/1`, `binary/1`, `ping/0`, `pong/0`, `decode/1` |
+| `Reconnection` | Retry logic | `establish_connection/1`, `calculate_backoff/2`, `should_reconnect?/1` |
+| `MessageHandler` | Message routing | `handle_message/1`, `decode_and_handle_control/1`, `create_handler/1` |
+| `ErrorHandler` | Error categorization | `categorize_error/1`, `recoverable?/1`, `handle_error/1`, `explain/1` |
+| `RateLimiter` | Token bucket | `init/2`, `consume/2`, `refill/1`, `status/1`, `shutdown/1` |
+| `JsonRpc` | JSON-RPC 2.0 | `build_request/1`, `match_response/1` |
+| `HeartbeatManager` | Heartbeat lifecycle | `start_timer/1`, `cancel_timer/1`, `handle_message/2`, `get_health/1` |
+| `SubscriptionManager` | Subscription tracking | `add/2`, `remove/2`, `list/1`, `build_restore_message/1` |
+| `RequestCorrelator` | Request/response tracking | `extract_id/1`, `track/4`, `resolve/2`, `timeout/2` |
+| `Recorder` | Session recording | `format_entry/3`, `parse_entry/1`, `replay/3`, `metadata/1` |
+| `RecorderServer` | Async file I/O | `start_link/1`, `record/3`, `flush/1`, `stop/1`, `stats/1` |
 | `Testing` | Test utilities | `start_mock_server/0`, `inject_message/2`, `assert_message_sent/3` |
-| `ClientSupervisor` | Pool management | `start_client/2`, `send_balanced/2`, `list_clients/0` |
+| `ClientSupervisor` | Pool management | `start_client/2`, `send_balanced/2`, `list_clients/0`, `stop_client/1` |
 | `PoolRouter` | Health-based routing | `select_connection/1`, `calculate_health/1`, `pool_health/1` |
+| `LatencyStats` | Latency metrics | `new/0`, `add/2`, `percentile/2`, `summary/1` |
 
 ## Testing Strategy
 
@@ -79,9 +80,9 @@ These constraints are **non-negotiable**:
 
 ```elixir
 # Unit test example
-test "encode/decode round-trip" do
-  frame = %{type: :text, payload: "hello"}
-  assert frame == Frame.decode(Frame.encode(frame))
+test "text frame round-trip" do
+  frame = Frame.text("hello")
+  assert {:ok, {:text, "hello"}} = Frame.decode(frame)
 end
 
 # Integration test example

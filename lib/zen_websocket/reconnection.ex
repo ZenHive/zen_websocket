@@ -23,10 +23,20 @@ defmodule ZenWebsocket.Reconnection do
   `ZenWebsocket.Client.connect/2` which handles initial connection attempts
   and automatic reconnection.
   """
+  use Descripex, namespace: "/reconnection"
+
   alias ZenWebsocket.Config
   alias ZenWebsocket.Debug
 
   @default_max_backoff_ms 30_000
+
+  api(:establish_connection, "Establish a Gun WebSocket connection from the given config.",
+    params: [config: [kind: :value, description: "Client configuration struct"]],
+    returns: %{
+      type: "{:ok, pid(), reference(), reference()} | {:error, term()}",
+      description: "Gun PID, stream ref, and monitor ref on success"
+    }
+  )
 
   @doc """
   Attempt to establish a Gun connection with the given configuration.
@@ -91,6 +101,11 @@ defmodule ZenWebsocket.Reconnection do
     end
   end
 
+  api(:build_gun_opts, "Build Gun connection options for a URI scheme.",
+    params: [uri: [kind: :value, description: "Parsed URI with scheme (ws or wss)"]],
+    returns: %{type: "map()", description: "Gun transport and protocol options"}
+  )
+
   @doc """
   Build Gun connection options for the given URI.
 
@@ -114,6 +129,15 @@ defmodule ZenWebsocket.Reconnection do
   def build_gun_opts(%URI{}) do
     %{protocols: [:http]}
   end
+
+  api(:calculate_backoff, "Calculate exponential backoff delay for a reconnection attempt.",
+    params: [
+      attempt: [kind: :value, description: "Zero-based attempt number"],
+      base_delay: [kind: :value, description: "Base delay in milliseconds"],
+      max_backoff: [kind: :value, description: "Maximum delay cap in milliseconds (nil uses default 30s)"]
+    ],
+    returns: %{type: "pos_integer()", description: "Delay in milliseconds, capped at max_backoff"}
+  )
 
   @doc """
   Calculate exponential backoff delay for reconnection attempts.
@@ -141,6 +165,11 @@ defmodule ZenWebsocket.Reconnection do
     min(round(delay), max_delay)
   end
 
+  api(:should_reconnect?, "Check whether an error should trigger reconnection.",
+    params: [error: [kind: :value, description: "Error term to evaluate"]],
+    returns: %{type: "boolean()", description: "True if the error is recoverable"}
+  )
+
   @doc """
   Determine if a connection error should trigger reconnection.
 
@@ -154,6 +183,14 @@ defmodule ZenWebsocket.Reconnection do
       _ -> false
     end
   end
+
+  api(:max_retries_exceeded?, "Check if the retry attempt count has exceeded the maximum.",
+    params: [
+      attempt: [kind: :value, description: "Current attempt number"],
+      max_retries: [kind: :value, description: "Maximum allowed retries"]
+    ],
+    returns: %{type: "boolean()", description: "True if attempt >= max_retries"}
+  )
 
   @doc """
   Check if maximum retry attempts have been exceeded.

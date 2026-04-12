@@ -33,6 +33,7 @@ defmodule ZenWebsocket.ClientSupervisor do
       # with exponential backoff between restarts
   """
 
+  use Descripex, namespace: "/supervisor"
   use DynamicSupervisor
 
   @max_restarts 10
@@ -57,6 +58,15 @@ defmodule ZenWebsocket.ClientSupervisor do
       max_seconds: @restart_window_seconds
     )
   end
+
+  api(:start_client, "Start a supervised WebSocket client with automatic restart.",
+    params: [
+      url_or_config: [kind: :value, description: "WebSocket URL string or Config struct"],
+      opts: [kind: :value, description: "Connection and lifecycle options", default: []]
+    ],
+    returns: %{type: "{:ok, Client.t()} | {:error, term()}", description: "Client struct or error"},
+    errors: [:timeout, :connection_refused]
+  )
 
   @doc """
   Starts a supervised WebSocket client.
@@ -156,6 +166,10 @@ defmodule ZenWebsocket.ClientSupervisor do
     }
   end
 
+  api(:list_clients, "List all supervised client connections.",
+    returns: %{type: "list(pid())", description: "List of alive client PIDs"}
+  )
+
   @doc """
   Lists all supervised client connections.
   """
@@ -166,6 +180,14 @@ defmodule ZenWebsocket.ClientSupervisor do
     |> Enum.map(fn {_, pid, _, _} -> pid end)
     |> Enum.filter(&Process.alive?/1)
   end
+
+  api(:stop_client, "Gracefully stop a supervised client.",
+    params: [
+      pid: [kind: :value, description: "PID of the client to stop"]
+    ],
+    returns: %{type: ":ok | {:error, :not_found}", description: "Success or not found"},
+    errors: [:not_found]
+  )
 
   @doc """
   Gracefully stops a supervised client.
@@ -180,6 +202,15 @@ defmodule ZenWebsocket.ClientSupervisor do
 
   @typedoc "Callback invoked on client lifecycle events"
   @type lifecycle_callback :: (pid() -> any())
+
+  api(:send_balanced, "Send a message using health-based load balancing with failover.",
+    params: [
+      message: [kind: :value, description: "Message binary to send"],
+      opts: [kind: :value, description: "Options: :max_attempts, :client_discovery", default: []]
+    ],
+    returns: %{type: ":ok | {:ok, map()} | {:error, term()}", description: "Success or error"},
+    errors: [:no_connections, :max_attempts_exceeded]
+  )
 
   @doc """
   Sends a message using health-based load balancing.

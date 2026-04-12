@@ -6,6 +6,19 @@ defmodule ZenWebsocket.JsonRpc do
   Generates request functions with automatic ID tracking and correlation.
   """
 
+  use Descripex, namespace: "/jsonrpc"
+
+  api(:build_request, "Build a JSON-RPC 2.0 request with unique ID.",
+    params: [
+      method: [kind: :value, description: "RPC method name string"],
+      params: [kind: :value, description: "Optional params map for the request", default: nil]
+    ],
+    returns: %{
+      type: "{:ok, map()}",
+      description: "JSON-RPC 2.0 request map with jsonrpc, id, method, and optional params"
+    }
+  )
+
   @doc """
   Builds a JSON-RPC 2.0 request with unique ID.
 
@@ -54,6 +67,16 @@ defmodule ZenWebsocket.JsonRpc do
       end
     end
   end
+
+  api(:match_response, "Match a JSON-RPC response as result, error, or notification.",
+    params: [
+      response: [kind: :value, description: "Decoded JSON-RPC response map"]
+    ],
+    returns: %{
+      type: "{:ok, term()} | {:error, {integer(), String.t()}} | {:notification, String.t(), map()}",
+      description: "Matched result, error tuple, or notification with method and params"
+    }
+  )
 
   @doc """
   Matches a JSON-RPC response to determine if it's a result or error.

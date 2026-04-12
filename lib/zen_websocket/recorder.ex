@@ -31,6 +31,8 @@ defmodule ZenWebsocket.Recorder do
       # => %{count: 150, duration_ms: 5234, first_ts: ~U[...], last_ts: ~U[...]}
   """
 
+  use Descripex, namespace: "/recorder"
+
   @type direction :: :in | :out
   @type frame :: {:text, binary()} | {:binary, binary()} | {:close, integer(), binary()}
 
@@ -41,6 +43,15 @@ defmodule ZenWebsocket.Recorder do
           data: binary(),
           binary: boolean()
         }
+
+  api(:format_entry, "Format a WebSocket frame as a JSONL line for recording.",
+    params: [
+      direction: [kind: :value, description: ":in for received, :out for sent"],
+      frame: [kind: :value, description: "Frame tuple: {:text, data}, {:binary, data}, or {:close, code, reason}"],
+      timestamp: [kind: :value, description: "Entry timestamp", default: "DateTime.utc_now()"]
+    ],
+    returns: %{type: "binary()", description: "JSONL-formatted line"}
+  )
 
   @doc """
   Formats a WebSocket frame as a JSONL line for recording.
@@ -85,6 +96,14 @@ defmodule ZenWebsocket.Recorder do
     })
   end
 
+  api(:parse_entry, "Parse a JSONL line back into an entry map.",
+    params: [
+      line: [kind: :value, description: "JSONL-formatted line to parse"]
+    ],
+    returns: %{type: "{:ok, entry()} | {:error, term()}", description: "Parsed entry or error"},
+    errors: [:invalid_direction, :invalid_type, :json_decode_error]
+  )
+
   @doc """
   Parses a JSONL line back into an entry map.
 
@@ -126,6 +145,16 @@ defmodule ZenWebsocket.Recorder do
 
   defp parse_type(_), do: {:error, :invalid_type}
 
+  api(:replay, "Replay a recorded session, calling handler for each entry.",
+    params: [
+      path: [kind: :value, description: "Path to JSONL recording file"],
+      handler_fn: [kind: :value, description: "Function called with each entry"],
+      opts: [kind: :value, description: "Options: :realtime for original timing", default: []]
+    ],
+    returns: %{type: ":ok | {:error, term()}", description: "Success or file error"},
+    errors: [:enoent, :read_error]
+  )
+
   @doc """
   Replays a recorded session by streaming the file and calling the handler for each entry.
 
@@ -159,6 +188,14 @@ defmodule ZenWebsocket.Recorder do
         {:error, reason}
     end
   end
+
+  api(:metadata, "Get metadata about a recorded session.",
+    params: [
+      path: [kind: :value, description: "Path to JSONL recording file"]
+    ],
+    returns: %{type: "{:ok, map()} | {:error, term()}", description: "Session metadata with count, duration, timestamps"},
+    errors: [:enoent]
+  )
 
   @doc """
   Gets metadata about a recorded session.

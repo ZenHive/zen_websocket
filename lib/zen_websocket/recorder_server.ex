@@ -19,6 +19,7 @@ defmodule ZenWebsocket.RecorderServer do
       RecorderServer.stop(recorder)
   """
 
+  use Descripex, namespace: "/recording"
   use GenServer
 
   alias ZenWebsocket.Recorder
@@ -29,6 +30,11 @@ defmodule ZenWebsocket.RecorderServer do
   @type stats :: %{entries: non_neg_integer(), bytes: non_neg_integer()}
 
   # Public API
+
+  api(:start_link, "Start a recorder server writing to a JSONL file.",
+    params: [path: [kind: :value, description: "File path for the JSONL output"]],
+    returns: %{type: "{:ok, pid()} | {:error, term()}", description: "Server pid or error"}
+  )
 
   @doc """
   Starts a RecorderServer linked to the current process.
@@ -49,6 +55,18 @@ defmodule ZenWebsocket.RecorderServer do
     end
   end
 
+  api(:record, "Record a WebSocket frame asynchronously.",
+    params: [
+      server: [kind: :value, description: "RecorderServer pid"],
+      direction: [kind: :value, description: ":in for received frames, :out for sent frames"],
+      frame: [
+        kind: :value,
+        description: "WebSocket frame tuple ({:text, data}, {:binary, data}, or {:close, code, reason})"
+      ]
+    ],
+    returns: %{type: ":ok", description: "Always returns :ok (async fire-and-forget)"}
+  )
+
   @doc """
   Records a WebSocket frame asynchronously.
 
@@ -68,6 +86,11 @@ defmodule ZenWebsocket.RecorderServer do
     :ok
   end
 
+  api(:flush, "Force an immediate flush of the buffer to disk.",
+    params: [server: [kind: :value, description: "RecorderServer pid"]],
+    returns: %{type: ":ok", description: "Returns after all buffered records are written"}
+  )
+
   @doc """
   Forces an immediate flush of the buffer to disk.
 
@@ -79,6 +102,11 @@ defmodule ZenWebsocket.RecorderServer do
     GenServer.call(server, :flush)
   end
 
+  api(:stop, "Stop the recorder, flush remaining buffer, and close the file.",
+    params: [server: [kind: :value, description: "RecorderServer pid"]],
+    returns: %{type: ":ok", description: "Returns after final flush and file close"}
+  )
+
   @doc """
   Stops the recorder, flushing any remaining buffer and closing the file.
   """
@@ -86,6 +114,14 @@ defmodule ZenWebsocket.RecorderServer do
   def stop(server) when is_pid(server) do
     GenServer.stop(server, :normal)
   end
+
+  api(:stats, "Return recording statistics.",
+    params: [server: [kind: :value, description: "RecorderServer pid"]],
+    returns: %{
+      type: "%{entries: non_neg_integer(), bytes: non_neg_integer()}",
+      description: "Total entries recorded and bytes written"
+    }
+  )
 
   @doc """
   Returns recording statistics.

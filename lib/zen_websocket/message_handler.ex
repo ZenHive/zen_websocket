@@ -8,7 +8,17 @@ defmodule ZenWebsocket.MessageHandler do
   - Process WebSocket upgrade responses
   """
 
+  use Descripex, namespace: "/messages"
+
   alias ZenWebsocket.Frame
+
+  api(:handle_message, "Handle incoming Gun messages and WebSocket frames.",
+    params: [
+      message: [kind: :value, description: "Gun message tuple to handle"],
+      handler_fun: [kind: :value, description: "Callback function for routed messages"]
+    ],
+    returns: %{type: "{:ok, term()} | {:error, term()}", description: "Result of handling the message"}
+  )
 
   @doc """
   Handle incoming Gun messages and WebSocket frames.
@@ -70,6 +80,13 @@ defmodule ZenWebsocket.MessageHandler do
     {:ok, result}
   end
 
+  api(:decode_and_handle_control, "Decode a WebSocket frame and handle control frames automatically.",
+    params: [
+      frame_tuple: [kind: :value, description: "Gun WebSocket frame tuple"]
+    ],
+    returns: %{type: "{:ok, term()} | {:error, term()}", description: "Decoded data frame or control frame result"}
+  )
+
   @doc """
   Decode a WebSocket frame and handle control frames automatically.
   Returns decoded data frames without invoking any handler callback.
@@ -99,6 +116,15 @@ defmodule ZenWebsocket.MessageHandler do
     end
   end
 
+  api(:handle_control_frame, "Handle WebSocket control frames automatically.",
+    params: [
+      decoded_frame: [kind: :value, description: "Decoded WebSocket frame tuple"],
+      conn_pid: [kind: :value, description: "Gun connection PID"],
+      stream_ref: [kind: :value, description: "Gun stream reference"]
+    ],
+    returns: %{type: ":handled | :not_control", description: "Whether the frame was a control frame"}
+  )
+
   @doc """
   Handle WebSocket control frames automatically.
   Returns :handled for control frames, :not_control for data frames.
@@ -124,12 +150,26 @@ defmodule ZenWebsocket.MessageHandler do
     :not_control
   end
 
+  api(:default_handler, "Default message handler that accepts and discards messages.",
+    params: [
+      message: [kind: :value, description: "Any message term"]
+    ],
+    returns: %{type: ":ok", description: "Always returns :ok"}
+  )
+
   @doc """
   Default message handler that simply logs messages.
   """
   def default_handler(_message) do
     :ok
   end
+
+  api(:create_handler, "Create a callback function for handling specific message types.",
+    params: [
+      opts: [kind: :value, description: "Keyword list with :on_message, :on_upgrade, :on_error, :on_down callbacks"]
+    ],
+    returns: %{type: "function()", description: "Handler function that routes messages to the provided callbacks"}
+  )
 
   @doc """
   Create a callback function for handling specific message types.

@@ -20,6 +20,7 @@ A robust WebSocket client library for Elixir, built on Gun transport for product
 - **Pool Load Balancing** - Health-based routing with automatic failover
 - **Session Recording** - JSONL message recording for debugging and replay
 - **Test Utilities** - Consumer-facing test helpers with mock server
+- **Self-Describing API** - Progressive discovery via `describe/0-2` for MCP tools and agents
 
 ## Installation
 

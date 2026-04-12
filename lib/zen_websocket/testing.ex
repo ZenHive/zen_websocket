@@ -46,6 +46,8 @@ defmodule ZenWebsocket.Testing do
   - `assert_message_sent/3` - Verify client sent an expected message
   """
 
+  use Descripex, namespace: "/testing"
+
   alias ZenWebsocket.Testing.Server
 
   @type server :: %{
@@ -56,6 +58,13 @@ defmodule ZenWebsocket.Testing do
         }
 
   @type disconnect_reason :: :normal | :going_away | {:code, pos_integer()}
+
+  api(:start_mock_server, "Start a mock WebSocket server for testing.",
+    params: [
+      opts: [kind: :value, description: "Options: :port, :protocol, :handler", default: []]
+    ],
+    returns: %{type: "{:ok, server()} | {:error, term()}", description: "Server map with pid, port, url, message_agent"}
+  )
 
   @doc """
   Starts a mock WebSocket server for testing.
@@ -90,6 +99,13 @@ defmodule ZenWebsocket.Testing do
     Server.start(opts)
   end
 
+  api(:stop_server, "Stop a mock server and clean up all resources.",
+    params: [
+      server: [kind: :value, description: "Server map from start_mock_server/1"]
+    ],
+    returns: %{type: ":ok", description: "Always succeeds"}
+  )
+
   @doc """
   Stops a mock server and cleans up all resources.
 
@@ -107,6 +123,14 @@ defmodule ZenWebsocket.Testing do
   def stop_server(server) do
     Server.stop(server)
   end
+
+  api(:simulate_disconnect, "Simulate a WebSocket disconnect from the server side.",
+    params: [
+      server: [kind: :value, description: "Server map from start_mock_server/1"],
+      reason: [kind: :value, description: ":normal, :going_away, or {:code, n}"]
+    ],
+    returns: %{type: ":ok", description: "Always succeeds"}
+  )
 
   @doc """
   Simulates a WebSocket disconnect from the server side.
@@ -135,6 +159,14 @@ defmodule ZenWebsocket.Testing do
     Server.simulate_disconnect(server, reason)
   end
 
+  api(:inject_message, "Inject a message from the server to all connected clients.",
+    params: [
+      server: [kind: :value, description: "Server map from start_mock_server/1"],
+      message: [kind: :value, description: "Text message to send to all clients"]
+    ],
+    returns: %{type: ":ok", description: "Always succeeds"}
+  )
+
   @doc """
   Injects a message from the server to all connected clients.
 
@@ -152,6 +184,15 @@ defmodule ZenWebsocket.Testing do
   def inject_message(server, message) when is_binary(message) do
     Server.inject_message(server, message)
   end
+
+  api(:assert_message_sent, "Assert that a client sent an expected message to the server.",
+    params: [
+      server: [kind: :value, description: "Server map from start_mock_server/1"],
+      expected: [kind: :value, description: "String, regex, map, or function matcher"],
+      timeout_ms: [kind: :value, description: "Timeout in milliseconds to wait for match"]
+    ],
+    returns: %{type: "boolean()", description: "True if message matched within timeout"}
+  )
 
   @doc """
   Asserts that a client sent an expected message to the server.
