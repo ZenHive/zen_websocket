@@ -13,7 +13,7 @@ A robust WebSocket client library for Elixir, built on Gun transport for product
 - **Financial-Grade Reliability** - Built for high-frequency trading systems
 - **Platform Adapters** - Ready-to-use Deribit integration, extensible for others
 - **Real API Testing** - No mocks, tested against live systems
-- **Simple API** - Only 5 public functions to learn
+- **Simple API** - 5 core functions plus monitoring helpers
 - **Comprehensive Error Handling** - Categorized errors with recovery strategies
 - **Rate Limiting** - Configurable token bucket algorithm
 - **JSON-RPC 2.0** - Full protocol support with correlation tracking
@@ -45,8 +45,8 @@ end
   heartbeat_interval: 30000
 ])
 
-# Send a message
-{:ok, _} = ZenWebsocket.Client.send_message(client, %{action: "ping"})
+# Send a message (must be binary — use Jason.encode!/1 for maps)
+:ok = ZenWebsocket.Client.send_message(client, Jason.encode!(%{action: "ping"}))
 
 # Receive messages in your process
 receive do
@@ -112,7 +112,7 @@ Record WebSocket sessions for debugging and replay:
 )
 
 # Use the connection normally - all messages are recorded
-ZenWebsocket.Client.send_message(client, %{action: "subscribe", channel: "trades"})
+ZenWebsocket.Client.send_message(client, Jason.encode!(%{action: "subscribe", channel: "trades"}))
 
 # Close to flush remaining buffer
 ZenWebsocket.Client.close(client)

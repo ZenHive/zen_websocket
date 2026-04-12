@@ -76,20 +76,26 @@ defmodule ZenWebsocket.Examples.Docs.ErrorHandling do
     {:noreply, state}
   end
 
+  def handle_info({:websocket_error, error}, state) do
+    Logger.error("WebSocket error: #{inspect(error)}")
+    {:noreply, state}
+  end
+
   # Public API
 
   @doc """
   Sends a message through the WebSocket connection.
 
   ## Parameters
-  - `message` - Message to send (will be JSON encoded)
+  - `message` - Message to send (must be a binary — use `Jason.encode!/1` for maps)
 
   ## Returns
   - `:ok` on success
   - `{:error, :not_connected}` if not connected
+  - `{:error, {:not_connected, reason}}` if client is disconnected or process is down
   """
-  @spec send_message(term()) :: :ok | {:error, :not_connected}
-  def send_message(message) do
+  @spec send_message(binary()) :: :ok | {:ok, map()} | {:error, term()}
+  def send_message(message) when is_binary(message) do
     GenServer.call(__MODULE__, {:send_message, message})
   end
 

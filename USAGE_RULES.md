@@ -5,7 +5,7 @@
 ## Core Principles
 
 1. **Start Simple**: Use direct connection for development, add supervision for production
-2. **Only 5 Functions**: The entire public API is just 5 functions
+2. **5 Essential Functions**: The core API is 5 functions (`connect`, `send_message`, `subscribe`, `get_state`, `close`), plus monitoring functions (`get_latency_stats`, `get_heartbeat_health`, `get_state_metrics`, `reconnect`)
 3. **Real API Testing**: Always test against real endpoints, never mock WebSocket behavior
 
 ## Quick Start Pattern
@@ -22,17 +22,34 @@ ZenWebsocket.Client.send_message(client, Jason.encode!(%{method: "public/test"})
 # 1. Connect to WebSocket
 {:ok, client} = ZenWebsocket.Client.connect(url, opts)
 
-# 2. Send messages
-:ok = ZenWebsocket.Client.send_message(client, message)
+# 2. Send messages (must be binary — use Jason.encode!/1 for maps)
+:ok = ZenWebsocket.Client.send_message(client, Jason.encode!(%{method: "public/test"}))
 
 # 3. Subscribe to channels
-{:ok, subscription_id} = ZenWebsocket.Client.subscribe(client, channels)
+:ok = ZenWebsocket.Client.subscribe(client, channels)
 
 # 4. Check connection state
 state = ZenWebsocket.Client.get_state(client)  # :connected, :connecting, :disconnected
 
 # 5. Close connection
 :ok = ZenWebsocket.Client.close(client)
+```
+
+### Additional Monitoring Functions
+
+```elixir
+# Latency percentiles (p50/p99/last/count — all integers in ms)
+stats = ZenWebsocket.Client.get_latency_stats(client)
+
+# Heartbeat health (failure_count, last_heartbeat_at, config, timer_active)
+health = ZenWebsocket.Client.get_heartbeat_health(client)
+
+# Connection metrics (subscriptions_size, pending_requests_size, state_memory, ...)
+metrics = ZenWebsocket.Client.get_state_metrics(client)
+
+# Explicit reconnection (note: currently reconnects with URL only,
+# custom opts like headers/timeouts are not preserved — see R030)
+{:ok, new_client} = ZenWebsocket.Client.reconnect(client)
 ```
 
 ## Common Patterns
@@ -194,7 +211,7 @@ Record WebSocket sessions for debugging, testing, and replay:
 {:ok, client} = ZenWebsocket.Client.connect(url, record_to: "/tmp/debug.jsonl")
 
 # Use the connection normally - all messages are recorded
-ZenWebsocket.Client.send_message(client, %{action: "subscribe", channel: "trades"})
+ZenWebsocket.Client.send_message(client, Jason.encode!(%{action: "subscribe", channel: "trades"}))
 
 # Close to flush remaining buffer
 ZenWebsocket.Client.close(client)
@@ -303,7 +320,7 @@ end
 
 ## DO NOT
 
-1. **Don't create wrapper modules** - Use the 5 functions directly
+1. **Don't create wrapper modules** - Use the Client functions directly
 2. **Don't mock WebSocket behavior** - Test against real endpoints or use Testing module
 3. **Don't add custom reconnection** - Use built-in retry options
 4. **Don't transform errors** - Handle raw Gun/WebSocket errors
@@ -315,47 +332,60 @@ end
 - **GenServer State**: Client maintains connection state in GenServer
 - **ETS Registry**: Fast connection lookups via ETS
 - **Exponential Backoff**: Smart reconnection with backoff
-- **Real API Testing**: 395 tests, all using real APIs or Testing module
+- **Real API Testing**: All tests use real APIs or Testing module (no mocks)
 
 ## Monitoring and Observability
 
 ### Latency Statistics
 ```elixir
-# Get latency metrics (p50/p99/last/count)
+# Get latency metrics (p50/p99/last/count — all integers in ms)
 stats = ZenWebsocket.Client.get_latency_stats(client)
-# => %{p50: 12.5, p99: 45.2, last: 10.0, count: 100}
+# => %{p50: 12, p99: 45, last: 10, count: 100}
 ```
 
 ### Heartbeat Health
 ```elixir
 # Check heartbeat status
 health = ZenWebsocket.Client.get_heartbeat_health(client)
-# => %{failures: 0, last_at: ~U[2026-01-20 10:30:00Z]}
+# => %{failure_count: 0, last_heartbeat_at: -576460748, config: :disabled, timer_active: false}
+# Note: last_heartbeat_at is a monotonic timestamp (System.monotonic_time(:millisecond)), not a wall-clock DateTime
 ```
 
 ### State Metrics
 ```elixir
 # Get connection state metrics
 metrics = ZenWebsocket.Client.get_state_metrics(client)
-# => %{pending_requests: 5, subscriptions: 12, memory_bytes: 1024}
+# => %{subscriptions_size: 12, pending_requests_size: 5, state_memory: 1024, ...}
 ```
 
 ### Rate Limiter Status
 ```elixir
 # Check rate limiter pressure
 status = ZenWebsocket.RateLimiter.status(limiter)
-# => %{tokens: 85, capacity: 100, pressure_level: :low, suggested_delay_ms: 0}
-# pressure_level: :low (<25%), :medium (25-50%), :high (50-75%), :critical (>75%)
+# => %{tokens: 85, queue_size: 5, pressure_level: :low, suggested_delay_ms: 0}
+# pressure_level: :none (<25%), :low (25-50%), :medium (50-75%), :high (>75%)
 ```
 
 ### Key Telemetry Events
 
 | Event | Measurements | When |
 |-------|--------------|------|
-| `[:zen_websocket, :client, :message_received]` | `size` | Message received |
 | `[:zen_websocket, :connection, :upgrade]` | `connect_time_ms` | WebSocket upgrade complete |
 | `[:zen_websocket, :heartbeat, :pong]` | `rtt_ms` | Heartbeat response received |
-| `[:zen_websocket, :rate_limiter, :pressure]` | `level`, `queue_size` | Pressure threshold crossed |
+| `[:zen_websocket, :rate_limiter, :consume]` | `tokens_remaining`, `cost` | Token consumed |
+| `[:zen_websocket, :rate_limiter, :refill]` | `tokens_before`, `tokens_after`, `refill_rate` | Bucket refilled |
+| `[:zen_websocket, :rate_limiter, :queue]` | `queue_size`, `cost` | Request queued |
+| `[:zen_websocket, :rate_limiter, :queue_full]` | `queue_size` | Queue at capacity |
+| `[:zen_websocket, :rate_limiter, :pressure]` | `queue_size`, `ratio` | Pressure threshold crossed |
+| `[:zen_websocket, :request_correlator, :track]` | `count` | Request tracked |
+| `[:zen_websocket, :request_correlator, :resolve]` | `count`, `round_trip_ms` | Response correlated |
+| `[:zen_websocket, :request_correlator, :timeout]` | `count` | Request timed out |
+| `[:zen_websocket, :subscription_manager, :add]` | `count` | Subscription added |
+| `[:zen_websocket, :subscription_manager, :remove]` | `count` | Subscription removed |
+| `[:zen_websocket, :subscription_manager, :restore]` | `channel_count` | Subscriptions restored |
+| `[:zen_websocket, :pool, :route]` | `health`, `pool_size` | Connection selected |
+| `[:zen_websocket, :pool, :health]` | `pool_size`, `avg_health` | Pool health snapshot |
+| `[:zen_websocket, :pool, :failover]` | `attempt` | Failover triggered |
 
 See [Performance Tuning Guide](docs/guides/performance_tuning.md) for complete telemetry reference.
 
@@ -363,9 +393,9 @@ See [Performance Tuning Guide](docs/guides/performance_tuning.md) for complete t
 # Attach to telemetry events
 :telemetry.attach(
   "websocket-logger",
-  [:zen_websocket, :client, :message_received],
-  fn _event, measurements, metadata, _config ->
-    Logger.info("Message received: #{measurements.size} bytes")
+  [:zen_websocket, :connection, :upgrade],
+  fn _event, measurements, _metadata, _config ->
+    Logger.info("WebSocket connected in #{measurements.connect_time_ms}ms")
   end,
   nil
 )
@@ -374,7 +404,7 @@ See [Performance Tuning Guide](docs/guides/performance_tuning.md) for complete t
 ## Module Limits
 
 Each module follows strict simplicity rules:
-- Maximum 5 public functions per module
+- Maximum 5 public functions per new module (existing core modules may exceed this)
 - Maximum 15 lines per function
 - Maximum 2 levels of function calls
 - Real API testing only (no mocks)
@@ -442,4 +472,4 @@ export DERIBIT_CLIENT_SECRET="your_client_secret"
 5. Handle raw errors with pattern matching
 6. Use telemetry for monitoring
 7. Enable `record_to` for debugging production issues
-8. Keep it simple - just 5 functions!
+8. Keep it simple - 5 core functions, monitoring functions when needed

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-12
+
 ### Added
 - **Self-describing API via Descripex** — All 17 library modules annotated with `use Descripex` and `api()` macro declarations. Root `ZenWebsocket` module uses `Descripex.Discoverable` for three-level progressive disclosure: `describe/0` (library overview), `describe/1` (module functions), `describe/2` (full function detail). Existing `@doc` strings preserved — `api()` writes machine-readable hints (BEAM slot 5) while `@doc` retains human prose (slot 4). Enables MCP tool discovery and JSON Schema generation. Tests cover all three describe levels and module registration completeness (R040)
 - **Custom client discovery hooks** — `send_balanced/2` accepts optional `:client_discovery` function for plugging in custom registries (pg, Horde, :global) instead of local-only discovery. `start_client/2` accepts `:on_connect` and `:on_disconnect` lifecycle callbacks for external registry integration. Default behavior (local discovery via `list_clients/0`) unchanged. Documentation with pg and Horde examples in USAGE_RULES.md (R024)
@@ -21,6 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DeribitAdapter.subscribe/2`, `unsubscribe/2`, `authenticate/1`, and `send_request/3` now return `{:error, :not_connected}` when client is nil instead of raising `FunctionClauseError` (R027)
 - `BatchSubscriptionManager` now handles subscribe failures: marks request as failed with error reason and stops processing instead of silently ignoring the return value (R028)
 - `DeribitGenServerAdapter` `@doc` corrected from "handler module" to "handler function" (R028)
+- **ErrorHandling example missing `handle_info` clause** — `{:websocket_error, reason}` messages caused `FunctionClauseError` in `examples/docs/error_handling.ex`. Added catch-all error handler clause (R041)
+- **`subscribe/2` return type documented incorrectly** — USAGE_RULES.md showed `{:ok, subscription_id}` but actual spec returns `:ok | {:error, term()}` (R041)
+- **`send_message/2` examples passed maps instead of binaries** — README.md and USAGE_RULES.md examples used `%{action: "ping"}` but spec requires `binary()`. Fixed to use `Jason.encode!/1` (R041)
+- **Non-existent telemetry event documented** — `[:zen_websocket, :client, :message_received]` in USAGE_RULES.md replaced with accurate event list (R041)
+- **Stale telemetry events in performance_tuning.md** — Events table listed `[:zen_websocket, :request, :start/complete/timeout]` and `[:zen_websocket, :subscription, :add/remove]` which use wrong namespaces. Replaced with actual 16 events from codebase across 6 namespaces (R041)
+- **`get_state/1` misused in performance_tuning.md** — Examples showed `Client.get_state/1` returning full state map. Fixed to use `get_latency_stats/1`, `get_heartbeat_health/1`, `get_state_metrics/1` (R041)
+- **Monitoring return shapes wrong in docs** — `get_heartbeat_health` documented as `%{failures: ..., last_at: ...}` but returns `%{failure_count: ..., last_heartbeat_at: ...}`. `get_state_metrics` documented as `%{pending_requests: ..., subscriptions: ..., memory_bytes: ...}` but returns `%{pending_requests_size: ..., subscriptions_size: ..., state_memory: ...}`. Latency stats documented as floats but returns integers. Fixed in USAGE_RULES.md and performance_tuning.md (R041)
+- **`reconnect/1` missing limitation note** — Documented without noting it drops custom opts (headers, timeouts, etc.) on reconnect. Added note referencing R030 (R041)
+- **ErrorHandling example `send_message` @doc claimed JSON encoding** — `@doc` said "will be JSON encoded" but `Client.send_message/2` requires binary. Fixed doc and spec (R041)
+- **Architecture.md claimed "Gun HTTP/2"** — Library actually forces HTTP/1.1 ALPN for WSS upgrades. Also claimed "5 functions per module" without qualifying existing modules. Fixed both (R041)
+- **`last_heartbeat_at` documented as DateTime** — Docs showed `~U[...]` but actual value is `System.monotonic_time(:millisecond)` (monotonic integer). Fixed in USAGE_RULES.md and performance_tuning.md (R041)
+- **ErrorHandling example understated error surface** — `send_message/1` doc/spec claimed only `:ok | {:error, :not_connected}` but delegates to `Client.send_message/2` which returns `:ok | {:ok, map()} | {:error, term()}` including `{:error, {:not_connected, reason}}` variants. Fixed spec and doc (R041)
 
 ### Improved
 - Reconnection test now restarts mock server and verifies post-reconnect frame delivery — previously only proved GenServer survived disconnect (R036)
@@ -37,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **All docs updated** — README, AGENTS.md, CONTRIBUTING.md, USAGE_RULES.md updated to reference JSON output commands instead of removed aliases
 - **Handler callback contract** — valid JSON text frames are now delivered as decoded maps (`%{"key" => "value"}`) instead of raw binary strings. Non-JSON text frames remain as binary. If your handler pattern-matches on `{:websocket_message, msg} when is_binary(msg)` and calls `Jason.decode/1`, update to match on `{:websocket_message, %{} = msg}` for JSON and `{:websocket_message, msg} when is_binary(msg)` for non-JSON text (R035)
 - Root `ZenWebsocket` moduledoc rewritten to document current API — replaces legacy references to `Connection`, `Platform`, `Behaviors`, and `Defaults` with actual `Client`, `ClientSupervisor`, and module index (R034)
+- **AGENTS.md module overview and file tree updated** — Corrected function names/arities for all modules, added missing ConnectionRegistry/Debug entries, updated file organization tree to all 19 modules, removed stale "separate mix project" guidance for examples (R041)
+- **docs/Architecture.md updated** — Added 9 missing modules (LatencyStats, RecorderServer, Testing, ClientSupervisor, PoolRouter, Debug, HeartbeatManager, SubscriptionManager, RequestCorrelator), updated data flow diagram (R041)
+- **"5 functions" framing updated** — USAGE_RULES.md, README.md, and AGENTS.md now describe "5 essential/core functions" with note about additional monitoring and management functions (R041)
+- Version bump to 0.4.0
 
 ### Reverted
 - R026 (Deribit example as separate mix project) — ergonomic cost outweighed benefit: broken Tidewave access, broken `.iex.exs`, 13+ stale doc references. Examples stay in `lib/zen_websocket/examples/`
@@ -237,7 +255,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Real-world tested against live WebSocket endpoints
 - Strict code quality standards (max 5 functions per module, 15 lines per function)
 
-[Unreleased]: https://github.com/ZenHive/zen_websocket/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/ZenHive/zen_websocket/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/ZenHive/zen_websocket/compare/v0.3.1...v0.4.0
+[0.3.1]: https://github.com/ZenHive/zen_websocket/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ZenHive/zen_websocket/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ZenHive/zen_websocket/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/ZenHive/zen_websocket/compare/v0.1.4...v0.1.5

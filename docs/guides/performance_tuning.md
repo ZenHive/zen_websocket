@@ -96,11 +96,8 @@ The `LatencyStats` module maintains a circular buffer of request latencies for p
 **Retrieving latency stats:**
 
 ```elixir
-{:ok, state} = Client.get_state(client)
-# state.latency_stats contains the LatencyStats struct
-
 # Get summary with p50, p99, last sample, count
-summary = ZenWebsocket.LatencyStats.summary(state.latency_stats)
+stats = Client.get_latency_stats(client)
 # => %{p50: 45, p99: 120, last: 52, count: 100}
 ```
 
@@ -188,17 +185,22 @@ ZenWebsocket emits telemetry events for monitoring. Attach handlers for observab
 
 | Event | Measurements | Metadata |
 |-------|-------------|----------|
+| `[:zen_websocket, :connection, :upgrade]` | `connect_time_ms` | `url` |
+| `[:zen_websocket, :heartbeat, :pong]` | `rtt_ms` | `type` |
 | `[:zen_websocket, :rate_limiter, :consume]` | `tokens_remaining`, `cost` | `name` |
 | `[:zen_websocket, :rate_limiter, :refill]` | `tokens_before`, `tokens_after`, `refill_rate` | `name` |
 | `[:zen_websocket, :rate_limiter, :queue]` | `queue_size`, `cost` | `name` |
 | `[:zen_websocket, :rate_limiter, :queue_full]` | `queue_size` | `name` |
 | `[:zen_websocket, :rate_limiter, :pressure]` | `queue_size`, `ratio` | `name`, `level`, `previous_level` |
-| `[:zen_websocket, :request, :start]` | `system_time` | `method`, `id` |
-| `[:zen_websocket, :request, :complete]` | `duration_ms` | `method`, `id`, `result` |
-| `[:zen_websocket, :request, :timeout]` | `timeout_ms` | `method`, `id` |
-| `[:zen_websocket, :subscription, :add]` | `count` | `channel` |
-| `[:zen_websocket, :subscription, :remove]` | `count` | `channel` |
-| `[:zen_websocket, :heartbeat, :send]` | `timestamp` | `type` |
+| `[:zen_websocket, :request_correlator, :track]` | `count` | `id`, `timeout_ms` |
+| `[:zen_websocket, :request_correlator, :resolve]` | `count`, `round_trip_ms` | `id` |
+| `[:zen_websocket, :request_correlator, :timeout]` | `count` | `id` |
+| `[:zen_websocket, :subscription_manager, :add]` | `count` | `channel` |
+| `[:zen_websocket, :subscription_manager, :remove]` | `count` | `channel` |
+| `[:zen_websocket, :subscription_manager, :restore]` | `channel_count` | `channels` |
+| `[:zen_websocket, :pool, :route]` | `health`, `pool_size` | `selected` |
+| `[:zen_websocket, :pool, :health]` | `pool_size`, `avg_health` | |
+| `[:zen_websocket, :pool, :failover]` | `attempt` | `failed_pid`, `reason` |
 
 ### Setting Up Telemetry Handlers
 
@@ -224,8 +226,8 @@ defmodule MyApp.TelemetryHandler do
   def setup do
     events = [
       [:zen_websocket, :rate_limiter, :pressure],
-      [:zen_websocket, :request, :complete],
-      [:zen_websocket, :request, :timeout]
+      [:zen_websocket, :request_correlator, :resolve],
+      [:zen_websocket, :request_correlator, :timeout]
     ]
 
     :telemetry.attach_many(
@@ -240,14 +242,14 @@ defmodule MyApp.TelemetryHandler do
     Logger.warning("Rate limiter pressure: #{metadata.level}, queue: #{measurements.queue_size}")
   end
 
-  def handle_event([:zen_websocket, :request, :complete], measurements, metadata, _config) do
-    if measurements.duration_ms > 1000 do
-      Logger.warning("Slow request: #{metadata.method} took #{measurements.duration_ms}ms")
+  def handle_event([:zen_websocket, :request_correlator, :resolve], measurements, metadata, _config) do
+    if measurements.round_trip_ms > 1000 do
+      Logger.warning("Slow request: #{inspect(metadata.id)} took #{measurements.round_trip_ms}ms")
     end
   end
 
-  def handle_event([:zen_websocket, :request, :timeout], measurements, metadata, _config) do
-    Logger.error("Request timeout: #{metadata.method} after #{measurements.timeout_ms}ms")
+  def handle_event([:zen_websocket, :request_correlator, :timeout], _measurements, metadata, _config) do
+    Logger.error("Request timeout: #{inspect(metadata.id)}")
   end
 end
 ```
@@ -352,15 +354,22 @@ This logs detailed connection lifecycle events including Gun operations, WebSock
 ### Check Connection State
 
 ```elixir
-{:ok, state} = Client.get_state(client)
+# Connection state (atom)
+state = Client.get_state(client)
+# => :connected | :connecting | :disconnected
 
-# Get latency metrics
-latency = LatencyStats.summary(state.latency_stats)
+# Latency metrics
+stats = Client.get_latency_stats(client)
 # => %{p50: 45, p99: 120, last: 52, count: 100}
 
-# Check active subscriptions
-subscriptions = SubscriptionManager.list(state.subscription_manager)
-# => ["ticker.BTC", "trades.BTC"]
+# Heartbeat health
+health = Client.get_heartbeat_health(client)
+# => %{failure_count: 0, last_heartbeat_at: -576460748, config: :disabled, timer_active: false}
+# Note: last_heartbeat_at is System.monotonic_time(:millisecond), not a wall-clock DateTime
+
+# Connection metrics
+metrics = Client.get_state_metrics(client)
+# => %{subscriptions_size: 12, pending_requests_size: 5, state_memory: 1024, ...}
 ```
 
 ### Monitor Rate Limiter

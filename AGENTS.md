@@ -21,7 +21,7 @@ These constraints are **non-negotiable**:
 
 | Constraint | Limit |
 |------------|-------|
-| Public functions per module | 5 max |
+| Public functions per new module | 5 max (existing core modules may exceed) |
 | Lines per function | 15 max |
 | Function call depth | 2 levels max |
 | @spec on public functions | Required |
@@ -43,23 +43,25 @@ These constraints are **non-negotiable**:
 
 | Module | Purpose | Key Functions |
 |--------|---------|---------------|
-| `Client` | Main interface | `connect/2`, `send_message/2`, `subscribe/2`, `get_state/1`, `close/1` |
+| `Client` | Main interface | `connect/2`, `send_message/2`, `subscribe/2`, `get_state/1`, `close/1`, `get_latency_stats/1`, `get_heartbeat_health/1`, `get_state_metrics/1`, `reconnect/1` |
 | `Config` | Configuration | `new/2`, `new!/2`, `validate/1` |
-| `Frame` | WebSocket frames | `text/1`, `binary/1`, `ping/0`, `pong/0`, `decode/1` |
-| `Reconnection` | Retry logic | `establish_connection/1`, `calculate_backoff/2`, `should_reconnect?/1` |
-| `MessageHandler` | Message routing | `handle_message/1`, `decode_and_handle_control/1`, `create_handler/1` |
+| `Frame` | WebSocket frames | `text/1`, `binary/1`, `ping/0`, `pong/1`, `decode/1` |
+| `Reconnection` | Retry logic | `establish_connection/1`, `build_gun_opts/1`, `calculate_backoff/3`, `should_reconnect?/1`, `max_retries_exceeded?/2` |
+| `MessageHandler` | Message routing | `handle_message/2`, `decode_and_handle_control/1`, `create_handler/1` |
 | `ErrorHandler` | Error categorization | `categorize_error/1`, `recoverable?/1`, `handle_error/1`, `explain/1` |
 | `RateLimiter` | Token bucket | `init/2`, `consume/2`, `refill/1`, `status/1`, `shutdown/1` |
-| `JsonRpc` | JSON-RPC 2.0 | `build_request/1`, `match_response/1` |
-| `HeartbeatManager` | Heartbeat lifecycle | `start_timer/1`, `cancel_timer/1`, `handle_message/2`, `get_health/1` |
-| `SubscriptionManager` | Subscription tracking | `add/2`, `remove/2`, `list/1`, `build_restore_message/1` |
-| `RequestCorrelator` | Request/response tracking | `extract_id/1`, `track/4`, `resolve/2`, `timeout/2` |
+| `JsonRpc` | JSON-RPC 2.0 | `build_request/2`, `match_response/1` |
+| `HeartbeatManager` | Heartbeat lifecycle | `start_timer/1`, `cancel_timer/1`, `handle_message/2`, `send_heartbeat/1`, `get_health/1` |
+| `SubscriptionManager` | Subscription tracking | `add/2`, `remove/2`, `list/1`, `build_restore_message/1`, `handle_message/2` |
+| `RequestCorrelator` | Request/response tracking | `extract_id/1`, `track/4`, `resolve/2`, `timeout/2`, `pending_count/1` |
 | `Recorder` | Session recording | `format_entry/3`, `parse_entry/1`, `replay/3`, `metadata/1` |
 | `RecorderServer` | Async file I/O | `start_link/1`, `record/3`, `flush/1`, `stop/1`, `stats/1` |
-| `Testing` | Test utilities | `start_mock_server/0`, `inject_message/2`, `assert_message_sent/3` |
+| `Testing` | Test utilities | `start_mock_server/1`, `stop_server/1`, `inject_message/2`, `assert_message_sent/3`, `simulate_disconnect/2` |
 | `ClientSupervisor` | Pool management | `start_client/2`, `send_balanced/2`, `list_clients/0`, `stop_client/1` |
-| `PoolRouter` | Health-based routing | `select_connection/1`, `calculate_health/1`, `pool_health/1` |
-| `LatencyStats` | Latency metrics | `new/0`, `add/2`, `percentile/2`, `summary/1` |
+| `PoolRouter` | Health-based routing | `select_connection/1`, `calculate_health/1`, `record_error/1`, `clear_errors/1`, `pool_health/1` |
+| `LatencyStats` | Latency metrics | `new/1`, `add/2`, `percentile/2`, `summary/1` |
+| `ConnectionRegistry` | ETS connection tracking | `init/0`, `register/2`, `deregister/1`, `get/1`, `cleanup_dead/1`, `shutdown/0` |
+| `Debug` | Debug logging | `log/2` |
 
 ## Testing Strategy
 
@@ -149,35 +151,24 @@ end
 
 **Where examples live:**
 
-| Type | Location | Criteria |
-|------|----------|----------|
-| Small patterns | `lib/zen_websocket/examples/` | < 50 lines, shows single concept |
-| Large applications | `examples/<name>/` (separate mix project) | Full adapters, multi-module, business logic |
+All examples live in `lib/zen_websocket/examples/`. This includes both small patterns and full adapters (like the Deribit adapter). Separate mix projects were tried (R026) but abandoned due to ergonomic costs (broken Tidewave, stale doc references).
 
-**Separate mix project structure:**
-```
-examples/deribit/
-├── lib/
-├── test/
-└── mix.exs  # deps: [{:zen_websocket, path: "../.."}]
-```
-
-**Why separate projects for large examples:**
-- Uses library exactly as consumers would
-- Has own deps, constraints, CI
-- Doesn't pollute library namespace
-- Can exceed 5-function/15-line limits (it's application code)
-
-**What stays in lib/zen_websocket/examples/:**
-- Connection patterns (< 50 lines)
-- Message handling snippets
-- Configuration examples
+**Current example files:**
+- `deribit_adapter.ex` — Non-GenServer Deribit integration
+- `deribit_genserver_adapter.ex` — GenServer-based Deribit adapter
+- `deribit_rpc.ex` — JSON-RPC helpers for Deribit
+- `batch_subscription_manager.ex` — Batch subscription patterns
+- `adapter_supervisor.ex` — Adapter supervision patterns
+- `supervised_client.ex` — Supervised client usage
+- `platform_adapter_template.ex` — Template for new adapters
+- `usage_patterns.ex` — Common usage patterns
+- `docs/` — Examples from documentation (basic_usage, error_handling, json_rpc_client, subscription_management)
 
 ## DO NOT
 
 | Anti-Pattern | Why |
 |--------------|-----|
-| Create wrapper modules | Use the 5 functions directly |
+| Create wrapper modules | Use the Client functions directly |
 | Mock WebSocket behavior | Test against real APIs or Testing module |
 | Add custom reconnection | Use built-in retry options |
 | Transform errors | Pass raw Gun/WebSocket errors |
@@ -254,27 +245,39 @@ See `ROADMAP.md` in the repository for:
 
 ```
 lib/zen_websocket/
-├── client.ex              # Main interface (5 functions)
-├── config.ex              # Configuration struct
-├── frame.ex               # Frame encoding/decoding
+├── client.ex              # Main interface (connect, send, subscribe, close, monitoring)
+├── client_supervisor.ex   # DynamicSupervisor + pool management
+├── config.ex              # Configuration struct and validation
 ├── connection_registry.ex # ETS connection tracking
-├── reconnection.ex        # Retry logic
-├── message_handler.ex     # Message routing
-├── error_handler.ex       # Error categorization
-├── json_rpc.ex           # JSON-RPC 2.0
-├── correlation_manager.ex # Request correlation
-├── rate_limiter.ex        # Token bucket
-├── heartbeat_manager.ex   # Heartbeat lifecycle
-├── subscription_manager.ex # Subscription tracking
-├── request_correlator.ex  # Request/response tracking
-├── latency_stats.ex       # Latency metrics
-├── recorder.ex            # Session recording (pure)
-├── recorder_server.ex     # Async file I/O
-├── testing.ex             # Test utilities
+├── debug.ex               # Debug logging utility
+├── error_handler.ex       # Error categorization and recovery
+├── frame.ex               # WebSocket frame encoding/decoding
+├── heartbeat_manager.ex   # Heartbeat lifecycle management
+├── json_rpc.ex            # JSON-RPC 2.0 protocol support
+├── latency_stats.ex       # Circular buffer latency metrics
+├── message_handler.ex     # Message parsing and routing
+├── pool_router.ex         # Health-based connection routing
+├── rate_limiter.ex        # Token bucket rate limiting
+├── reconnection.ex        # Exponential backoff retry logic
+├── recorder.ex            # Session recording (pure functions)
+├── recorder_server.ex     # Async file I/O for recording
+├── request_correlator.ex  # Request/response correlation
+├── subscription_manager.ex # Subscription tracking and restoration
+├── testing.ex             # Consumer-facing test utilities
 ├── testing/
-│   └── server.ex          # Mock server wrapper
+│   └── server.ex          # Mock WebSocket server implementation
+├── helpers/
+│   └── deribit.ex         # Deribit platform support
 └── examples/
-    └── deribit_adapter.ex # Platform integration example
+    ├── deribit_adapter.ex           # Deribit adapter (non-GenServer)
+    ├── deribit_genserver_adapter.ex  # Deribit adapter (GenServer)
+    ├── deribit_rpc.ex               # Deribit JSON-RPC helpers
+    ├── batch_subscription_manager.ex # Batch subscription patterns
+    ├── adapter_supervisor.ex         # Adapter supervision
+    ├── supervised_client.ex          # Supervised client usage
+    ├── platform_adapter_template.ex  # Template for new adapters
+    ├── usage_patterns.ex             # Common patterns
+    └── docs/                         # Documentation examples
 ```
 
 ## Key Documentation

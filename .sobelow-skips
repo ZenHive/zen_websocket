@@ -3,3 +3,6 @@ Traversal.FileModule: Directory Traversal in `File.open`,lib/zen_websocket/recor
 Traversal.FileModule: Directory Traversal in `File.open`,lib/zen_websocket/recorder.ex:185,35DD4FD
 Traversal.FileModule: Directory Traversal in `File.open`,lib/zen_websocket/recorder.ex:152,4D8A098
 Traversal.FileModule: Directory Traversal in `File.open`,lib/zen_websocket/recorder_server.ex:110,7812FDF
+Traversal.FileModule: Directory Traversal in `File.open`,lib/zen_websocket/recorder_server.ex:146,2F04AD7
+Traversal.FileModule: Directory Traversal in `File.open`,lib/zen_websocket/recorder.ex:222,6C4E551
+Traversal.FileModule: Directory Traversal in `File.open`,lib/zen_websocket/recorder.ex:181,CB369F
