@@ -35,6 +35,19 @@ mix security                           # Sobelow security scan
 mix docs
 ```
 
+## Documentation
+
+When your change affects user guidance, update the relevant docs in the same pull request:
+
+- `README.md` for top-level discovery and guide links
+- `AGENTS.md` for contributor and AI-agent workflow guidance
+- `CHANGELOG.md` under `Unreleased`
+- `docs/guides/` for task-specific guides such as:
+  - `building_adapters.md`
+  - `performance_tuning.md`
+  - `troubleshooting_reconnection.md`
+  - `deployment_considerations.md`
+
 ## Testing Policy
 
 **IMPORTANT**: This project uses real API testing exclusively. We do not use mocks.

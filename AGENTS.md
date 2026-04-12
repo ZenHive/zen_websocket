@@ -289,4 +289,5 @@ lib/zen_websocket/
 | `ROADMAP.md` | Task tracking and priorities |
 | `CHANGELOG.md` | Version history |
 | `docs/guides/building_adapters.md` | Adapter patterns |
+| `docs/guides/deployment_considerations.md` | Production deployment trade-offs for trading applications |
 | `docs/guides/performance_tuning.md` | Telemetry and tuning |

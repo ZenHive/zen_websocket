@@ -47,6 +47,17 @@ mix test.api --deribit    # Deribit-specific tests
 mix test.performance      # Performance/stress testing
 ```
 
+## Documentation
+
+Use the existing docs instead of re-explaining patterns from scratch:
+
+- `README.md` for package overview and top-level discovery
+- `AGENTS.md` for contributor workflow and verification expectations
+- `docs/guides/building_adapters.md` for adapter patterns
+- `docs/guides/performance_tuning.md` for telemetry and tuning
+- `docs/guides/troubleshooting_reconnection.md` for reconnect diagnostics
+- `docs/guides/deployment_considerations.md` for production deployment trade-offs
+
 ## Architecture
 
 ### Module Structure

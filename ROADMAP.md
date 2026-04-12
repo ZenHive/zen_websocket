@@ -17,6 +17,7 @@
 ### Recently Completed
 | Task | Description | Notes |
 |------|-------------|-------|
+| R025 | Deployment guide for trading apps | See CHANGELOG [Unreleased] |
 | R030 | Preserve config across reconnect | See CHANGELOG [Unreleased] |
 | R041 | Doc review (USAGE_RULES.md, guides, examples) | See CHANGELOG v0.4.0 |
 | R040 | Wire in descripex to public modules | See CHANGELOG v0.4.0 |
@@ -38,7 +39,7 @@
 |------|--------|----------|-------------|
 | R040 | ✅ | [D:3/B:7/U:7 → Eff:2.33] | Wire in descripex to public modules |
 | R041 | ✅ | [D:3/B:7/U:6 → Eff:2.17] | Doc review (USAGE_RULES.md, guides, examples) |
-| R025 | ⬜ | [D:3/B:5/U:5 → Eff:1.67] | Deployment guide for trading apps |
+| R025 | ✅ | [D:3/B:5/U:5 → Eff:1.67] | Deployment guide for trading apps |
 | R030 | ✅ | [D:5/B:8/U:6 → Eff:1.4] | Preserve config across reconnect |
 | R011 | ⬜ | [D:4/B:5/U:3 → Eff:1.0] | Error scenario testing |
 | R010 | ⬜ | [D:5/B:6/U:2 → Eff:0.8] | Property-based testing |
@@ -144,9 +145,9 @@ Implemented for both automatic reconnect and explicit `Client.reconnect/1`.
 
 ---
 
-### Task R025: Deployment Guide for Trading Applications
+### Task R025: Deployment Guide for Trading Applications ✅
 
-**[D:3/B:5/U:5 → Eff:1.67]**
+**[D:3/B:5/U:5 → Eff:1.67]** — **Complete**
 
 Add deployment considerations guide for trading applications using zen_websocket.
 Educational documentation, not prescriptive.
@@ -154,10 +155,10 @@ Educational documentation, not prescriptive.
 **Topics:** Latency considerations, cloud provider regions, connection architecture, monitoring in production.
 
 **Success criteria:**
-- [ ] `docs/guides/deployment_considerations.md` created
-- [ ] Covers latency, geography, architecture trade-offs
-- [ ] Includes "questions to ask yourself" framework
-- [ ] Not prescriptive — helps users decide based on their use case
+- [x] `docs/guides/deployment_considerations.md` created
+- [x] Covers latency, geography, architecture trade-offs
+- [x] Includes "questions to ask yourself" framework
+- [x] Not prescriptive — helps users decide based on their use case
 
 **Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
 

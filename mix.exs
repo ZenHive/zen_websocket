@@ -44,6 +44,7 @@ defmodule ZenWebsocket.MixProject do
           "docs/guides/building_adapters.md",
           "docs/guides/performance_tuning.md",
           "docs/guides/troubleshooting_reconnection.md",
+          "docs/guides/deployment_considerations.md",
           "docs/architecture/reconnection.md",
           "docs/gun_integration.md",
           "docs/stability_testing.md",
@@ -54,7 +55,8 @@ defmodule ZenWebsocket.MixProject do
           Guides: [
             "docs/guides/building_adapters.md",
             "docs/guides/performance_tuning.md",
-            "docs/guides/troubleshooting_reconnection.md"
+            "docs/guides/troubleshooting_reconnection.md",
+            "docs/guides/deployment_considerations.md"
           ],
           Architecture: [
             "docs/Architecture.md",
