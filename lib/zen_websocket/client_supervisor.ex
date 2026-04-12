@@ -98,8 +98,8 @@ defmodule ZenWebsocket.ClientSupervisor do
     # Extract lifecycle callbacks
     on_connect = Keyword.get(opts, :on_connect)
 
-    # Add supervision flag to opts (on_disconnect is passed through to Client)
-    supervised_opts = Keyword.put(opts, :supervised, true)
+    # Preserve supervised reconnect semantics on the returned client struct.
+    supervised_opts = Keyword.put(opts, :reconnector, &__MODULE__.start_client/2)
 
     child_spec = %{
       id: make_ref(),
@@ -110,7 +110,7 @@ defmodule ZenWebsocket.ClientSupervisor do
 
     case DynamicSupervisor.start_child(__MODULE__, child_spec) do
       {:ok, pid} when is_pid(pid) ->
-        timeout = Keyword.get(opts, :timeout, 5000) + @supervision_buffer_ms
+        timeout = await_timeout(url_or_config, opts)
         await_connection(pid, timeout, on_connect)
 
       error ->
@@ -162,8 +162,22 @@ defmodule ZenWebsocket.ClientSupervisor do
       state: state.state,
       url: state.url,
       monitor_ref: state.monitor_ref,
-      server_pid: pid
+      server_pid: pid,
+      config: state.config,
+      reconnect_opts: ZenWebsocket.Client.reconnect_opts_from_state(state)
     }
+  end
+
+  @spec await_timeout(String.t() | ZenWebsocket.Config.t(), keyword()) :: pos_integer()
+  defp await_timeout(url_or_config, opts) do
+    timeout =
+      case {Keyword.get(opts, :timeout), url_or_config} do
+        {timeout, _} when is_integer(timeout) and timeout > 0 -> timeout
+        {nil, %ZenWebsocket.Config{timeout: timeout}} -> timeout
+        _ -> 5000
+      end
+
+    timeout + @supervision_buffer_ms
   end
 
   api(:list_clients, "List all supervised client connections.",

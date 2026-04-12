@@ -77,7 +77,6 @@ defmodule ZenWebsocket.Reconnection do
             Debug.log(config, "   ✅ Gun connection up")
             Debug.log(config, "   🌐 Protocol: #{inspect(protocol)}")
             Debug.log(config, "   🔄 Upgrading to WebSocket...")
-            Debug.log(config, "   📋 Headers: #{inspect(config.headers)}")
 
             stream_ref = :gun.ws_upgrade(gun_pid, upgrade_path, config.headers)
             Debug.log(config, "   📡 WebSocket upgrade initiated")

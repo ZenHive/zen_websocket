@@ -87,7 +87,7 @@ defmodule ZenWebsocket.Client do
   # even if user specifies a very short timeout.
   @minimum_connection_timeout_ms 1000
 
-  defstruct [:gun_pid, :stream_ref, :state, :url, :monitor_ref, :server_pid]
+  defstruct [:gun_pid, :stream_ref, :state, :url, :monitor_ref, :server_pid, :config, reconnect_opts: []]
 
   @type t :: %__MODULE__{
           gun_pid: pid() | nil,
@@ -95,7 +95,9 @@ defmodule ZenWebsocket.Client do
           state: :connecting | :connected | :disconnected,
           url: String.t() | nil,
           monitor_ref: reference() | nil,
-          server_pid: pid() | nil
+          server_pid: pid() | nil,
+          config: ZenWebsocket.Config.t() | nil,
+          reconnect_opts: keyword()
         }
 
   @typedoc "Internal GenServer state for the WebSocket client"
@@ -126,8 +128,12 @@ defmodule ZenWebsocket.Client do
           latency_stats: LatencyStats.t(),
           # Session recording
           recorder_pid: pid() | nil,
+          # Lifecycle callback (invoked after supervised connect)
+          on_connect: (pid() -> any()) | nil,
           # Lifecycle callback (invoked on terminate)
-          on_disconnect: (pid() -> any()) | nil
+          on_disconnect: (pid() -> any()) | nil,
+          # Callback used to recreate the client on explicit reconnect
+          reconnector: function() | nil
         }
 
   @doc """
@@ -425,10 +431,11 @@ defmodule ZenWebsocket.Client do
   )
 
   @spec reconnect(t()) :: {:ok, t()} | {:error, term()}
-  def reconnect(%__MODULE__{url: url} = client) do
+  def reconnect(%__MODULE__{} = client) do
+    {target, opts} = reconnect_target(client)
     close(client)
 
-    case connect(url) do
+    case reconnect_with(target, opts) do
       {:ok, new_client} ->
         {:ok, new_client}
 
@@ -462,6 +469,46 @@ defmodule ZenWebsocket.Client do
   defp process_down_exit?({{:shutdown, _reason}, _details}), do: true
   defp process_down_exit?(_reason), do: false
 
+  @doc false
+  @spec reconnect_target(t()) :: {ZenWebsocket.Config.t() | String.t() | nil, keyword()}
+  defp reconnect_target(%__MODULE__{server_pid: server_pid} = client) when is_pid(server_pid) do
+    fallback = {client.config || client.url, client.reconnect_opts}
+
+    case safe_server_call(server_pid, :get_state_internal, :disconnected) do
+      {:ok, state} -> {state.config, reconnect_opts_from_state(state)}
+      _ -> fallback
+    end
+  end
+
+  defp reconnect_target(%__MODULE__{} = client) do
+    {client.config || client.url, client.reconnect_opts}
+  end
+
+  @doc false
+  @spec reconnect_with(ZenWebsocket.Config.t() | String.t() | nil, keyword()) :: {:ok, t()} | {:error, term()}
+  defp reconnect_with(nil, _opts), do: {:error, {:not_connected, :missing_config}}
+
+  defp reconnect_with(target, opts) do
+    case Keyword.pop(opts, :reconnector) do
+      {reconnector, reconnect_opts} when is_function(reconnector, 2) ->
+        reconnector.(target, reconnect_opts)
+
+      {_reconnector, reconnect_opts} ->
+        connect(target, reconnect_opts)
+    end
+  end
+
+  @doc false
+  @spec reconnect_opts_from_state(map()) :: keyword()
+  def reconnect_opts_from_state(state) do
+    []
+    |> maybe_put_reconnect_opt(:handler, state.handler)
+    |> maybe_put_reconnect_opt(:heartbeat_config, state.heartbeat_config)
+    |> maybe_put_reconnect_opt(:on_connect, state.on_connect)
+    |> maybe_put_reconnect_opt(:on_disconnect, state.on_disconnect)
+    |> maybe_put_reconnect_opt(:reconnector, state.reconnector)
+  end
+
   # GenServer callbacks
 
   @impl true
@@ -483,7 +530,9 @@ defmodule ZenWebsocket.Client do
     recorder_pid = maybe_start_recorder(config.record_to)
 
     # Get lifecycle callback
+    on_connect = Keyword.get(opts, :on_connect)
     on_disconnect = Keyword.get(opts, :on_disconnect)
+    reconnector = Keyword.get(opts, :reconnector)
 
     initial_state = %{
       config: config,
@@ -509,7 +558,11 @@ defmodule ZenWebsocket.Client do
       # Session recording
       recorder_pid: recorder_pid,
       # Lifecycle callback
-      on_disconnect: on_disconnect
+      on_connect: on_connect,
+      # Lifecycle callback
+      on_disconnect: on_disconnect,
+      # Callback used to recreate the client on explicit reconnect
+      reconnector: reconnector
     }
 
     {:ok, initial_state, {:continue, :connect}}
@@ -698,8 +751,9 @@ defmodule ZenWebsocket.Client do
     end
 
     # Start heartbeat timer if configured
+    # Reset retry_count so the next disconnect-reconnect cycle gets fresh retries
     new_state =
-      %{state | state: :connected, connect_start_time: nil}
+      %{state | state: :connected, connect_start_time: nil, retry_count: 0}
       |> HeartbeatManager.start_timer()
       |> maybe_restore_subscriptions()
 
@@ -925,7 +979,9 @@ defmodule ZenWebsocket.Client do
       state: state.state,
       url: state.url,
       monitor_ref: state.monitor_ref,
-      server_pid: server_pid
+      server_pid: server_pid,
+      config: state.config,
+      reconnect_opts: reconnect_opts_from_state(state)
     }
   end
 
@@ -1047,6 +1103,11 @@ defmodule ZenWebsocket.Client do
   defp maybe_record(recorder_pid, direction, frame) do
     ZenWebsocket.RecorderServer.record(recorder_pid, direction, frame)
   end
+
+  @spec maybe_put_reconnect_opt(keyword(), atom(), term()) :: keyword()
+  defp maybe_put_reconnect_opt(opts, _key, nil), do: opts
+  defp maybe_put_reconnect_opt(opts, :heartbeat_config, :disabled), do: opts
+  defp maybe_put_reconnect_opt(opts, key, value), do: Keyword.put(opts, key, value)
 
   @spec maybe_stop_recorder(pid() | nil) :: :ok
   defp maybe_stop_recorder(nil), do: :ok

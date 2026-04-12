@@ -123,4 +123,28 @@ defmodule ZenWebsocket.ConfigTest do
       {:error, "URL is required"} = Config.validate(%Config{url: nil})
     end
   end
+
+  describe "Inspect" do
+    test "redacts header values" do
+      config =
+        Config.new!("wss://test.com",
+          headers: [
+            {"authorization", "Bearer secret-token"},
+            {"x-api-key", "super-secret"}
+          ]
+        )
+
+      inspected = inspect(config)
+
+      assert inspected =~ "#ZenWebsocket.Config<"
+      assert inspected =~ "[REDACTED]"
+      refute inspected =~ "secret-token"
+      refute inspected =~ "super-secret"
+
+      assert config.headers == [
+               {"authorization", "Bearer secret-token"},
+               {"x-api-key", "super-secret"}
+             ]
+    end
+  end
 end

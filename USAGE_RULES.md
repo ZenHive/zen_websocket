@@ -47,8 +47,7 @@ health = ZenWebsocket.Client.get_heartbeat_health(client)
 # Connection metrics (subscriptions_size, pending_requests_size, state_memory, ...)
 metrics = ZenWebsocket.Client.get_state_metrics(client)
 
-# Explicit reconnection (note: currently reconnects with URL only,
-# custom opts like headers/timeouts are not preserved — see R030)
+# Explicit reconnection using the stored connection contract
 {:ok, new_client} = ZenWebsocket.Client.reconnect(client)
 ```
 
@@ -81,7 +80,7 @@ children = [
   {ZenWebsocket.Client, [
     url: "wss://api.example.com/ws",
     id: :main_websocket,
-    heartbeat_config: %{type: :ping, interval: 30_000}
+    heartbeat_config: %{type: :ping_pong, interval: 30_000}
   ]}
 ]
 ```
@@ -103,9 +102,9 @@ opts = [
 
   # Heartbeat
   heartbeat_config: %{
-    type: :ping,              # :ping, :pong, :deribit, :custom
+    type: :ping_pong,         # :ping_pong, :deribit, :binance
     interval: 30_000,         # Heartbeat interval in ms
-    message: nil              # Custom heartbeat message (for :custom type)
+    message: nil              # Reserved for future custom heartbeat support
   },
 
   # Session Recording
@@ -245,6 +244,72 @@ end)
 # - Subscription management
 # - Cancel-on-disconnect
 ```
+
+## Reconnection Behavior
+
+ZenWebsocket supports two reconnect paths with different preservation semantics.
+
+### Automatic Reconnect (`reconnect_on_error: true`)
+
+When a connection drops and `reconnect_on_error: true` (the default), the same
+Client GenServer reconnects with exponential backoff.
+
+#### Preserved Across Automatic Reconnect
+
+| State | Details |
+|-------|---------|
+| **Config struct** | Full validated `ZenWebsocket.Config` struct |
+| **Handler callback** | Same function reference — no need to re-register |
+| **Heartbeat config** | Timer restarted with original interval after reconnect |
+| **Subscriptions** | Restored automatically if `restore_subscriptions: true` (default) |
+| **Latency stats** | Historical measurements accumulate across reconnects |
+| **Session recorder** | Continues recording to the same file |
+| **on_disconnect callback** | Same function reference |
+
+#### Reset on Automatic Reconnect
+
+| State | Details |
+|-------|---------|
+| **Runtime retry counter** | `state.retry_count` resets to 0 after successful reconnect; config `retry_count` stays unchanged |
+| **Heartbeat failures** | Counter reset to 0 |
+| **Heartbeat timer** | Cancelled on disconnect, restarted on reconnect |
+| **Gun PID / stream ref** | New connection process and stream |
+
+#### Pending Requests on Automatic Reconnect
+
+Pending RPC requests (`pending_requests`) remain in state across reconnects.
+Responses on the new connection may not match original request IDs — callers
+should handle request timeouts gracefully.
+
+### Explicit Reconnect (`Client.reconnect/1`)
+
+`Client.reconnect/1` starts a fresh Client process using the stored connection
+contract from the original client struct returned by `connect/2` or
+`ClientSupervisor.start_client/2`.
+
+If the original client was started under `ClientSupervisor.start_client/2`,
+explicit reconnect goes back through `ClientSupervisor.start_client/2` so the
+replacement client stays supervised and reruns `:on_connect`.
+
+#### Preserved Across Explicit Reconnect
+
+| State | Details |
+|-------|---------|
+| **Config struct** | Full validated `ZenWebsocket.Config` struct, including headers/timeouts/retry settings |
+| **Handler callback** | Same function reference |
+| **Heartbeat config** | Same heartbeat configuration for the new client |
+| **Supervision mode** | Supervised clients reconnect as supervised clients; direct clients reconnect directly |
+| **on_connect callback** | Rerun for supervised reconnect so registries can re-register the new PID |
+| **on_disconnect callback** | Same function reference |
+
+#### Reset on Explicit Reconnect
+
+| State | Details |
+|-------|---------|
+| **Subscriptions** | Fresh client state — resubscribe after reconnect if needed |
+| **Pending requests** | Fresh client state — in-flight requests from the old client do not carry over |
+| **Latency stats / heartbeat state** | Fresh client state with new counters and timers |
+| **Server / Gun PIDs** | New Client GenServer, Gun process, and stream ref |
 
 ## Error Handling
 

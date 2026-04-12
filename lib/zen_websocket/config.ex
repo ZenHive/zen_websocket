@@ -167,3 +167,27 @@ defmodule ZenWebsocket.Config do
     end
   end
 end
+
+defimpl Inspect, for: ZenWebsocket.Config do
+  import Inspect.Algebra
+
+  @redacted "[REDACTED]"
+
+  def inspect(%ZenWebsocket.Config{} = config, opts) do
+    redacted_config =
+      config
+      |> Map.from_struct()
+      |> redact_headers()
+
+    concat(["#ZenWebsocket.Config<", to_doc(redacted_config, opts), ">"])
+  end
+
+  defp redact_headers(%{headers: []} = config), do: config
+
+  defp redact_headers(%{headers: headers} = config) do
+    %{config | headers: Enum.map(headers, &redact_header/1)}
+  end
+
+  defp redact_header({name, _value}), do: {name, @redacted}
+  defp redact_header(other), do: other
+end

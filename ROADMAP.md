@@ -17,6 +17,7 @@
 ### Recently Completed
 | Task | Description | Notes |
 |------|-------------|-------|
+| R030 | Preserve config across reconnect | See CHANGELOG [Unreleased] |
 | R041 | Doc review (USAGE_RULES.md, guides, examples) | See CHANGELOG v0.4.0 |
 | R040 | Wire in descripex to public modules | See CHANGELOG v0.4.0 |
 | R029 | Fail gracefully on stale client PIDs | See CHANGELOG v0.4.0 |
@@ -38,7 +39,7 @@
 | R040 | ✅ | [D:3/B:7/U:7 → Eff:2.33] | Wire in descripex to public modules |
 | R041 | ✅ | [D:3/B:7/U:6 → Eff:2.17] | Doc review (USAGE_RULES.md, guides, examples) |
 | R025 | ⬜ | [D:3/B:5/U:5 → Eff:1.67] | Deployment guide for trading apps |
-| R030 `[P]` | ⬜ | [D:5/B:8/U:6 → Eff:1.4] | Preserve config across reconnect |
+| R030 | ✅ | [D:5/B:8/U:6 → Eff:1.4] | Preserve config across reconnect |
 | R011 | ⬜ | [D:4/B:5/U:3 → Eff:1.0] | Error scenario testing |
 | R010 | ⬜ | [D:5/B:6/U:2 → Eff:0.8] | Property-based testing |
 
@@ -106,9 +107,9 @@ Add `use Descripex` to all public-facing modules so the library is self-describi
 
 ---
 
-### Task R041: Doc Review (USAGE_RULES.md, Guides, Examples)
+### Task R041: Doc Review (USAGE_RULES.md, Guides, Examples) ✅
 
-**[D:3/B:7/U:6 → Eff:2.17]**
+**[D:3/B:7/U:6 → Eff:2.17]** — **Complete**
 
 Audit all documentation files for accuracy against current codebase. The codebase has evolved significantly since docs were last updated — stale API references, removed aliases, and outdated examples need cleanup.
 
@@ -120,29 +121,26 @@ Audit all documentation files for accuracy against current codebase. The codebas
 - Example code in `lib/zen_websocket/examples/` — verify compiles and matches documented patterns
 
 **Success criteria:**
-- [ ] All code examples in docs compile against current codebase
-- [ ] No references to removed APIs, aliases, or modules
-- [ ] Telemetry event table matches actual emitted events
-- [ ] Module overview tables match actual public functions
+- [x] All code examples in docs compile against current codebase
+- [x] No references to removed APIs, aliases, or modules
+- [x] Telemetry event table matches actual emitted events
+- [x] Module overview tables match actual public functions
 
 **Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
 
 ---
 
-### Task R030: Preserve Config Across Reconnect
+### Task R030: Preserve Config Across Reconnect ✅
 
-**[D:5/B:8/U:6 → Eff:1.4]** `[P]`
+**[D:5/B:8/U:6 → Eff:1.4]** — **Complete**
 
 Reconnect should preserve the connection contract the caller originally set up.
-Rebuilding from URL defaults loses important settings and changes behavior after
-the first reconnect.
+Implemented for both automatic reconnect and explicit `Client.reconnect/1`.
 
 **Success criteria:**
-- [ ] Reconnect keeps validated config fields such as timeout, headers, retry config, request timeout, and recording path
-- [ ] Reconnect behavior for heartbeat and handler options is either preserved or explicitly documented if unsupported
-- [ ] Regression tests verify reconnect keeps the intended runtime contract
-
-**Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
+- [x] Reconnect keeps validated config fields such as timeout, headers, retry config, request timeout, and recording path
+- [x] Reconnect behavior for heartbeat and handler options is either preserved or explicitly documented if unsupported
+- [x] Regression tests verify reconnect keeps the intended runtime contract
 
 ---
 

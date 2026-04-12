@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **retry_count not reset after successful reconnect** — After a disconnect-reconnect cycle, `retry_count` accumulated instead of resetting to 0. This silently degraded reconnection capability over the lifetime of a long-running process — each successive disconnect cycle had fewer retry attempts available. Now reset to 0 on successful WebSocket upgrade (R030)
+- **Explicit reconnect now preserves the original connection contract** — `Client.reconnect/1` no longer falls back to URL-only reconnects. Client structs returned by `connect/2` or `ClientSupervisor.start_client/2` now retain their validated config plus runtime callbacks such as `handler`, `heartbeat_config`, `on_connect`, and `on_disconnect`, so explicit reconnects keep the same headers, timeouts, retry settings, callback behavior, and supervision mode (R030)
+- **Config inspection now redacts header values** — `inspect(config)` (and `inspect(client)` output containing `client.config`) redacts header values via a custom `Inspect` impl, preventing bearer tokens or API keys from leaking through struct inspection. Debug-mode log line that directly logged `config.headers` during WebSocket upgrade has been removed (R030)
+
+### Added
+- **Reconnection behavior documentation** — USAGE_RULES.md now distinguishes automatic reconnect from explicit `Client.reconnect/1`, documenting what is preserved, reset, or carried across each path (R030)
+- **Config preservation regression tests** — Mock-server regression tests now run in the default test suite and verify: retry_count resets after successful automatic reconnect, handler callbacks survive reconnect, Config structs remain identical across reconnects, supervised reconnect reruns lifecycle callbacks under `ClientSupervisor`, and explicit reconnect preserves the stored connection contract even after the original client is closed (R030)
+
 ## [0.4.0] - 2026-04-12
 
 ### Added
