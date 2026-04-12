@@ -96,4 +96,52 @@ defmodule ZenWebsocket.FrameTest do
       assert frame == {:close, "going away"}
     end
   end
+
+  describe "decode/1 malformed input" do
+    test "returns error for unknown atom frame types" do
+      {:error, message} = Frame.decode({:bogus, <<>>})
+      assert message =~ "Unknown frame type"
+      assert message =~ "bogus"
+    end
+
+    test "returns error for non-tuple input" do
+      {:error, message} = Frame.decode(:not_a_tuple)
+      assert message =~ "Unknown frame type"
+    end
+
+    test "returns error for empty tuple" do
+      {:error, message} = Frame.decode({})
+      assert message =~ "Unknown frame type"
+    end
+
+    test "returns error for arity-mismatched ws frame" do
+      {:error, message} = Frame.decode({:ws, :text})
+      assert message =~ "Unknown frame type"
+    end
+
+    test "returns error for unknown inner ws type" do
+      {:error, message} = Frame.decode({:ws, :telepathy, "data"})
+      assert message =~ "Unknown frame type"
+    end
+
+    test "handles empty-binary payloads without crashing" do
+      assert {:ok, {:text, ""}} = Frame.decode({:ws, :text, ""})
+      assert {:ok, {:binary, ""}} = Frame.decode({:ws, :binary, ""})
+    end
+
+    test "handles large binary payloads without crashing" do
+      large = :binary.copy(<<0>>, 1_000_000)
+      assert {:ok, {:binary, ^large}} = Frame.decode({:ws, :binary, large})
+    end
+
+    test "does not crash on deeply nested tuple shapes" do
+      {:error, message} = Frame.decode({:ws, {:nested, :tuple}, "data"})
+      assert message =~ "Unknown frame type"
+    end
+
+    test "returns error for map input" do
+      {:error, message} = Frame.decode(%{type: :text, data: "hi"})
+      assert message =~ "Unknown frame type"
+    end
+  end
 end

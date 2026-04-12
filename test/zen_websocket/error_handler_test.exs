@@ -42,6 +42,50 @@ defmodule ZenWebsocket.ErrorHandlerTest do
     end
   end
 
+  describe "Gun error variants" do
+    test "gun_error with :closed reason is recoverable" do
+      error = {:gun_error, :pid, :ref, :closed}
+      assert {:recoverable, {:gun_error, :closed}} = ErrorHandler.categorize_error(error)
+      assert ErrorHandler.recoverable?(error)
+      assert :reconnect = ErrorHandler.handle_error(error)
+    end
+
+    test "gun_error with :timeout reason is recoverable" do
+      error = {:gun_error, :pid, :ref, :timeout}
+      assert {:recoverable, {:gun_error, :timeout}} = ErrorHandler.categorize_error(error)
+      assert ErrorHandler.recoverable?(error)
+    end
+
+    test "gun_down with :tls_error reason is recoverable" do
+      error = {:gun_down, :pid, :ws, :tls_error, []}
+      assert {:recoverable, {:gun_down, :tls_error}} = ErrorHandler.categorize_error(error)
+      assert ErrorHandler.recoverable?(error)
+    end
+
+    test "gun_down with :protocol_error and populated killed_streams is recoverable" do
+      error = {:gun_down, :pid, :ws, :protocol_error, [:ref1, :ref2]}
+      assert {:recoverable, {:gun_down, :protocol_error}} = ErrorHandler.categorize_error(error)
+      assert ErrorHandler.recoverable?(error)
+    end
+
+    test "gun_down with :normal reason is recoverable" do
+      error = {:gun_down, :pid, :ws, :normal, []}
+      assert {:recoverable, {:gun_down, :normal}} = ErrorHandler.categorize_error(error)
+    end
+
+    test "explain/1 unwraps gun_down variants" do
+      result = ErrorHandler.explain({:gun_down, :tls_error})
+      assert result.message =~ "Connection closed unexpectedly"
+      assert result.message =~ "tls_error"
+    end
+
+    test "explain/1 unwraps gun_error variants" do
+      result = ErrorHandler.explain({:gun_error, :closed})
+      assert result.message =~ "Connection error"
+      assert result.message =~ "closed"
+    end
+  end
+
   describe "recoverable?/1" do
     test "returns true for recoverable errors" do
       assert ErrorHandler.recoverable?({:error, :econnrefused})

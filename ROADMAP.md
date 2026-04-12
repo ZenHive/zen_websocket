@@ -41,7 +41,8 @@
 | R041 | ✅ | [D:3/B:7/U:6 → Eff:2.17] | Doc review (USAGE_RULES.md, guides, examples) |
 | R025 | ✅ | [D:3/B:5/U:5 → Eff:1.67] | Deployment guide for trading apps |
 | R030 | ✅ | [D:5/B:8/U:6 → Eff:1.4] | Preserve config across reconnect |
-| R011 | ⬜ | [D:4/B:5/U:3 → Eff:1.0] | Error scenario testing |
+| R011 | ✅ | [D:4/B:5/U:3 → Eff:1.0] | Error scenario testing |
+| R042 | ⬜ | [D:4/B:7/U:6 → Eff:1.63] | Fail pending requests on disconnect |
 | R010 | ⬜ | [D:5/B:6/U:2 → Eff:0.8] | Property-based testing |
 
 ### Quick Commands
@@ -173,11 +174,30 @@ Add tests for edge cases and error scenarios.
 **Target areas:** Gun error types not currently tested, frame corruption handling, correlation timeout cleanup, rate limit recovery.
 
 **Success criteria:**
-- [ ] Each error category has explicit test
-- [ ] Recovery paths verified
-- [ ] Error messages are clear and actionable
+- [x] Each error category has explicit test
+- [x] Recovery paths verified
+- [x] Error messages are clear and actionable
 
-**Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
+**Completed:** Added `describe "Gun error variants"` (error_handler_test.exs), `describe "decode/1 malformed input"` (frame_test.exs), `describe "concurrent timeout cleanup"` (request_correlator_test.exs), `describe "recovery scenarios"` (rate_limiter_test.exs). Deferred client-level reconnect/pending-cleanup integration test — see [CHANGELOG.md](CHANGELOG.md) for discovered-work note.
+
+---
+
+### Task R042: Fail pending requests on disconnect
+
+**[D:4/B:7/U:6 → Eff:1.63]** — discovered during R011
+
+**Scope: automatic Gun disconnect/reconnect only.** The explicit `Client.reconnect/1` path (`client.ex:433`) stops the old GenServer, so blocked `GenServer.call` receivers fail immediately via caller-side `:exit` around `client.ex:452` rather than hanging. If that path is later shown to leak pending callers, expand this task.
+
+On the automatic path, `pending_requests` (initialized empty at `client.ex:546`) is never cleared when Gun reports the connection down (`client.ex:943`). Callers blocked on `GenServer.call` for a correlated response hang until their per-call timeout fires — the socket is gone and the response will never arrive.
+
+**Expected behavior:** On automatic Gun disconnect, drain `pending_requests`, reply `{:error, :disconnected}` to each `from`, and cancel their correlation_timeout timers before attempting reconnect.
+
+**Success criteria:**
+- [ ] On automatic Gun disconnect, every pending caller receives a prompt `{:error, :disconnected}` reply (not a later timeout)
+- [ ] Correlation timers are cancelled so no spurious `{:correlation_timeout, id}` fires post-reconnect
+- [ ] Integration test in `test/zen_websocket/client_test.exs` using `MockWebSockServer` covers the full path
+
+**Note:** TODO(Task R042) marker belongs at the Gun-down handler (`client.ex:943`) once scoped.
 
 ---
 

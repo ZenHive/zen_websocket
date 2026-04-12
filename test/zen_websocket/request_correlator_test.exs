@@ -340,4 +340,56 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       assert RequestCorrelator.pending_count(state) == 0
     end
   end
+
+  describe "concurrent timeout cleanup" do
+    test "all pending requests are cleaned up when N concurrent timeouts fire" do
+      n = 10
+      timeout_ms = 30
+
+      state =
+        Enum.reduce(1..n, build_state(), fn id, acc ->
+          RequestCorrelator.track(acc, id, {self(), make_ref()}, timeout_ms)
+        end)
+
+      assert RequestCorrelator.pending_count(state) == n
+
+      telemetry_ref = :atomics.new(1, [])
+      handler_id = {:concurrent_timeout_test, make_ref()}
+
+      :telemetry.attach(
+        handler_id,
+        [:zen_websocket, :request_correlator, :timeout],
+        fn _event, _measures, _meta, _config -> :atomics.add(telemetry_ref, 1, 1) end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      for id <- 1..n do
+        assert_receive {:correlation_timeout, ^id}, 500
+      end
+
+      final_state =
+        Enum.reduce(1..n, state, fn id, acc ->
+          {entry, next} = RequestCorrelator.timeout(acc, id)
+          assert entry
+          next
+        end)
+
+      assert final_state.pending_requests == %{}
+      assert RequestCorrelator.pending_count(final_state) == 0
+      assert :atomics.get(telemetry_ref, 1) == n
+    end
+
+    test "timeout on an already-resolved request is a no-op" do
+      state = build_state()
+      state = RequestCorrelator.track(state, 1, {self(), make_ref()}, 5_000)
+      {entry, state} = RequestCorrelator.resolve(state, 1)
+      assert entry
+
+      # Simulate timeout message arriving after resolution — no double-resolution
+      {nil, state} = RequestCorrelator.timeout(state, 1)
+      assert RequestCorrelator.pending_count(state) == 0
+    end
+  end
 end

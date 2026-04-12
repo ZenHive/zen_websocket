@@ -616,4 +616,71 @@ defmodule ZenWebsocket.RateLimiterTest do
       assert status.queue_size == 5
     end
   end
+
+  describe "recovery scenarios" do
+    test "consume/1 succeeds again after queue drains via refill", %{name: name} do
+      # Bucket capacity 40, cost 10 → 4 slots per refill. After drain (2 queued × 10 = 20
+      # consumed), 20 tokens remain for a post-drain consume to verify actual recovery.
+      config = %{
+        max_queue_size: 2,
+        tokens: 40,
+        refill_rate: 40,
+        refill_interval: 60_000,
+        request_cost: fn _ -> 10 end
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+
+      # Exhaust tokens (40 tokens, cost 10 each → 4 succeed)
+      for id <- 1..4, do: assert(:ok = RateLimiter.consume(name, %{id: id}))
+      # Fill queue (max_queue_size: 2)
+      assert {:error, :rate_limited} = RateLimiter.consume(name, %{id: 5})
+      assert {:error, :rate_limited} = RateLimiter.consume(name, %{id: 6})
+      # Queue full — new requests rejected
+      assert {:error, :queue_full} = RateLimiter.consume(name, %{id: 7})
+
+      # Refill: adds 40 capped at 40, drains 2 queued (20 tokens), leaves 20
+      RateLimiter.refill(name)
+
+      {:ok, status} = RateLimiter.status(name)
+      assert status.queue_size == 0
+
+      # Actual recovery check: a fresh consume succeeds now that the queue is drained
+      assert :ok = RateLimiter.consume(name, %{id: 8})
+      assert :ok = RateLimiter.consume(name, %{id: 9})
+    end
+
+    test "refill caps tokens at bucket capacity", %{name: name} do
+      config = %{
+        tokens: 10,
+        refill_rate: 100,
+        refill_interval: 60_000,
+        request_cost: &RateLimiter.simple_cost/1
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+      RateLimiter.refill(name)
+      RateLimiter.refill(name)
+
+      {:ok, %{tokens: 10}} = RateLimiter.status(name)
+    end
+
+    test "concurrent consume calls don't lose tokens", %{name: name} do
+      config = %{
+        tokens: 100,
+        refill_rate: 0,
+        refill_interval: 60_000,
+        request_cost: fn _ -> 1 end
+      }
+
+      {:ok, ^name} = RateLimiter.init(name, config)
+
+      # 50 concurrent tasks each consuming 1 token
+      tasks = for _ <- 1..50, do: Task.async(fn -> RateLimiter.consume(name, %{}) end)
+      results = Task.await_many(tasks, 5_000)
+      assert Enum.all?(results, &(&1 == :ok))
+
+      {:ok, %{tokens: 50}} = RateLimiter.status(name)
+    end
+  end
 end
