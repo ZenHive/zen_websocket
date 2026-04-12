@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      MIX_ENV: test
+      MIX_ENV: dev
 
     steps:
       - name: Checkout code
@@ -51,7 +51,7 @@ jobs:
         run: mix credo --strict --format json
 
       - name: Run Sobelow
-        run: mix sobelow --config
+        run: mix security
 
       - name: Run Dialyzer
         run: mix dialyzer.json --quiet
