@@ -17,6 +17,7 @@
 ### Recently Completed
 | Task | Description | Notes |
 |------|-------------|-------|
+| R010 | Property-based testing (Frame, Config, JsonRpc) | See CHANGELOG [Unreleased] |
 | R042 | Fail pending requests on disconnect | See CHANGELOG [Unreleased] |
 | R025 | Deployment guide for trading apps | See CHANGELOG [Unreleased] |
 | R030 | Preserve config across reconnect | See CHANGELOG [Unreleased] |
@@ -45,7 +46,10 @@
 | R011 | ✅ | [D:4/B:5/U:3 → Eff:1.0] | Error scenario testing |
 | R042 | ✅ | [D:4/B:7/U:6 → Eff:1.63] | Fail pending requests on disconnect |
 | R043 | ⬜ | [D:3/B:5/U:4 → Eff:1.5] | Reject duplicate live request IDs |
-| R010 | ⬜ | [D:5/B:6/U:2 → Eff:0.8] | Property-based testing |
+| R010 | ✅ | [D:5/B:6/U:2 → Eff:0.8] | Property-based testing |
+| R044 | ⬜ | [D:1/B:4/U:5 → Eff:4.5] 🎯 | Amend testing policy: allow transport shape fixtures |
+| R045 | ⬜ | [D:3/B:5/U:4 → Eff:1.5] | GunStub test helper (blocked by R044) |
+| R046 | ⬜ | [D:2/B:4/U:3 → Eff:1.75] | MessageHandler property tests (blocked by R045) |
 
 ### Quick Commands
 ```bash
@@ -217,20 +221,61 @@ On the automatic path, `pending_requests` (initialized empty at `client.ex:546`)
 
 ---
 
-### Task R010: Property-Based Testing
+### Task R010: Property-Based Testing ✅
 
-**[D:5/B:6/U:2 → Eff:0.8]**
+**[D:5/B:6/U:2 → Eff:0.8]** — **Complete**
 
-Implement property-based tests using stream_data (already installed but unused).
-
-**Target areas:** Frame encoding/decoding (round-trip properties), Config validation (valid configs always pass, invalid always fail), message routing (pattern matching completeness).
+Added property-based tests using stream_data for Frame, Config, and JsonRpc.
 
 **Success criteria:**
-- [ ] Property tests for Frame module
-- [ ] Property tests for Config validation
-- [ ] At least 3 property-based test files
+- [x] Property tests for Frame module
+- [x] Property tests for Config validation
+- [x] At least 3 property-based test files (Frame, Config, JsonRpc)
 
-**Docs:** Update all affected `.md` files (README, CLAUDE.md, ROADMAP, CHANGELOG, AGENTS, CONTRIBUTING) before marking complete.
+**Deferred:** MessageHandler property tests require Gun transport shape fixtures — tracked as R044/R045/R046 below.
+
+---
+
+### Task R044: Amend Testing Policy for Transport Shape Fixtures
+
+**[D:1/B:4/U:5 → Eff:4.5]** 🎯 — surfaced during R010 planning
+
+The current "NO MOCKS ALLOWED" policy blocks property-testing pure-logic modules that consume Gun messages (MessageHandler in particular), because Gun's `pid` and `stream_ref` are opaque BEAM primitives — there's no real behavior for a fixture to drift against.
+
+**Expected outcome:** Amend CLAUDE.md and AGENTS.md testing policy to add a narrow exception: test doubles are permitted for **opaque transport message shapes only** (Gun `:gun_upgrade` / `:gun_ws` / `:gun_down` / `:gun_error` tuples). All other mocking (API responses, auth flows, exchange behavior) remains prohibited; real-API and `MockWebSockServer` coverage stays the source of truth for business logic.
+
+**Success criteria:**
+- [ ] CLAUDE.md testing section documents the narrow exception with rationale and boundaries
+- [ ] AGENTS.md mirrors or references the updated policy
+- [ ] Policy change is explicit about what is NOT newly allowed (prevents future drift)
+
+---
+
+### Task R045: Add GunStub Test Helper
+
+**[D:3/B:5/U:4 → Eff:1.5]** — blocked by R044
+
+Add a minimal test helper that constructs Gun transport message tuples (`:gun_upgrade`, `:gun_ws`, `:gun_down`, `:gun_error`) for unit-level routing tests. Scope strictly bounded per R044 — shape-only, no behavior simulation.
+
+**Success criteria:**
+- [ ] `GunStub` module in `test/support/` exposes constructors for each Gun message shape
+- [ ] Uses real pids (from `self()` or `spawn`) and real refs (from `make_ref/0`) — no fake opaque values
+- [ ] `@moduledoc` explicitly scopes the helper to transport shapes per R044
+- [ ] At least one existing unit test adopts it to prove the helper is useful
+
+---
+
+### Task R046: MessageHandler Property Tests
+
+**[D:2/B:4/U:3 → Eff:1.75]** — blocked by R045
+
+Add property-based tests for `MessageHandler.handle_message/2` using `GunStub`. Targets routing totality (unknown shapes never raise), error classification, and frame-type dispatch determinism.
+
+**Success criteria:**
+- [ ] Property: arbitrary non-Gun tuples return `{:ok, {:unknown_message, _}}` without raising
+- [ ] Property: `{:gun_down, pid, _, reason, _}` always returns `{:ok, {:connection_down, pid, reason}}` regardless of reason term
+- [ ] Property: text/binary frames route through the handler callback
+- [ ] Uses `GunStub` from R045 rather than hand-constructed tuples
 
 ---
 

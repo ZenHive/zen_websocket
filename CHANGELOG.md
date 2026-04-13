@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Config inspection now redacts header values** — `inspect(config)` (and `inspect(client)` output containing `client.config`) redacts header values via a custom `Inspect` impl, preventing bearer tokens or API keys from leaking through struct inspection. Debug-mode log line that directly logged `config.headers` during WebSocket upgrade has been removed (R030)
 
 ### Added
+- **Property-based test coverage** — Added property tests using `stream_data` for three pure, deterministic modules (R010):
+  - `Frame`: Gun-format and direct-format decode round-trips, constructor round-trips, close-frame normalization (integer code discarded), totality on arbitrary unknown shapes
+  - `Config`: valid-input totality across all positive-int fields, URL scheme/host validation, per-field non-positive rejection, `max_backoff < retry_delay` ordering constraint, `new!/2` consistency with `new/2`
+  - `JsonRpc`: `build_request/2` shape invariants, unique ID generation across N calls, `match_response/1` coverage for result, error, and notification cases
+  - Deferred: `MessageHandler` property tests require Gun transport shape fixtures, which are blocked by the current "NO MOCKS" policy — tracked as R044 (policy amendment), R045 (`GunStub` helper), R046 (MessageHandler properties)
 - **Error scenario test coverage** — Added explicit coverage for previously-untested error paths (R011):
   - Gun error variants in `error_handler_test.exs`: `{:gun_error, ..., :closed}`, `{:gun_error, ..., :timeout}`, `{:gun_down, ..., :tls_error, []}`, `{:gun_down, ..., :protocol_error, [refs]}`, and explain/1 unwrapping for both shapes
   - Frame corruption in `frame_test.exs`: unknown atom frame types, non-tuple input, empty tuple, arity-mismatched `:ws` frames, unknown inner `:ws` type, empty and 1MB payloads, deeply nested inner type, map input — all return `{:error, _}` rather than crashing
