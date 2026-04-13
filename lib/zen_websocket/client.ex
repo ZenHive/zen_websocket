@@ -900,14 +900,24 @@ defmodule ZenWebsocket.Client do
     {:noreply, state}
   end
 
-  def handle_info({:correlation_timeout, request_id}, state) do
-    case RequestCorrelator.timeout(state, request_id) do
-      {nil, state} ->
-        {:noreply, state}
+  def handle_info({:timeout, timeout_ref, {:correlation_timeout, request_id}}, state) do
+    # Ignore stale timeout messages from an older request if the same ID is reused.
+    case Map.get(state.pending_requests, request_id) do
+      {_from, ^timeout_ref, _start_time} ->
+        handle_correlation_timeout(state, request_id)
 
-      {{from, _timeout_ref, _start_time}, new_state} ->
-        GenServer.reply(from, {:error, :timeout})
-        {:noreply, new_state}
+      _other ->
+        {:noreply, state}
+    end
+  end
+
+  def handle_info({:correlation_timeout, request_id}, state) do
+    case Map.get(state.pending_requests, request_id) do
+      {_from, _timeout_ref, _start_time} ->
+        handle_correlation_timeout(state, request_id)
+
+      _other ->
+        {:noreply, state}
     end
   end
 
@@ -935,12 +945,26 @@ defmodule ZenWebsocket.Client do
       :ok
   end
 
+  @spec handle_correlation_timeout(state(), term()) :: {:noreply, state()}
+  defp handle_correlation_timeout(state, request_id) do
+    case RequestCorrelator.timeout(state, request_id) do
+      {nil, state} ->
+        {:noreply, state}
+
+      {{from, _timeout_ref, _start_time}, new_state} ->
+        GenServer.reply(from, {:error, :timeout})
+        {:noreply, new_state}
+    end
+  end
+
   # Private functions
 
   # Handles connection errors and triggers internal reconnection when appropriate.
   # This maintains Gun ownership by reconnecting from within the same GenServer.
   @spec handle_connection_error(map(), term()) :: {:noreply, map()} | {:stop, term(), map()}
   defp handle_connection_error(state, reason) do
+    state = RequestCorrelator.fail_all(state, :disconnected)
+
     if Map.has_key?(state, :awaiting_connection) do
       GenServer.reply(state.awaiting_connection, {:error, reason})
     end

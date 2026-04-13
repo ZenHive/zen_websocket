@@ -20,6 +20,11 @@ defmodule ZenWebsocket.RequestCorrelator do
   * `[:zen_websocket, :request_correlator, :timeout]` - Emitted when a request times out.
     * Measurements: `%{count: 1}`
     * Metadata: `%{id: id}`
+
+  * `[:zen_websocket, :request_correlator, :fail_all]` - Emitted for each pending request
+    failed via `fail_all/2` (e.g., on connection loss).
+    * Measurements: `%{count: 1}`
+    * Metadata: `%{id: id, reason: reason}`
   """
 
   use Descripex, namespace: "/correlation"
@@ -65,12 +70,13 @@ defmodule ZenWebsocket.RequestCorrelator do
   @doc """
   Tracks a pending request with a timeout timer.
 
-  Creates a timer that will send `{:correlation_timeout, id}` to `self()`
-  after the specified timeout. Must be called from within a GenServer context.
+  Creates a timer that will send `{:timeout, timeout_ref, {:correlation_timeout, id}}`
+  to `self()` after the specified timeout. Must be called from within a
+  GenServer context.
   """
   @spec track(state(), term(), GenServer.from(), pos_integer()) :: state()
   def track(state, id, from, timeout_ms) do
-    timeout_ref = Process.send_after(self(), {:correlation_timeout, id}, timeout_ms)
+    timeout_ref = :erlang.start_timer(timeout_ms, self(), {:correlation_timeout, id})
     start_time = System.monotonic_time(:millisecond)
     pending = Map.put(state.pending_requests, id, {from, timeout_ref, start_time})
 
@@ -107,7 +113,7 @@ defmodule ZenWebsocket.RequestCorrelator do
         {nil, state}
 
       {{_from, timeout_ref, start_time} = entry, new_pending} ->
-        Process.cancel_timer(timeout_ref)
+        Process.cancel_timer(timeout_ref, async: false, info: false)
         round_trip_ms = System.monotonic_time(:millisecond) - start_time
 
         :telemetry.execute(
@@ -152,6 +158,37 @@ defmodule ZenWebsocket.RequestCorrelator do
 
         {entry, %{state | pending_requests: new_pending}}
     end
+  end
+
+  api(:fail_all, "Fail every pending request with the given reason.",
+    params: [
+      state: [kind: :value, description: "Client state containing pending_requests"],
+      reason: [kind: :value, description: "Error reason delivered to each caller (e.g., :disconnected)"]
+    ],
+    returns: %{type: "state()", description: "State with pending_requests cleared"}
+  )
+
+  @doc """
+  Fails every pending request with `{:error, reason}` and cancels their timeout timers.
+
+  Used when the connection drops and in-flight correlated responses can no longer
+  arrive. Callers blocked on `GenServer.call` receive the reply immediately
+  instead of waiting for their per-call timeout.
+  """
+  @spec fail_all(state(), term()) :: state()
+  def fail_all(state, reason) do
+    Enum.each(state.pending_requests, fn {id, {from, timeout_ref, _start_time}} ->
+      Process.cancel_timer(timeout_ref, async: false, info: false)
+      GenServer.reply(from, {:error, reason})
+
+      :telemetry.execute(
+        [:zen_websocket, :request_correlator, :fail_all],
+        %{count: 1},
+        %{id: id, reason: reason}
+      )
+    end)
+
+    %{state | pending_requests: %{}}
   end
 
   api(:pending_count, "Return the count of pending requests.",

@@ -311,6 +311,103 @@ defmodule ZenWebsocket.ClientTest do
     end
   end
 
+  describe "pending requests on disconnect" do
+    test "blocked callers receive {:error, :disconnected} on automatic disconnect" do
+      # Handler that swallows inbound frames (never replies), so the correlated
+      # request stays pending until the connection drops.
+      silent_handler = fn _ -> :ok end
+
+      {:ok, server, port} = MockWebSockServer.start_link()
+      MockWebSockServer.set_handler(server, silent_handler)
+
+      mock_url = "ws://localhost:#{port}/ws"
+      {:ok, client} = Client.connect(mock_url, retry_count: 10, retry_delay: 100, request_timeout: 30_000)
+
+      assert Client.get_state(client) == :connected
+
+      # Spawn a task that sends a correlated request and blocks waiting for a reply
+      test_pid = self()
+
+      caller =
+        spawn(fn ->
+          request = Jason.encode!(%{"id" => "drain-test-1", "method" => "noop"})
+          result = Client.send_message(client, request)
+          send(test_pid, {:caller_result, result})
+        end)
+
+      ref = Process.monitor(caller)
+
+      # Give the caller time to get the request into pending_requests before we kill the socket.
+      Process.sleep(100)
+
+      # Drop the server to trigger the automatic Gun-down / reconnect path
+      MockWebSockServer.stop(server)
+
+      # Blocked caller should get a prompt error, well before the 30s request_timeout.
+      assert_receive {:caller_result, {:error, :disconnected}}, 2_000
+      assert_receive {:DOWN, ^ref, :process, ^caller, _}, 1_000
+
+      Client.close(client)
+    end
+
+    test "stale timeout from a disconnected request does not time out a reused ID after reconnect" do
+      reused_id = "reused-id"
+      request = Jason.encode!(%{"id" => reused_id, "method" => "noop"})
+
+      {:ok, server, port} = MockWebSockServer.start_link()
+      MockWebSockServer.set_handler(server, fn _ -> :ok end)
+
+      mock_url = "ws://localhost:#{port}/ws"
+      {:ok, client} = Client.connect(mock_url, retry_count: 10, retry_delay: 50, request_timeout: 300)
+
+      assert Client.get_state(client) == :connected
+
+      first_call =
+        Task.async(fn ->
+          Client.send_message(client, request)
+        end)
+
+      Process.sleep(50)
+      MockWebSockServer.stop(server)
+
+      assert {:error, :disconnected} = Task.await(first_call, 2_000)
+
+      {:ok, server2, ^port} = MockWebSockServer.start_link(port: port)
+
+      delayed_response =
+        Jason.encode!(%{
+          "jsonrpc" => "2.0",
+          "id" => reused_id,
+          "result" => %{"ok" => true}
+        })
+
+      MockWebSockServer.set_handler(server2, fn
+        {:text, _msg} ->
+          Process.sleep(200)
+          {:reply, {:text, delayed_response}}
+      end)
+
+      reconnected =
+        Enum.reduce_while(1..30, false, fn _, _acc ->
+          Process.sleep(50)
+
+          if Client.get_state(client) == :connected do
+            {:halt, true}
+          else
+            {:cont, false}
+          end
+        end)
+
+      assert reconnected, "Client did not reconnect within 1.5 seconds"
+
+      assert {:ok, %{"id" => ^reused_id, "result" => %{"ok" => true}}} =
+               Client.send_message(client, request)
+
+      Client.close(client)
+      MockWebSockServer.stop(server2)
+    end
+  end
+
   describe "handler callback regressions" do
     setup do
       {:ok, server, port} = MockWebSockServer.start_link()

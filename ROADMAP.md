@@ -17,6 +17,7 @@
 ### Recently Completed
 | Task | Description | Notes |
 |------|-------------|-------|
+| R042 | Fail pending requests on disconnect | See CHANGELOG [Unreleased] |
 | R025 | Deployment guide for trading apps | See CHANGELOG [Unreleased] |
 | R030 | Preserve config across reconnect | See CHANGELOG [Unreleased] |
 | R041 | Doc review (USAGE_RULES.md, guides, examples) | See CHANGELOG v0.4.0 |
@@ -42,7 +43,8 @@
 | R025 | ✅ | [D:3/B:5/U:5 → Eff:1.67] | Deployment guide for trading apps |
 | R030 | ✅ | [D:5/B:8/U:6 → Eff:1.4] | Preserve config across reconnect |
 | R011 | ✅ | [D:4/B:5/U:3 → Eff:1.0] | Error scenario testing |
-| R042 | ⬜ | [D:4/B:7/U:6 → Eff:1.63] | Fail pending requests on disconnect |
+| R042 | ✅ | [D:4/B:7/U:6 → Eff:1.63] | Fail pending requests on disconnect |
+| R043 | ⬜ | [D:3/B:5/U:4 → Eff:1.5] | Reject duplicate live request IDs |
 | R010 | ⬜ | [D:5/B:6/U:2 → Eff:0.8] | Property-based testing |
 
 ### Quick Commands
@@ -182,22 +184,36 @@ Add tests for edge cases and error scenarios.
 
 ---
 
-### Task R042: Fail pending requests on disconnect
+### Task R042: Fail pending requests on disconnect ✅
 
-**[D:4/B:7/U:6 → Eff:1.63]** — discovered during R011
+**[D:4/B:7/U:6 → Eff:1.63]** — **Complete** (discovered during R011)
 
 **Scope: automatic Gun disconnect/reconnect only.** The explicit `Client.reconnect/1` path (`client.ex:433`) stops the old GenServer, so blocked `GenServer.call` receivers fail immediately via caller-side `:exit` around `client.ex:452` rather than hanging. If that path is later shown to leak pending callers, expand this task.
 
 On the automatic path, `pending_requests` (initialized empty at `client.ex:546`) is never cleared when Gun reports the connection down (`client.ex:943`). Callers blocked on `GenServer.call` for a correlated response hang until their per-call timeout fires — the socket is gone and the response will never arrive.
 
-**Expected behavior:** On automatic Gun disconnect, drain `pending_requests`, reply `{:error, :disconnected}` to each `from`, and cancel their correlation_timeout timers before attempting reconnect.
+**Expected behavior:** On automatic Gun disconnect, drain `pending_requests`, reply `{:error, :disconnected}` to each `from`, and ensure stale timeout messages from the disconnected request cannot time out a reused ID after reconnect.
 
 **Success criteria:**
-- [ ] On automatic Gun disconnect, every pending caller receives a prompt `{:error, :disconnected}` reply (not a later timeout)
-- [ ] Correlation timers are cancelled so no spurious `{:correlation_timeout, id}` fires post-reconnect
-- [ ] Integration test in `test/zen_websocket/client_test.exs` using `MockWebSockServer` covers the full path
+- [x] On automatic Gun disconnect, every pending caller receives a prompt `{:error, :disconnected}` reply (not a later timeout)
+- [x] Reused request IDs after reconnect are not failed by stale timeout messages from the disconnected request
+- [x] Integration test in `test/zen_websocket/client_test.exs` using `MockWebSockServer` covers the full path
 
-**Note:** TODO(Task R042) marker belongs at the Gun-down handler (`client.ex:943`) once scoped.
+---
+
+### Task R043: Reject duplicate live request IDs
+
+**[D:3/B:5/U:4 → Eff:1.5]** — surfaced during R042 review
+
+`RequestCorrelator.track/4` uses `Map.put/3` on `state.pending_requests`, so tracking a request whose ID matches an already-pending entry silently overwrites the earlier caller — the first caller never gets a reply and its timeout timer is orphaned. R042 fixed stale timers across reconnect; this covers duplicate IDs within a single live connection.
+
+**Expected behavior:** Detect the collision at track time and either (a) return an error tuple to the caller without overwriting, or (b) refuse the second tracking and leave the existing entry intact. Pick whichever aligns with how the client surfaces the result to `send_message` callers.
+
+**Success criteria:**
+- [ ] Tracking an ID already present in `pending_requests` does not overwrite the existing entry
+- [ ] The second caller receives a deterministic error (not a silent hang)
+- [ ] The first caller's timer and `from` are preserved
+- [ ] Unit test in `request_correlator_test.exs` covers the collision path
 
 ---
 

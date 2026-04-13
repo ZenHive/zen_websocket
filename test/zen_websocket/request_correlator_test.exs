@@ -61,16 +61,16 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       Process.cancel_timer(timeout_ref)
     end
 
-    test "creates timer that sends correlation_timeout message" do
+    test "creates timer that sends a unique timeout ref with the correlation message" do
       state = build_state()
       from = {self(), make_ref()}
 
       # Use short timeout for testing
       new_state = RequestCorrelator.track(state, "test-id", from, 50)
-      {_from, _timeout_ref, _start_time} = new_state.pending_requests["test-id"]
+      {_from, timeout_ref, _start_time} = new_state.pending_requests["test-id"]
 
       # Should receive timeout message
-      assert_receive {:correlation_timeout, "test-id"}, 200
+      assert_receive {:timeout, ^timeout_ref, {:correlation_timeout, "test-id"}}, 200
     end
 
     test "tracks multiple requests with different IDs" do
@@ -113,12 +113,13 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
 
       # Track with real timer
       state = RequestCorrelator.track(state, "cancel-test", from, 5000)
+      {_from, timeout_ref, _start_time} = state.pending_requests["cancel-test"]
 
       # Resolve should cancel the timer
       {_entry, _new_state} = RequestCorrelator.resolve(state, "cancel-test")
 
       # Should NOT receive timeout message
-      refute_receive {:correlation_timeout, "cancel-test"}, 100
+      refute_receive {:timeout, ^timeout_ref, {:correlation_timeout, "cancel-test"}}, 100
     end
 
     test "returns nil for unknown request ID" do
@@ -303,7 +304,7 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       assert RequestCorrelator.pending_count(state) == 1
 
       # Wait for timeout message
-      assert_receive {:correlation_timeout, "req-1"}, 100
+      assert_receive {:timeout, _timeout_ref, {:correlation_timeout, "req-1"}}, 100
 
       # Handle timeout
       {{timed_out_from, _timer_ref, _start_time}, state} = RequestCorrelator.timeout(state, "req-1")
@@ -341,6 +342,55 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
     end
   end
 
+  describe "fail_all/2" do
+    test "replies {:error, reason} to every pending caller" do
+      state = build_state()
+      ref1 = make_ref()
+      ref2 = make_ref()
+
+      state = RequestCorrelator.track(state, 1, {self(), ref1}, 5_000)
+      state = RequestCorrelator.track(state, 2, {self(), ref2}, 5_000)
+
+      new_state = RequestCorrelator.fail_all(state, :disconnected)
+
+      assert_receive {^ref1, {:error, :disconnected}}
+      assert_receive {^ref2, {:error, :disconnected}}
+      assert new_state.pending_requests == %{}
+    end
+
+    test "is a no-op on empty pending_requests" do
+      state = build_state()
+      assert %{pending_requests: %{}} = RequestCorrelator.fail_all(state, :disconnected)
+      refute_receive _, 10
+    end
+
+    test "emits :fail_all telemetry per pending request" do
+      handler_id = {:fail_all_telemetry, make_ref()}
+      test_pid = self()
+
+      :telemetry.attach(
+        handler_id,
+        [:zen_websocket, :request_correlator, :fail_all],
+        fn event, measures, meta, _ -> send(test_pid, {:telemetry_event, event, measures, meta}) end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      state = build_state()
+      state = RequestCorrelator.track(state, 1, {self(), make_ref()}, 5_000)
+      state = RequestCorrelator.track(state, 2, {self(), make_ref()}, 5_000)
+
+      RequestCorrelator.fail_all(state, :disconnected)
+
+      assert_receive {:telemetry_event, [:zen_websocket, :request_correlator, :fail_all], %{count: 1},
+                      %{id: 1, reason: :disconnected}}
+
+      assert_receive {:telemetry_event, [:zen_websocket, :request_correlator, :fail_all], %{count: 1},
+                      %{id: 2, reason: :disconnected}}
+    end
+  end
+
   describe "concurrent timeout cleanup" do
     test "all pending requests are cleaned up when N concurrent timeouts fire" do
       n = 10
@@ -366,7 +416,7 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       on_exit(fn -> :telemetry.detach(handler_id) end)
 
       for id <- 1..n do
-        assert_receive {:correlation_timeout, ^id}, 500
+        assert_receive {:timeout, _timeout_ref, {:correlation_timeout, ^id}}, 500
       end
 
       final_state =

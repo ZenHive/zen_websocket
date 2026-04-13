@@ -195,6 +195,7 @@ ZenWebsocket emits telemetry events for monitoring. Attach handlers for observab
 | `[:zen_websocket, :request_correlator, :track]` | `count` | `id`, `timeout_ms` |
 | `[:zen_websocket, :request_correlator, :resolve]` | `count`, `round_trip_ms` | `id` |
 | `[:zen_websocket, :request_correlator, :timeout]` | `count` | `id` |
+| `[:zen_websocket, :request_correlator, :fail_all]` | `count` | `id`, `reason` |
 | `[:zen_websocket, :subscription_manager, :add]` | `count` | `channel` |
 | `[:zen_websocket, :subscription_manager, :remove]` | `count` | `channel` |
 | `[:zen_websocket, :subscription_manager, :restore]` | `channel_count` | `channels` |

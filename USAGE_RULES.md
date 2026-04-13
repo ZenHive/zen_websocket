@@ -445,6 +445,7 @@ status = ZenWebsocket.RateLimiter.status(limiter)
 | `[:zen_websocket, :request_correlator, :track]` | `count` | Request tracked |
 | `[:zen_websocket, :request_correlator, :resolve]` | `count`, `round_trip_ms` | Response correlated |
 | `[:zen_websocket, :request_correlator, :timeout]` | `count` | Request timed out |
+| `[:zen_websocket, :request_correlator, :fail_all]` | `count` | Pending request failed on disconnect (metadata: `id`, `reason`) |
 | `[:zen_websocket, :subscription_manager, :add]` | `count` | Subscription added |
 | `[:zen_websocket, :subscription_manager, :remove]` | `count` | Subscription removed |
 | `[:zen_websocket, :subscription_manager, :restore]` | `channel_count` | Subscriptions restored |
