@@ -2,12 +2,13 @@ defmodule ZenWebsocket.MessageHandlerTest do
   use ExUnit.Case
 
   alias ZenWebsocket.MessageHandler
+  alias ZenWebsocket.Test.Support.GunStub
 
   describe "handle_message/2" do
     test "handles gun_upgrade message for websocket" do
       conn_pid = self()
       stream_ref = make_ref()
-      message = {:gun_upgrade, conn_pid, stream_ref, ["websocket"], []}
+      message = GunStub.gun_upgrade(conn_pid: conn_pid, stream_ref: stream_ref)
 
       handler_called = fn result ->
         assert result == {:websocket_upgraded, conn_pid, stream_ref}

@@ -17,6 +17,8 @@
 ### Recently Completed
 | Task | Description | Notes |
 |------|-------------|-------|
+| R046 | MessageHandler property tests via GunStub | See CHANGELOG [Unreleased] |
+| R045 | GunStub test helper (R044-fenced transport shapes) | See CHANGELOG [Unreleased] |
 | R048 | Retire unreachable `:frame` / `:frame_error` handler shapes | See CHANGELOG [Unreleased] |
 | R047 | Document handler message shapes | See CHANGELOG [Unreleased] |
 | R044 | Amend testing policy: allow transport shape fixtures | See CHANGELOG [Unreleased] |
@@ -41,10 +43,7 @@
 | R028 | BatchSubscriptionManager error handling | See CHANGELOG v0.4.0 |
 
 ### Current Tasks
-| Task | Status | Priority | Description |
-|------|--------|----------|-------------|
-| R046 | ⬜ | [D:2/B:4/U:3 → Eff:1.75] | MessageHandler property tests (blocked by R045) |
-| R045 | ⬜ | [D:3/B:5/U:4 → Eff:1.5] | GunStub test helper |
+_No pending tasks — backlog open._
 
 ### Quick Commands
 ```bash
@@ -82,34 +81,6 @@ mix docs                                       # Local docs build
 **[D:2/B:5/U:6 → Eff:2.75]** 🎯
 
 Document the six tuple shapes delivered to user-provided message handlers (`client.ex` lines 1051–1109, enumerated by Reach taint analysis in session on 2026-04-17): `{:message, map_or_binary}`, `{:binary, binary}`, `{:frame, term}`, `{:unmatched_response, map}`, `{:protocol_error, reason}`, `{:frame_error, error}`. Add a "Handler Message Reference" section to `USAGE_RULES.md`. Tighten the `handler` typespec in `client.ex:115` from `(term() -> term())` to a union of the six shapes. Also document the default-handler translation to `{:websocket_*, ...}` messages in the parent process. Flag as a minor follow-up: the default handler silently drops `{:unmatched_response, _}` (falls through to `_other -> :ok` at `client.ex:236`) — decide whether to forward it as `{:websocket_unmatched_response, _}` or leave the silent drop intentional.
-
----
-
-### Task R045: Add GunStub Test Helper
-
-**[D:3/B:5/U:4 → Eff:1.5]** — blocked by R044
-
-Add a minimal test helper that constructs Gun transport message tuples (`:gun_upgrade`, `:gun_ws`, `:gun_down`, `:gun_error`) for unit-level routing tests. Scope strictly bounded per R044 — shape-only, no behavior simulation.
-
-**Success criteria:**
-- [ ] `GunStub` module in `test/support/` exposes constructors for each Gun message shape
-- [ ] Uses real pids (from `self()` or `spawn`) and real refs (from `make_ref/0`) — no fake opaque values
-- [ ] `@moduledoc` explicitly scopes the helper to transport shapes per R044
-- [ ] At least one existing unit test adopts it to prove the helper is useful
-
----
-
-### Task R046: MessageHandler Property Tests
-
-**[D:2/B:4/U:3 → Eff:1.75]** — blocked by R045
-
-Add property-based tests for `MessageHandler.handle_message/2` using `GunStub`. Targets routing totality (unknown shapes never raise), error classification, and frame-type dispatch determinism.
-
-**Success criteria:**
-- [ ] Property: arbitrary non-Gun tuples return `{:ok, {:unknown_message, _}}` without raising
-- [ ] Property: `{:gun_down, pid, _, reason, _}` always returns `{:ok, {:connection_down, pid, reason}}` regardless of reason term
-- [ ] Property: text/binary frames route through the handler callback
-- [ ] Uses `GunStub` from R045 rather than hand-constructed tuples
 
 ---
 
