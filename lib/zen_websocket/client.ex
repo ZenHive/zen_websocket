@@ -109,10 +109,8 @@ defmodule ZenWebsocket.Client do
   @type handler_message ::
           {:message, map() | binary()}
           | {:binary, binary()}
-          | {:frame, term()}
           | {:unmatched_response, map()}
           | {:protocol_error, term()}
-          | {:frame_error, {:decode_error, term()}}
 
   @typedoc "Function invoked for each inbound message. Return value is ignored."
   @type handler :: (handler_message() -> any())
@@ -248,10 +246,8 @@ defmodule ZenWebsocket.Client do
         default_handler = fn
           {:message, data} -> send(parent_pid, {:websocket_message, data})
           {:binary, data} -> send(parent_pid, {:websocket_message, data})
-          {:frame, frame} -> send(parent_pid, {:websocket_frame, frame})
           {:unmatched_response, response} -> send(parent_pid, {:websocket_unmatched_response, response})
           {:protocol_error, reason} -> send(parent_pid, {:websocket_protocol_error, reason})
-          {:frame_error, reason} -> send(parent_pid, {:websocket_frame_error, reason})
           _other -> :ok
         end
 
@@ -865,11 +861,7 @@ defmodule ZenWebsocket.Client do
       {:ok, :control_frame_handled} ->
         {:noreply, state}
 
-      # Exhaustive match — handle_frame_error/2 pattern-matches on error tag
       {:error, {:protocol_error, _} = error} ->
-        handle_frame_error(state, error)
-
-      {:error, {:decode_error, _} = error} ->
         handle_frame_error(state, error)
     end
   end
@@ -1089,14 +1081,6 @@ defmodule ZenWebsocket.Client do
         # Binary frame
         state.handler.({:binary, data})
         state
-
-      other ->
-        # TODO(Task R048): Currently unreachable — Frame.decode only emits
-        # text/binary/ping/pong/close, and ping/pong/close are all consumed by
-        # MessageHandler.handle_control_frame before reaching this clause.
-        # Either find the missing path or retire the :frame handler shape.
-        state.handler.({:frame, other})
-        state
     end
   end
 
@@ -1118,21 +1102,13 @@ defmodule ZenWebsocket.Client do
     end
   end
 
-  # Handles frame decode errors
-  @spec handle_frame_error(state(), term()) :: {:noreply, state()} | {:stop, term(), state()}
+  # Handles frame decode errors. Only :protocol_error is reachable —
+  # ErrorHandler classifies every {:bad_frame, _} as fatal.
+  @spec handle_frame_error(state(), {:protocol_error, term()}) :: {:stop, term(), state()}
   defp handle_frame_error(state, {:protocol_error, reason} = error) do
-    # Notify handler before stopping — matches create_handler/1 contract
+    # Notify handler before stopping — matches handler_message/0 contract
     state.handler.({:protocol_error, reason})
     {:stop, error, state}
-  end
-
-  defp handle_frame_error(state, {:decode_error, _} = error) do
-    # TODO(Task R048): Currently unreachable — ErrorHandler.check_fatal treats
-    # all {:bad_frame, _} as :fatal, so decode_and_handle_control never emits
-    # {:decode_error, _}. Either expand ErrorHandler classification or retire
-    # the :frame_error / :websocket_frame_error handler shapes.
-    state.handler.({:frame_error, error})
-    {:noreply, state}
   end
 
   # Session recording helpers

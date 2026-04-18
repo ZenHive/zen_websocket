@@ -144,7 +144,6 @@ defmodule ZenWebsocket.ClientTest do
       handler = fn
         {:message, data} -> send(parent_pid, {:websocket_message, data})
         {:binary, data} -> send(parent_pid, {:websocket_message, data})
-        {:frame, frame} -> send(parent_pid, {:websocket_frame, frame})
         _other -> :ok
       end
 

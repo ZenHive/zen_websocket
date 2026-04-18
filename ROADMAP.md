@@ -17,6 +17,7 @@
 ### Recently Completed
 | Task | Description | Notes |
 |------|-------------|-------|
+| R048 | Retire unreachable `:frame` / `:frame_error` handler shapes | See CHANGELOG [Unreleased] |
 | R047 | Document handler message shapes | See CHANGELOG [Unreleased] |
 | R044 | Amend testing policy: allow transport shape fixtures | See CHANGELOG [Unreleased] |
 | R010 | Property-based testing (Frame, Config, JsonRpc) | See CHANGELOG [Unreleased] |
@@ -42,28 +43,8 @@
 ### Current Tasks
 | Task | Status | Priority | Description |
 |------|--------|----------|-------------|
-| R048 | ⬜ | [D:3/B:4/U:4 → Eff:1.33] | Resolve unreachable `:frame` / `:frame_error` handler paths |
 | R046 | ⬜ | [D:2/B:4/U:3 → Eff:1.75] | MessageHandler property tests (blocked by R045) |
 | R045 | ⬜ | [D:3/B:5/U:4 → Eff:1.5] | GunStub test helper |
-
-**R048 — Resolve unreachable `:frame` / `:frame_error` handler paths**
-
-Discovered during R047: two handler message shapes documented in `t:ZenWebsocket.Client.handler_message/0` are currently unreachable.
-
-- `{:frame, _}` at `client.ex:1092–1098` — `route_data_frame/2` routes `other ->` to the handler, but `MessageHandler.handle_control_frame/3` already consumes every non-text/non-binary Frame.decode output (ping/pong/close all return `:handled`), so the catch-all never fires.
-- `{:frame_error, {:decode_error, _}}` at `client.ex:1125–1134` — `handle_frame_error/2` accepts `{:decode_error, _}` but `MessageHandler.decode_and_handle_control/1` only produces that tag when `ErrorHandler.handle_error/1` returns non-`:stop`. `ErrorHandler.check_fatal/1` classifies every `{:bad_frame, _}` as `:fatal` → `:stop`, so the `:decode_error` branch is dead.
-
-Both paths carry `TODO(Task R048):` markers in `client.ex`.
-
-**Decide and implement one of:**
-1. Retire the dead shapes: remove the two `state.handler.({:frame, _})` / `({:frame_error, _})` call sites, drop them from `@type handler_message`, remove the corresponding default-handler clauses and their USAGE_RULES rows.
-2. Expand reachability: add the missing path(s) — e.g., admit some `{:bad_frame, _}` subtypes as recoverable in `ErrorHandler.check_recoverable/1`, or add a Frame.decode output that isn't consumed by `handle_control_frame/3` — and cover with integration tests.
-
-**Success criteria:**
-- [ ] Decision documented in CHANGELOG under whatever version ships R048
-- [ ] Either both shapes removed from the contract, or both reachable via a MockWebSockServer integration test
-- [ ] `TODO(Task R048)` markers removed from `client.ex`
-- [ ] USAGE_RULES "Handler Message Reference" updated to match the new reality
 
 ### Quick Commands
 ```bash

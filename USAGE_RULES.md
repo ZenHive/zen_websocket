@@ -342,12 +342,10 @@ The tuples delivered to your handler:
 | `{:message, map}` | Decoded JSON frame (including subscription updates) | Decoded map |
 | `{:message, binary}` | Text frame that did not decode as JSON | Raw text binary |
 | `{:binary, binary}` | WebSocket binary frame | Raw bytes |
-| `{:frame, term}` | Any non-text, non-binary frame from Gun (ping/pong passthrough, etc.) | Opaque Gun frame term |
 | `{:unmatched_response, map}` | JSON-RPC response whose `"id"` did not match any pending request | Decoded response map |
 | `{:protocol_error, reason}` | Fatal, unrecoverable frame error (client will stop) | Unwrapped reason |
-| `{:frame_error, {:decode_error, reason}}` | Recoverable frame decode error (client continues) | Full `{:decode_error, _}` tuple |
 
-**Asymmetry to be aware of:** `:protocol_error` gives you the unwrapped `reason`, while `:frame_error` preserves the full `{:decode_error, _}` tuple. This is intentional — frame decode errors are recoverable and the caller may want the classification; protocol errors are fatal and the reason is all the context that matters.
+Ping/pong/close control frames are handled transparently by the client and never reach your handler. Any frame decode error is fatal — `{:protocol_error, _}` is the only error shape you receive.
 
 ### Custom Handler Example
 
@@ -366,18 +364,12 @@ handler = fn
   {:binary, bin} ->
     MyApp.BinaryStream.receive(bin)
 
-  {:frame, frame} ->
-    Logger.debug("other frame: #{inspect(frame)}")
-
   {:unmatched_response, response} ->
     # Late reply after RequestCorrelator already timed it out, or an ID collision
     Logger.warning("unmatched response: #{inspect(response)}")
 
   {:protocol_error, reason} ->
     Logger.error("fatal protocol error: #{inspect(reason)}")
-
-  {:frame_error, {:decode_error, reason}} ->
-    Logger.warning("recoverable decode error: #{inspect(reason)}")
 end
 
 {:ok, client} = ZenWebsocket.Client.connect(url, handler: handler)
@@ -393,10 +385,8 @@ If you do not pass `:handler`, a default handler forwards messages to the parent
 |-------------|------------------------|
 | `{:message, data}` | `{:websocket_message, data}` |
 | `{:binary, data}` | `{:websocket_message, data}` *(same tag)* |
-| `{:frame, frame}` | `{:websocket_frame, frame}` |
 | `{:unmatched_response, response}` | `{:websocket_unmatched_response, response}` |
 | `{:protocol_error, reason}` | `{:websocket_protocol_error, reason}` |
-| `{:frame_error, reason}` | `{:websocket_frame_error, reason}` |
 
 Note that `{:message, _}` and `{:binary, _}` both collapse to `:websocket_message`, so the default handler cannot distinguish text from binary frames. If you need to tell them apart, supply a custom handler.
 

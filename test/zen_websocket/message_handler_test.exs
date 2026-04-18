@@ -189,9 +189,9 @@ defmodule ZenWebsocket.MessageHandlerTest do
       handler.({:websocket_upgraded, conn_pid, stream_ref})
       assert_received {:on_upgrade, ^conn_pid, ^stream_ref}
 
-      # Test error handling
-      handler.({:decode_error, :invalid})
-      assert_received {:on_error, :invalid}
+      # Test error handling via :protocol_error
+      handler.({:protocol_error, :bad_frame})
+      assert_received {:on_error, {:protocol_error, :bad_frame}}
 
       # Test down handling
       handler.({:connection_down, conn_pid, :normal})
@@ -204,7 +204,7 @@ defmodule ZenWebsocket.MessageHandlerTest do
       # Should not crash with default handlers
       assert :ok = handler.({:message, {:text, "hello"}})
       assert :ok = handler.({:websocket_upgraded, self(), make_ref()})
-      assert :ok = handler.({:decode_error, :invalid})
+      assert :ok = handler.({:protocol_error, :bad_frame})
       assert :ok = handler.({:connection_down, self(), :normal})
     end
   end

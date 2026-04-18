@@ -17,14 +17,17 @@ defmodule ZenWebsocket.MessageHandler do
       message: [kind: :value, description: "Gun message tuple to handle"],
       handler_fun: [kind: :value, description: "Callback function for routed messages"]
     ],
-    returns: %{type: "{:ok, term()} | {:error, term()}", description: "Result of handling the message"}
+    returns: %{
+      type: "{:ok, term()} | {:error, {:protocol_error, term()}}",
+      description: "Result of handling the message"
+    }
   )
 
   @doc """
   Handle incoming Gun messages and WebSocket frames.
   Routes messages to appropriate handler function.
   """
-  @spec handle_message(tuple(), (term() -> any())) :: {:ok, term()} | {:error, term()}
+  @spec handle_message(tuple(), (term() -> any())) :: {:ok, term()} | {:error, {:protocol_error, term()}}
   def handle_message(message, handler_fun \\ &default_handler/1)
 
   def handle_message({:gun_upgrade, conn_pid, stream_ref, ["websocket"], _headers}, handler_fun) do
@@ -47,19 +50,10 @@ defmodule ZenWebsocket.MessageHandler do
         end
 
       {:error, reason} ->
-        protocol_error = {:error, {:bad_frame, reason}}
-
-        case ZenWebsocket.ErrorHandler.handle_error(protocol_error) do
-          :stop ->
-            error = {:protocol_error, reason}
-            handler_fun.(error)
-            {:error, {:protocol_error, reason}}
-
-          _ ->
-            error = {:decode_error, reason}
-            handler_fun.(error)
-            {:error, reason}
-        end
+        # ErrorHandler classifies every {:bad_frame, _} as fatal.
+        error = {:protocol_error, reason}
+        handler_fun.(error)
+        {:error, error}
     end
   end
 
@@ -99,7 +93,6 @@ defmodule ZenWebsocket.MessageHandler do
           {:ok, {:data, {atom(), binary()}}}
           | {:ok, :control_frame_handled}
           | {:error, {:protocol_error, term()}}
-          | {:error, {:decode_error, term()}}
   def decode_and_handle_control({:gun_ws, conn_pid, stream_ref, frame}) do
     case Frame.decode(frame) do
       {:ok, decoded_frame} ->
@@ -109,11 +102,8 @@ defmodule ZenWebsocket.MessageHandler do
         end
 
       {:error, reason} ->
-        # Classify via ErrorHandler: bad_frame errors are fatal protocol errors
-        case ZenWebsocket.ErrorHandler.handle_error({:error, {:bad_frame, reason}}) do
-          :stop -> {:error, {:protocol_error, reason}}
-          _ -> {:error, {:decode_error, reason}}
-        end
+        # ErrorHandler classifies every {:bad_frame, _} as fatal.
+        {:error, {:protocol_error, reason}}
     end
   end
 
@@ -187,7 +177,6 @@ defmodule ZenWebsocket.MessageHandler do
     fn
       {:message, frame} -> on_message.(frame)
       {:websocket_upgraded, conn_pid, stream_ref} -> on_upgrade.({conn_pid, stream_ref})
-      {:decode_error, reason} -> on_error.(reason)
       {:protocol_error, reason} -> on_error.({:protocol_error, reason})
       {:connection_error, conn_pid, stream_ref, reason} -> on_error.({conn_pid, stream_ref, reason})
       {:connection_down, conn_pid, reason} -> on_down.({conn_pid, reason})
