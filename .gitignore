@@ -28,3 +28,6 @@ zen_websocket-*.tar
 # Dialyzer PLT files
 /priv/plts/*.plt
 /priv/plts/*.plt.hash
+
+# Machine-local hex-docs fetch cache
+/.hex-docs/

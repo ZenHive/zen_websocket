@@ -4,21 +4,16 @@
 @~/.claude/includes/critical-rules.md
 @~/.claude/includes/task-prioritization.md
 @~/.claude/includes/task-writing.md
-@~/.claude/includes/web-command.md
-@~/.claude/includes/code-style.md
-@~/.claude/includes/development-philosophy.md
-@~/.claude/includes/documentation-guidelines.md
 @~/.claude/includes/workflow-philosophy.md
-@~/.claude/includes/skills-awareness.md
-@~/.claude/includes/cli-aliases.md
-@~/.claude/includes/agent-economy.md
-@~/.claude/includes/elixir-patterns.md
+@~/.claude/includes/web-command.md
 @~/.claude/includes/elixir-setup.md
-@~/.claude/includes/development-commands.md
 @~/.claude/includes/ex-unit-json.md
 @~/.claude/includes/dialyzer-json.md
-@~/.claude/includes/library-design.md
-@~/.claude/includes/api-integration.md
+@~/.claude/includes/code-style.md
+@~/.claude/includes/development-commands.md
+@~/.claude/includes/development-philosophy.md
+@~/.claude/includes/agent-economy.md
+@~/.claude/includes/reach.md
 
 ---
 
