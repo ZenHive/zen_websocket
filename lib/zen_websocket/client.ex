@@ -100,6 +100,23 @@ defmodule ZenWebsocket.Client do
           reconnect_opts: keyword()
         }
 
+  @typedoc """
+  Tuple shapes delivered to user-provided message handlers.
+
+  See `USAGE_RULES.md` "Handler Message Reference" for semantics and when each
+  shape is emitted.
+  """
+  @type handler_message ::
+          {:message, map() | binary()}
+          | {:binary, binary()}
+          | {:frame, term()}
+          | {:unmatched_response, map()}
+          | {:protocol_error, term()}
+          | {:frame_error, {:decode_error, term()}}
+
+  @typedoc "Function invoked for each inbound message. Return value is ignored."
+  @type handler :: (handler_message() -> any())
+
   @typedoc "Internal GenServer state for the WebSocket client"
   @type state :: %{
           # Optional fields (added during lifecycle) - must come first
@@ -112,7 +129,7 @@ defmodule ZenWebsocket.Client do
           url: String.t(),
           monitor_ref: reference() | nil,
           config: ZenWebsocket.Config.t(),
-          handler: (term() -> term()),
+          handler: handler(),
           # Subscription tracking
           subscriptions: MapSet.t(String.t()),
           # Request correlation (from, timeout_ref, start_time)
@@ -154,6 +171,7 @@ defmodule ZenWebsocket.Client do
       
       Supervisor.start_link(children, strategy: :one_for_one)
   """
+  @spec child_spec(keyword()) :: Supervisor.child_spec()
   def child_spec(opts) do
     url = Keyword.fetch!(opts, :url)
     id = Keyword.get(opts, :id, __MODULE__)
@@ -231,6 +249,7 @@ defmodule ZenWebsocket.Client do
           {:message, data} -> send(parent_pid, {:websocket_message, data})
           {:binary, data} -> send(parent_pid, {:websocket_message, data})
           {:frame, frame} -> send(parent_pid, {:websocket_frame, frame})
+          {:unmatched_response, response} -> send(parent_pid, {:websocket_unmatched_response, response})
           {:protocol_error, reason} -> send(parent_pid, {:websocket_protocol_error, reason})
           {:frame_error, reason} -> send(parent_pid, {:websocket_frame_error, reason})
           _other -> :ok
@@ -1072,7 +1091,10 @@ defmodule ZenWebsocket.Client do
         state
 
       other ->
-        # Other frame types
+        # TODO(Task R048): Currently unreachable — Frame.decode only emits
+        # text/binary/ping/pong/close, and ping/pong/close are all consumed by
+        # MessageHandler.handle_control_frame before reaching this clause.
+        # Either find the missing path or retire the :frame handler shape.
         state.handler.({:frame, other})
         state
     end
@@ -1105,7 +1127,10 @@ defmodule ZenWebsocket.Client do
   end
 
   defp handle_frame_error(state, {:decode_error, _} = error) do
-    # Recoverable decode error - notify handler and continue
+    # TODO(Task R048): Currently unreachable — ErrorHandler.check_fatal treats
+    # all {:bad_frame, _} as :fatal, so decode_and_handle_control never emits
+    # {:decode_error, _}. Either expand ErrorHandler classification or retire
+    # the :frame_error / :websocket_frame_error handler shapes.
     state.handler.({:frame_error, error})
     {:noreply, state}
   end

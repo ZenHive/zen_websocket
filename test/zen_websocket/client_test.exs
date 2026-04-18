@@ -585,6 +585,44 @@ defmodule ZenWebsocket.ClientTest do
 
       Client.close(client)
     end
+
+    test "custom handler receives unmatched JSON-RPC responses (R047)", %{server: server, mock_url: mock_url} do
+      test_pid = self()
+
+      handler = fn
+        {:unmatched_response, response} -> send(test_pid, {:handler_unmatched, response})
+        _other -> :ok
+      end
+
+      # Server replies with a JSON-RPC response whose id won't match any pending request
+      orphan_response = Jason.encode!(%{"jsonrpc" => "2.0", "id" => 99_999, "result" => "late"})
+
+      MockWebSockServer.set_handler(server, fn
+        {:text, _msg} -> {:reply, {:text, orphan_response}}
+      end)
+
+      {:ok, client} = Client.connect(mock_url, handler: handler)
+      :ok = Client.send_message(client, "trigger")
+
+      assert_receive {:handler_unmatched, %{"id" => 99_999, "result" => "late"}}, 5_000
+
+      Client.close(client)
+    end
+
+    test "default handler forwards unmatched responses to caller mailbox (R047)", %{server: server, mock_url: mock_url} do
+      orphan_response = Jason.encode!(%{"jsonrpc" => "2.0", "id" => 88_888, "result" => "orphan"})
+
+      MockWebSockServer.set_handler(server, fn
+        {:text, _msg} -> {:reply, {:text, orphan_response}}
+      end)
+
+      {:ok, client} = Client.connect(mock_url)
+      :ok = Client.send_message(client, "trigger")
+
+      assert_receive {:websocket_unmatched_response, %{"id" => 88_888, "result" => "orphan"}}, 5_000
+
+      Client.close(client)
+    end
   end
 
   describe "dead PID safety (R029)" do

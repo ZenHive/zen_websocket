@@ -24,6 +24,7 @@ defmodule ZenWebsocket.MessageHandler do
   Handle incoming Gun messages and WebSocket frames.
   Routes messages to appropriate handler function.
   """
+  @spec handle_message(tuple(), (term() -> any())) :: {:ok, term()} | {:error, term()}
   def handle_message(message, handler_fun \\ &default_handler/1)
 
   def handle_message({:gun_upgrade, conn_pid, stream_ref, ["websocket"], _headers}, handler_fun) do
@@ -129,6 +130,7 @@ defmodule ZenWebsocket.MessageHandler do
   Handle WebSocket control frames automatically.
   Returns :handled for control frames, :not_control for data frames.
   """
+  @spec handle_control_frame(term(), pid(), reference()) :: :handled | :not_control
   def handle_control_frame({:ping, data}, conn_pid, stream_ref) do
     :gun.ws_send(conn_pid, stream_ref, Frame.pong(data))
     :handled
@@ -160,6 +162,7 @@ defmodule ZenWebsocket.MessageHandler do
   @doc """
   Default message handler that simply logs messages.
   """
+  @spec default_handler(term()) :: :ok
   def default_handler(_message) do
     :ok
   end
@@ -174,6 +177,7 @@ defmodule ZenWebsocket.MessageHandler do
   @doc """
   Create a callback function for handling specific message types.
   """
+  @spec create_handler(keyword()) :: (term() -> any())
   def create_handler(opts \\ []) do
     on_message = Keyword.get(opts, :on_message, &default_handler/1)
     on_upgrade = Keyword.get(opts, :on_upgrade, &default_handler/1)

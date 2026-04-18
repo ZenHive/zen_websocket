@@ -46,6 +46,7 @@ defmodule ZenWebsocket.ClientSupervisor do
   @doc """
   Starts the client supervisor.
   """
+  @spec start_link(term()) :: Supervisor.on_start()
   def start_link(init_arg) do
     DynamicSupervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
   end

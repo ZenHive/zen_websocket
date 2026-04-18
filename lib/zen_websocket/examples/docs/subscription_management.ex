@@ -8,6 +8,7 @@ defmodule ZenWebsocket.Examples.Docs.SubscriptionManagement do
   @doc """
   Subscribe to multiple data streams using echo server.
   """
+  @spec multi_channel_subscription() :: {:ok, Client.t(), [String.t()]}
   def multi_channel_subscription do
     {:ok, client} = Client.connect("wss://echo.websocket.org")
 
@@ -29,6 +30,12 @@ defmodule ZenWebsocket.Examples.Docs.SubscriptionManagement do
   @doc """
   Process market data updates with pattern matching.
   """
+  @spec handle_market_data(timeout()) ::
+          {:market_update, String.t(), term()}
+          | {:message, map()}
+          | {:text_message, String.t()}
+          | {:closed, term()}
+          | {:error, :timeout}
   def handle_market_data(timeout \\ 5000) do
     receive do
       {:websocket_message, %{"channel" => channel, "data" => data}} ->
@@ -50,6 +57,8 @@ defmodule ZenWebsocket.Examples.Docs.SubscriptionManagement do
   @doc """
   Subscribe and process messages in a loop.
   """
+  @spec subscription_loop(Client.t(), [String.t()], non_neg_integer()) ::
+          {:ok, [term()]} | {:error, :timeout, [term()]}
   def subscription_loop(client, channels, message_count \\ 5) do
     # Subscribe to channels
     subscription = %{"action" => "subscribe", "channels" => channels}

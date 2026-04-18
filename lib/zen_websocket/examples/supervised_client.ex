@@ -5,6 +5,7 @@ defmodule ZenWebsocket.Examples.SupervisedClient do
   Shows minimal setup for supervised connections. For advanced patterns,
   see the supervision documentation.
   """
+  alias ZenWebsocket.Client
   alias ZenWebsocket.ClientSupervisor
 
   @doc """
@@ -14,6 +15,7 @@ defmodule ZenWebsocket.Examples.SupervisedClient do
 
       {:ok, client} = SupervisedClient.start_connection("wss://echo.websocket.org")
   """
+  @spec start_connection(String.t(), keyword()) :: {:ok, Client.t()} | {:error, term()}
   def start_connection(url, opts \\ []) do
     ClientSupervisor.start_client(url, opts)
   end
@@ -28,6 +30,9 @@ defmodule ZenWebsocket.Examples.SupervisedClient do
         {"wss://api2.example.com", heartbeat_interval: 20_000}
       ])
   """
+  @spec start_multiple([{String.t(), keyword()}]) :: [
+          {String.t(), {:ok, Client.t()} | {:error, term()}}
+        ]
   def start_multiple(configs) do
     Enum.map(configs, fn {url, opts} ->
       case ClientSupervisor.start_client(url, opts) do
@@ -40,6 +45,7 @@ defmodule ZenWebsocket.Examples.SupervisedClient do
   @doc """
   Lists all supervised connections.
   """
+  @spec list_connections() :: [pid()]
   def list_connections do
     ClientSupervisor.list_clients()
   end
@@ -47,6 +53,7 @@ defmodule ZenWebsocket.Examples.SupervisedClient do
   @doc """
   Stops a supervised connection.
   """
+  @spec stop_connection(pid()) :: :ok | {:error, :not_found}
   def stop_connection(client_pid) do
     ClientSupervisor.stop_client(client_pid)
   end

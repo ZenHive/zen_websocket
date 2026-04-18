@@ -329,6 +329,77 @@ case ZenWebsocket.Client.connect(url) do
 end
 ```
 
+## Handler Message Reference
+
+Your `handler` function (passed via `connect/2` as `:handler`) receives one of the tuple shapes below. This section is the complete contract — matched against `t:ZenWebsocket.Client.handler_message/0`.
+
+### Input Shapes
+
+The tuples delivered to your handler:
+
+| Shape | When emitted | Payload |
+|-------|--------------|---------|
+| `{:message, map}` | Decoded JSON frame (including subscription updates) | Decoded map |
+| `{:message, binary}` | Text frame that did not decode as JSON | Raw text binary |
+| `{:binary, binary}` | WebSocket binary frame | Raw bytes |
+| `{:frame, term}` | Any non-text, non-binary frame from Gun (ping/pong passthrough, etc.) | Opaque Gun frame term |
+| `{:unmatched_response, map}` | JSON-RPC response whose `"id"` did not match any pending request | Decoded response map |
+| `{:protocol_error, reason}` | Fatal, unrecoverable frame error (client will stop) | Unwrapped reason |
+| `{:frame_error, {:decode_error, reason}}` | Recoverable frame decode error (client continues) | Full `{:decode_error, _}` tuple |
+
+**Asymmetry to be aware of:** `:protocol_error` gives you the unwrapped `reason`, while `:frame_error` preserves the full `{:decode_error, _}` tuple. This is intentional — frame decode errors are recoverable and the caller may want the classification; protocol errors are fatal and the reason is all the context that matters.
+
+### Custom Handler Example
+
+A pattern-matching handler that distinguishes every shape:
+
+```elixir
+handler = fn
+  {:message, %{} = json} ->
+    # Decoded JSON frame (subscription update or general message)
+    MyApp.Router.route(json)
+
+  {:message, text} when is_binary(text) ->
+    # Text frame that was not valid JSON
+    MyApp.TextStream.receive(text)
+
+  {:binary, bin} ->
+    MyApp.BinaryStream.receive(bin)
+
+  {:frame, frame} ->
+    Logger.debug("other frame: #{inspect(frame)}")
+
+  {:unmatched_response, response} ->
+    # Late reply after RequestCorrelator already timed it out, or an ID collision
+    Logger.warning("unmatched response: #{inspect(response)}")
+
+  {:protocol_error, reason} ->
+    Logger.error("fatal protocol error: #{inspect(reason)}")
+
+  {:frame_error, {:decode_error, reason}} ->
+    Logger.warning("recoverable decode error: #{inspect(reason)}")
+end
+
+{:ok, client} = ZenWebsocket.Client.connect(url, handler: handler)
+```
+
+Handler return values are ignored.
+
+### Default Handler Translation
+
+If you do not pass `:handler`, a default handler forwards messages to the parent process as `{:websocket_*, _}` tuples. The translation:
+
+| Input shape | Message sent to parent |
+|-------------|------------------------|
+| `{:message, data}` | `{:websocket_message, data}` |
+| `{:binary, data}` | `{:websocket_message, data}` *(same tag)* |
+| `{:frame, frame}` | `{:websocket_frame, frame}` |
+| `{:unmatched_response, response}` | `{:websocket_unmatched_response, response}` |
+| `{:protocol_error, reason}` | `{:websocket_protocol_error, reason}` |
+| `{:frame_error, reason}` | `{:websocket_frame_error, reason}` |
+
+Note that `{:message, _}` and `{:binary, _}` both collapse to `:websocket_message`, so the default handler cannot distinguish text from binary frames. If you need to tell them apart, supply a custom handler.
+
 ## Testing Rules
 
 ```elixir

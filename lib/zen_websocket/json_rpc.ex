@@ -39,6 +39,9 @@ defmodule ZenWebsocket.JsonRpc do
     {:ok, request}
   end
 
+  @doc """
+  Imports the `defrpc/2` and `defrpc/3` macros for defining JSON-RPC methods.
+  """
   defmacro __using__(_opts) do
     quote do
       import ZenWebsocket.JsonRpc, only: [defrpc: 2, defrpc: 3]

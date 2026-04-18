@@ -15,6 +15,7 @@ defmodule ZenWebsocket.Examples.Docs.BasicUsage do
   Connects to Deribit testnet, sends a public API request, and receives response.
   The default handler automatically sends messages to the calling process.
   """
+  @spec deribit_testnet_example() :: {:ok, Client.t()}
   def deribit_testnet_example do
     # Connect to Deribit testnet (no auth required for public endpoints)
     {:ok, client} = Client.connect(@deribit_testnet)
@@ -42,6 +43,7 @@ defmodule ZenWebsocket.Examples.Docs.BasicUsage do
 
   Shows how to connect with authorization headers and other custom headers.
   """
+  @spec custom_headers_example(String.t()) :: {:ok, Client.t()}
   def custom_headers_example(token) do
     config = %Config{
       url: @deribit_testnet,
