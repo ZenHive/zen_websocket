@@ -80,6 +80,10 @@ These constraints are **non-negotiable**:
 - Tag with `@tag :external_network`
 - Require credentials in environment
 
+### Mocking Policy
+
+Real-API and `MockWebSockServer` coverage are the source of truth for all business logic. One narrow, fenced exception applies: opaque Gun transport message tuples (`:gun_upgrade`, `:gun_ws`, `:gun_down`, `:gun_error`) may be constructed as shape-only fixtures using real pids and refs, because they carry no public behavior for a fixture to drift against. Full rationale and the explicit "what is NOT newly allowed" list live in CLAUDE.md → Real API Testing Policy → Narrow exception.
+
 ```elixir
 # Unit test example
 test "text frame round-trip" do
@@ -169,7 +173,7 @@ All examples live in `lib/zen_websocket/examples/`. This includes both small pat
 | Anti-Pattern | Why |
 |--------------|-----|
 | Create wrapper modules | Use the Client functions directly |
-| Mock WebSocket behavior | Test against real APIs or Testing module |
+| Mock WebSocket behavior (except opaque Gun transport message shapes — see CLAUDE.md) | Test against real APIs or Testing module |
 | Add custom reconnection | Use built-in retry options |
 | Transform errors | Pass raw Gun/WebSocket errors |
 | Exceed function limits | Extract to new module instead |

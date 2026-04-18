@@ -132,6 +132,25 @@ If either is missing, create them before completing the task.
 
 **Rationale**: Financial software requires testing against real conditions. Mocks hide edge cases that cause financial losses.
 
+#### Narrow exception: opaque transport message shapes
+
+Test doubles are permitted for **Gun transport message tuples only** — the four shapes `:gun_upgrade`, `:gun_ws`, `:gun_down`, `:gun_error`. This is a single, fenced carve-out; all other forms of mocking remain prohibited.
+
+**What is permitted:**
+- Constructing the four Gun tuple shapes for unit-level tests of pure functions that consume them (e.g., `MessageHandler.handle_message/2`)
+- Fixtures must use **real** `pid()` values (from `self()` or `spawn`) and **real** `reference()` values (from `make_ref/0`). No fake opaque values.
+
+**Why this is not a real mock:** Gun's `pid` and `stream_ref` are opaque BEAM primitives with no public contract. There is no behavior for a fixture to drift against — only a tuple shape. Shape-only fixtures enable property-based testing of routing totality without stubbing any behavior.
+
+**What is NOT newly allowed** (explicit, to prevent drift):
+- API response fixtures (Deribit, Binance, any exchange)
+- Authentication flow simulation
+- Exchange behavior simulation (subscription acks, order responses, heartbeats)
+- Any fixture with semantic content beyond the raw transport-frame shape
+- Fixtures for anything that is not one of the four Gun tuple shapes
+
+**Source of truth unchanged:** `MockWebSockServer` (real cowboy/websock stack) and real-API tests remain the source of truth for all business logic. Any test touching `Client` GenServer state, reconnection, subscription semantics, or exchange behavior continues to require `MockWebSockServer` or a real endpoint.
+
 ### Test Support Modules
 - `MockWebSockServer` - Controlled WebSocket server
 - `CertificateHelper` - TLS certificate generation
