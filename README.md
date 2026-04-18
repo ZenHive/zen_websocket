@@ -29,7 +29,7 @@ Add `zen_websocket` to your dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:zen_websocket, "~> 0.1"}
+    {:zen_websocket, "~> 0.4"}
   ]
 end
 ```

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+## [0.4.1] - 2026-04-18
+
 ### Changed
 - **Handler message contract retired two unreachable shapes** — `{:frame, term}` and `{:frame_error, {:decode_error, term}}` are removed from `@type handler_message`, the default handler, `USAGE_RULES.md`, and the `ErrorHandling` example. Both shapes were documented in R047 prep but never actually delivered: `{:frame, _}` was the `other ->` catch-all of `route_data_frame/2`, unreachable because `MessageHandler.handle_control_frame/3` consumes every non-text/non-binary decode output before it gets there; `{:frame_error, {:decode_error, _}}` depended on `ErrorHandler.handle_error/1` returning non-`:stop` for `{:bad_frame, _}`, but `check_fatal/1` classifies every bad frame (and every unclassified error) as fatal, so the recoverable branch never ran. Decision was to retire rather than expand reachability — there is no concrete user need for recoverable frame-decode behavior, and `Frame.decode/1` only emits one error shape (`{:error, "Unknown frame type: ..."}`), which is a protocol violation with nothing to recover from. `MessageHandler.handle_message/2` and `decode_and_handle_control/1` simplify to always produce `{:protocol_error, _}` in the decode-error branch; `create_handler/1` drops the `{:decode_error, _}` routing clause. `handle_frame_error/2`'s tightened `@spec` now declares `{:protocol_error, term()}` as the only reachable error tag. This is a breaking change against the prepared v0.4.0 handler contract — **not** against the published v0.3.1 surface, since the retired tuples were added in v0.4.0 doc work (R047) but were never emitted at runtime (R048)
 - **Handler message contract is now self-documenting and typed** — `ZenWebsocket.Client` exposes `@type handler_message/0` and `@type handler/0`, and the `handler` field in the GenServer state type uses `handler()` instead of `(term() -> term())`. USAGE_RULES.md adds a "Handler Message Reference" section with input-shape and default-handler translation tables, a custom-handler example, and a note on the `:protocol_error` / `:frame_error` payload asymmetry. The default handler now forwards `:unmatched_response` to the parent as `:websocket_unmatched_response` — previously the `_other` catch-all dropped it silently, making orphan JSON-RPC responses invisible to callers relying on default-handler delivery. Integration tests in `client_test.exs` cover the custom- and default-handler paths. The `:frame` and `:frame_error` handler shapes were discovered to be currently unreachable (control-frame consumption and fatal bad-frame classification respectively); both call sites carry `TODO(Task R048)` markers for the retire-or-reach decision (R047)
