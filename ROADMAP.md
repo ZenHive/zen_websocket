@@ -2,7 +2,7 @@
 
 **Vision:** Production-grade WebSocket client library for Elixir, designed for financial APIs.
 
-**Status:** v0.4.0 prepared for hex.pm (v0.3.1 currently published)
+**Status:** v0.4.2 preparing for hex.pm (v0.4.1 currently published)
 
 **Completed work:** See [CHANGELOG.md](CHANGELOG.md) for finished tasks.
 
@@ -76,11 +76,7 @@ mix docs                                       # Local docs build
 
 ## Backlog
 
-### Task R047: Document Handler Message Shapes
-
-**[D:2/B:5/U:6 → Eff:2.75]** 🎯
-
-Document the six tuple shapes delivered to user-provided message handlers (`client.ex` lines 1051–1109, enumerated by Reach taint analysis in session on 2026-04-17): `{:message, map_or_binary}`, `{:binary, binary}`, `{:frame, term}`, `{:unmatched_response, map}`, `{:protocol_error, reason}`, `{:frame_error, error}`. Add a "Handler Message Reference" section to `USAGE_RULES.md`. Tighten the `handler` typespec in `client.ex:115` from `(term() -> term())` to a union of the six shapes. Also document the default-handler translation to `{:websocket_*, ...}` messages in the parent process. Flag as a minor follow-up: the default handler silently drops `{:unmatched_response, _}` (falls through to `_other -> :ok` at `client.ex:236`) — decide whether to forward it as `{:websocket_unmatched_response, _}` or leave the silent drop intentional.
+_Open — no pending tasks. Add new entries here with D/B/U scoring._
 
 ---
 

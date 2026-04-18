@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [0.4.2] - 2026-04-18
+
+### Changed
+- **Credo dependency switched from git branch back to hex** — `mix.exs` pinned credo to `github: "rrrene/credo", branch: "release/1.7"` as a workaround for a 1.7.x sigil crash on Elixir 1.20+. The fix has landed in `credo 1.7.18` on hex, so the dep now reads `{:credo, "~> 1.7", only: [:dev, :test], runtime: false}`. Dev/test dependency only — no runtime or consumer impact; the shipped hex tarball is byte-identical to 0.4.1 modulo this `mix.exs` line and the lockfile.
+- **ex_unit_json lockfile bump 0.4.2 → 0.4.3** — Picked up during `mix deps.get`. Dev/test dependency only; no runtime impact.
+
 ## [0.4.1] - 2026-04-18
 
 ### Changed

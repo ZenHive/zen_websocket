@@ -1,7 +1,7 @@
 defmodule ZenWebsocket.MixProject do
   use Mix.Project
 
-  @version "0.4.1"
+  @version "0.4.2"
 
   def project do
     [
@@ -113,9 +113,7 @@ defmodule ZenWebsocket.MixProject do
       {:bandit, "~> 1.10", only: :dev},
 
       # Static code analysis
-      # TODO: Using git branch as workaround for Credo 1.7.x crash on Elixir 1.20+ sigils.
-      # Switch back to hex {:credo, "~> 1.8"} when a compatible release is published.
-      {:credo, github: "rrrene/credo", branch: "release/1.7", only: [:dev, :test], runtime: false, override: true},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
 
       # Code analysis tools
