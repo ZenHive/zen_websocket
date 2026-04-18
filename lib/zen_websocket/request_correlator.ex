@@ -64,7 +64,10 @@ defmodule ZenWebsocket.RequestCorrelator do
       from: [kind: :value, description: "GenServer caller reference"],
       timeout_ms: [kind: :value, description: "Timeout in milliseconds"]
     ],
-    returns: %{type: "state()", description: "Updated state with request tracked"}
+    returns: %{
+      type: "{:ok, state()} | {:error, :duplicate_id, state()}",
+      description: "Updated state on success, or unchanged state on duplicate ID collision"
+    }
   )
 
   @doc """
@@ -73,20 +76,30 @@ defmodule ZenWebsocket.RequestCorrelator do
   Creates a timer that will send `{:timeout, timeout_ref, {:correlation_timeout, id}}`
   to `self()` after the specified timeout. Must be called from within a
   GenServer context.
+
+  Returns `{:ok, new_state}` on success. If `id` already has a pending entry,
+  returns `{:error, :duplicate_id, state}` with `state` unchanged — the
+  existing caller's `from` and timeout timer are preserved. No timer is
+  started and no `:track` telemetry is emitted on the duplicate path.
   """
-  @spec track(state(), term(), GenServer.from(), pos_integer()) :: state()
+  @spec track(state(), term(), GenServer.from(), pos_integer()) ::
+          {:ok, state()} | {:error, :duplicate_id, state()}
   def track(state, id, from, timeout_ms) do
-    timeout_ref = :erlang.start_timer(timeout_ms, self(), {:correlation_timeout, id})
-    start_time = System.monotonic_time(:millisecond)
-    pending = Map.put(state.pending_requests, id, {from, timeout_ref, start_time})
+    if Map.has_key?(state.pending_requests, id) do
+      {:error, :duplicate_id, state}
+    else
+      timeout_ref = :erlang.start_timer(timeout_ms, self(), {:correlation_timeout, id})
+      start_time = System.monotonic_time(:millisecond)
+      pending = Map.put(state.pending_requests, id, {from, timeout_ref, start_time})
 
-    :telemetry.execute(
-      [:zen_websocket, :request_correlator, :track],
-      %{count: 1},
-      %{id: id, timeout_ms: timeout_ms}
-    )
+      :telemetry.execute(
+        [:zen_websocket, :request_correlator, :track],
+        %{count: 1},
+        %{id: id, timeout_ms: timeout_ms}
+      )
 
-    %{state | pending_requests: pending}
+      {:ok, %{state | pending_requests: pending}}
+    end
   end
 
   api(:resolve, "Resolve a pending request by ID, returning the caller info.",

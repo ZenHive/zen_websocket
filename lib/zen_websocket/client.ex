@@ -667,10 +667,15 @@ defmodule ZenWebsocket.Client do
   def handle_call({:send_message, message}, from, %{gun_pid: gun_pid, stream_ref: stream_ref, state: :connected} = state) do
     case RequestCorrelator.extract_id(message) do
       {:ok, id} ->
-        new_state = RequestCorrelator.track(state, id, from, state.config.request_timeout)
-        :gun.ws_send(gun_pid, stream_ref, {:text, message})
-        maybe_record(state.recorder_pid, :out, {:text, message})
-        {:noreply, new_state}
+        case RequestCorrelator.track(state, id, from, state.config.request_timeout) do
+          {:ok, new_state} ->
+            :gun.ws_send(gun_pid, stream_ref, {:text, message})
+            maybe_record(state.recorder_pid, :out, {:text, message})
+            {:noreply, new_state}
+
+          {:error, :duplicate_id, state} ->
+            {:reply, {:error, :duplicate_request_id}, state}
+        end
 
       :no_id ->
         result = :gun.ws_send(gun_pid, stream_ref, {:text, message})

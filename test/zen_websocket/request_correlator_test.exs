@@ -49,7 +49,7 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       state = build_state()
       from = {self(), make_ref()}
 
-      new_state = RequestCorrelator.track(state, 42, from, 5000)
+      {:ok, new_state} = RequestCorrelator.track(state, 42, from, 5000)
 
       assert Map.has_key?(new_state.pending_requests, 42)
       {stored_from, timeout_ref, start_time} = new_state.pending_requests[42]
@@ -66,7 +66,7 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       from = {self(), make_ref()}
 
       # Use short timeout for testing
-      new_state = RequestCorrelator.track(state, "test-id", from, 50)
+      {:ok, new_state} = RequestCorrelator.track(state, "test-id", from, 50)
       {_from, timeout_ref, _start_time} = new_state.pending_requests["test-id"]
 
       # Should receive timeout message
@@ -78,10 +78,8 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       from1 = {self(), make_ref()}
       from2 = {self(), make_ref()}
 
-      state =
-        state
-        |> RequestCorrelator.track(1, from1, 5000)
-        |> RequestCorrelator.track(2, from2, 5000)
+      {:ok, state} = RequestCorrelator.track(state, 1, from1, 5000)
+      {:ok, state} = RequestCorrelator.track(state, 2, from2, 5000)
 
       assert map_size(state.pending_requests) == 2
       assert Map.has_key?(state.pending_requests, 1)
@@ -91,6 +89,83 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       for {_id, {_from, timer_ref, _start_time}} <- state.pending_requests do
         Process.cancel_timer(timer_ref)
       end
+    end
+  end
+
+  describe "track/4 duplicate ID" do
+    setup do
+      test_pid = self()
+
+      handler = fn event, measurements, metadata, _config ->
+        send(test_pid, {:telemetry_event, event, measurements, metadata})
+      end
+
+      handler_id = "dup-id-track-#{System.unique_integer([:positive])}"
+      :telemetry.attach(handler_id, [:zen_websocket, :request_correlator, :track], handler, nil)
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      :ok
+    end
+
+    test "returns error tuple with unchanged state on collision" do
+      state = build_state()
+      from1 = {self(), make_ref()}
+      from2 = {self(), make_ref()}
+
+      {:ok, state_after_first} = RequestCorrelator.track(state, 7, from1, 5_000)
+
+      assert {:error, :duplicate_id, returned_state} =
+               RequestCorrelator.track(state_after_first, 7, from2, 5_000)
+
+      assert returned_state == state_after_first
+
+      Process.cancel_timer(elem(state_after_first.pending_requests[7], 1))
+    end
+
+    test "preserves first caller's from and timeout_ref on collision" do
+      state = build_state()
+      from1 = {self(), make_ref()}
+      from2 = {self(), make_ref()}
+
+      {:ok, state} = RequestCorrelator.track(state, "dup", from1, 5_000)
+      {stored_from1, timer_ref1, _start1} = state.pending_requests["dup"]
+
+      {:error, :duplicate_id, state_after_dup} =
+        RequestCorrelator.track(state, "dup", from2, 5_000)
+
+      {stored_from2, timer_ref2, _start2} = state_after_dup.pending_requests["dup"]
+      assert stored_from2 == stored_from1
+      assert stored_from2 == from1
+      assert timer_ref2 == timer_ref1
+
+      Process.cancel_timer(timer_ref1)
+    end
+
+    test "does not emit :track telemetry on collision" do
+      state = build_state()
+      from1 = {self(), make_ref()}
+      from2 = {self(), make_ref()}
+
+      {:ok, state} = RequestCorrelator.track(state, 1, from1, 5_000)
+      assert_receive {:telemetry_event, [:zen_websocket, :request_correlator, :track], _, _}
+
+      {:error, :duplicate_id, _} = RequestCorrelator.track(state, 1, from2, 5_000)
+      refute_receive {:telemetry_event, [:zen_websocket, :request_correlator, :track], _, _}, 50
+
+      Process.cancel_timer(elem(state.pending_requests[1], 1))
+    end
+
+    test "resolve/2 still delivers to the first caller after a collision" do
+      state = build_state()
+      from1 = {self(), make_ref()}
+      from2 = {self(), make_ref()}
+
+      {:ok, state} = RequestCorrelator.track(state, 99, from1, 5_000)
+      {:error, :duplicate_id, state} = RequestCorrelator.track(state, 99, from2, 5_000)
+
+      {entry, new_state} = RequestCorrelator.resolve(state, 99)
+      assert {^from1, _timer_ref, _start_time} = entry
+      refute Map.has_key?(new_state.pending_requests, 99)
     end
   end
 
@@ -112,7 +187,7 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       from = {self(), make_ref()}
 
       # Track with real timer
-      state = RequestCorrelator.track(state, "cancel-test", from, 5000)
+      {:ok, state} = RequestCorrelator.track(state, "cancel-test", from, 5000)
       {_from, timeout_ref, _start_time} = state.pending_requests["cancel-test"]
 
       # Resolve should cancel the timer
@@ -226,7 +301,7 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       state = build_state()
       from = {self(), make_ref()}
 
-      new_state = RequestCorrelator.track(state, 42, from, 5000)
+      {:ok, new_state} = RequestCorrelator.track(state, 42, from, 5000)
 
       assert_receive {:telemetry_event, [:zen_websocket, :request_correlator, :track], %{count: 1},
                       %{id: 42, timeout_ms: 5000}}
@@ -286,7 +361,7 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       from = {self(), make_ref()}
 
       # Track request
-      state = RequestCorrelator.track(state, "req-1", from, 5000)
+      {:ok, state} = RequestCorrelator.track(state, "req-1", from, 5000)
       assert RequestCorrelator.pending_count(state) == 1
 
       # Resolve request
@@ -300,7 +375,7 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       from = {self(), make_ref()}
 
       # Track request with very short timeout
-      state = RequestCorrelator.track(state, "req-1", from, 10)
+      {:ok, state} = RequestCorrelator.track(state, "req-1", from, 10)
       assert RequestCorrelator.pending_count(state) == 1
 
       # Wait for timeout message
@@ -319,11 +394,9 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       from3 = {self(), make_ref()}
 
       # Track multiple requests
-      state =
-        state
-        |> RequestCorrelator.track(1, from1, 5000)
-        |> RequestCorrelator.track(2, from2, 5000)
-        |> RequestCorrelator.track(3, from3, 5000)
+      {:ok, state} = RequestCorrelator.track(state, 1, from1, 5000)
+      {:ok, state} = RequestCorrelator.track(state, 2, from2, 5000)
+      {:ok, state} = RequestCorrelator.track(state, 3, from3, 5000)
 
       assert RequestCorrelator.pending_count(state) == 3
 
@@ -348,8 +421,8 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       ref1 = make_ref()
       ref2 = make_ref()
 
-      state = RequestCorrelator.track(state, 1, {self(), ref1}, 5_000)
-      state = RequestCorrelator.track(state, 2, {self(), ref2}, 5_000)
+      {:ok, state} = RequestCorrelator.track(state, 1, {self(), ref1}, 5_000)
+      {:ok, state} = RequestCorrelator.track(state, 2, {self(), ref2}, 5_000)
 
       new_state = RequestCorrelator.fail_all(state, :disconnected)
 
@@ -378,8 +451,8 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
       on_exit(fn -> :telemetry.detach(handler_id) end)
 
       state = build_state()
-      state = RequestCorrelator.track(state, 1, {self(), make_ref()}, 5_000)
-      state = RequestCorrelator.track(state, 2, {self(), make_ref()}, 5_000)
+      {:ok, state} = RequestCorrelator.track(state, 1, {self(), make_ref()}, 5_000)
+      {:ok, state} = RequestCorrelator.track(state, 2, {self(), make_ref()}, 5_000)
 
       RequestCorrelator.fail_all(state, :disconnected)
 
@@ -398,7 +471,8 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
 
       state =
         Enum.reduce(1..n, build_state(), fn id, acc ->
-          RequestCorrelator.track(acc, id, {self(), make_ref()}, timeout_ms)
+          {:ok, next} = RequestCorrelator.track(acc, id, {self(), make_ref()}, timeout_ms)
+          next
         end)
 
       assert RequestCorrelator.pending_count(state) == n
@@ -433,7 +507,7 @@ defmodule ZenWebsocket.RequestCorrelatorTest do
 
     test "timeout on an already-resolved request is a no-op" do
       state = build_state()
-      state = RequestCorrelator.track(state, 1, {self(), make_ref()}, 5_000)
+      {:ok, state} = RequestCorrelator.track(state, 1, {self(), make_ref()}, 5_000)
       {entry, state} = RequestCorrelator.resolve(state, 1)
       assert entry
 

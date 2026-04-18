@@ -408,6 +408,58 @@ defmodule ZenWebsocket.ClientTest do
     end
   end
 
+  describe "duplicate request ID (R043)" do
+    test "second caller gets :duplicate_request_id while first still resolves" do
+      dup_id = "r043-dup"
+      request = Jason.encode!(%{"id" => dup_id, "method" => "public/test"})
+
+      response =
+        Jason.encode!(%{
+          "jsonrpc" => "2.0",
+          "id" => dup_id,
+          "result" => %{"ok" => true}
+        })
+
+      {:ok, server, port} = MockWebSockServer.start_link()
+
+      test_pid = self()
+      frame_counter = :counters.new(1, [])
+
+      # Signal receipt so the duplicate is fired only after track/4 has
+      # registered the first request. Delay before replying so the first
+      # call stays pending while the duplicate lands.
+      MockWebSockServer.set_handler(server, fn
+        {:text, _msg} ->
+          :counters.add(frame_counter, 1, 1)
+          send(test_pid, :first_frame_received)
+          Process.sleep(300)
+          {:reply, {:text, response}}
+      end)
+
+      mock_url = "ws://localhost:#{port}/ws"
+      {:ok, client} = Client.connect(mock_url, request_timeout: 5_000)
+
+      assert Client.get_state(client) == :connected
+
+      first_call = Task.async(fn -> Client.send_message(client, request) end)
+
+      # Deterministic sync: server-side receipt proves track/4 has already
+      # registered the first request in pending_requests.
+      assert_receive :first_frame_received, 1_000
+
+      assert {:error, :duplicate_request_id} = Client.send_message(client, request)
+
+      assert {:ok, %{"id" => ^dup_id, "result" => %{"ok" => true}}} =
+               Task.await(first_call, 2_000)
+
+      # Duplicate must never have reached the wire.
+      assert :counters.get(frame_counter, 1) == 1
+
+      Client.close(client)
+      MockWebSockServer.stop(server)
+    end
+  end
+
   describe "handler callback regressions" do
     setup do
       {:ok, server, port} = MockWebSockServer.start_link()

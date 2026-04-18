@@ -18,6 +18,7 @@
 | Task | Description | Notes |
 |------|-------------|-------|
 | R010 | Property-based testing (Frame, Config, JsonRpc) | See CHANGELOG [Unreleased] |
+| R043 | Reject duplicate live request IDs | See CHANGELOG [Unreleased] |
 | R042 | Fail pending requests on disconnect | See CHANGELOG [Unreleased] |
 | R025 | Deployment guide for trading apps | See CHANGELOG [Unreleased] |
 | R030 | Preserve config across reconnect | See CHANGELOG [Unreleased] |
@@ -45,7 +46,7 @@
 | R030 | ✅ | [D:5/B:8/U:6 → Eff:1.4] | Preserve config across reconnect |
 | R011 | ✅ | [D:4/B:5/U:3 → Eff:1.0] | Error scenario testing |
 | R042 | ✅ | [D:4/B:7/U:6 → Eff:1.63] | Fail pending requests on disconnect |
-| R043 | ⬜ | [D:3/B:5/U:4 → Eff:1.5] | Reject duplicate live request IDs |
+| R043 | ✅ | [D:3/B:5/U:4 → Eff:1.5] | Reject duplicate live request IDs |
 | R010 | ✅ | [D:5/B:6/U:2 → Eff:0.8] | Property-based testing |
 | R044 | ⬜ | [D:1/B:4/U:5 → Eff:4.5] 🎯 | Amend testing policy: allow transport shape fixtures |
 | R045 | ⬜ | [D:3/B:5/U:4 → Eff:1.5] | GunStub test helper (blocked by R044) |
@@ -214,10 +215,10 @@ On the automatic path, `pending_requests` (initialized empty at `client.ex:546`)
 **Expected behavior:** Detect the collision at track time and either (a) return an error tuple to the caller without overwriting, or (b) refuse the second tracking and leave the existing entry intact. Pick whichever aligns with how the client surfaces the result to `send_message` callers.
 
 **Success criteria:**
-- [ ] Tracking an ID already present in `pending_requests` does not overwrite the existing entry
-- [ ] The second caller receives a deterministic error (not a silent hang)
-- [ ] The first caller's timer and `from` are preserved
-- [ ] Unit test in `request_correlator_test.exs` covers the collision path
+- [x] Tracking an ID already present in `pending_requests` does not overwrite the existing entry
+- [x] The second caller receives a deterministic error (not a silent hang)
+- [x] The first caller's timer and `from` are preserved
+- [x] Unit test in `request_correlator_test.exs` covers the collision path
 
 ---
 
