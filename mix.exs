@@ -121,7 +121,7 @@ defmodule ZenWebsocket.MixProject do
       # Code analysis tools
       {:ex_dna, "~> 1.1", only: [:dev, :test], runtime: false},
       {:ex_ast, "~> 0.2", only: [:dev, :test], runtime: false},
-      {:reach, "~> 1.1", only: [:dev, :test], runtime: false},
+      {:reach, "~> 1.3", only: [:dev, :test], runtime: false},
 
       # Self-describing APIs — full dep, macros expand at compile time
       {:descripex, "~> 0.6"},
