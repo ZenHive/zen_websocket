@@ -34,10 +34,7 @@ defmodule ZenWebsocket.Examples.Docs.JsonRpcClient do
     case Client.send_message(client, Jason.encode!(request)) do
       {:ok, response} ->
         # Response is already correlated by Client
-        case JsonRpc.match_response(response) do
-          {:ok, result} -> {:ok, result}
-          {:error, error} -> {:error, error}
-        end
+        JsonRpc.match_response(response)
 
       error ->
         error

@@ -223,13 +223,11 @@ defmodule ZenWebsocket.RateLimiter do
 
   # Private functions
 
-  @doc false
   defp calculate_suggested_delay(:high, refill_interval), do: refill_interval * 4
   defp calculate_suggested_delay(:medium, refill_interval), do: refill_interval * 2
   defp calculate_suggested_delay(:low, refill_interval), do: refill_interval
   defp calculate_suggested_delay(:none, _refill_interval), do: 0
 
-  @doc false
   defp calculate_pressure_level(queue_len, max_queue_size) do
     ratio = queue_len / max_queue_size
 
@@ -241,7 +239,6 @@ defmodule ZenWebsocket.RateLimiter do
     end
   end
 
-  @doc false
   defp check_and_emit_pressure(name, state, config) do
     max_queue = Map.get(config, :max_queue_size, @default_max_queue_size)
     queue_len = :queue.len(state.queue)

@@ -92,7 +92,7 @@ defmodule ZenWebsocket.PoolRouter do
     scored = Enum.map(pids, fn pid -> {pid, calculate_health(pid)} end)
 
     # Find max health score
-    max_health = scored |> Enum.map(&elem(&1, 1)) |> Enum.max()
+    {_, max_health} = Enum.max_by(scored, &elem(&1, 1))
 
     # Get all connections with max health (for round-robin among equals)
     best_pids = scored |> Enum.filter(fn {_, h} -> h == max_health end) |> Enum.map(&elem(&1, 0))
@@ -225,7 +225,6 @@ defmodule ZenWebsocket.PoolRouter do
 
   # Ensures the ETS table exists, handling race conditions when multiple
   # processes attempt creation simultaneously.
-  @doc false
   defp ensure_table_exists do
     if :ets.whereis(@table_name) == :undefined do
       try do
@@ -242,7 +241,6 @@ defmodule ZenWebsocket.PoolRouter do
   # Avoids blocking on non-client processes in unit tests
   @metrics_timeout_ms 100
 
-  @doc false
   defp get_client_metrics(pid) do
     default = %{pending_requests: 0, p99_ms: 0, pressure_level: :none}
 
@@ -275,13 +273,11 @@ defmodule ZenWebsocket.PoolRouter do
   end
 
   # Extracts p99 latency from stats summary, returns 0 if unavailable
-  @doc false
   defp extract_p99(nil), do: 0
   defp extract_p99(%{p99: p99}) when is_number(p99), do: p99
 
   # Returns the current error count for a connection, applying time-based decay.
   # Errors older than @error_decay_ms are cleared and return 0.
-  @doc false
   defp get_error_count(pid) do
     now = System.monotonic_time(:millisecond)
 
@@ -305,12 +301,10 @@ defmodule ZenWebsocket.PoolRouter do
   @pressure_penalties %{high: 10, medium: 6, low: 3, none: 0}
 
   # Converts a pressure level atom to its penalty score (0-10 points).
-  @doc false
   defp pressure_to_penalty(level), do: Map.get(@pressure_penalties, level, 0)
 
   # Calculates the average health score across all connections in a pool.
   # Returns 0 for empty pools to avoid division by zero.
-  @doc false
   defp average_health([]), do: 0
 
   defp average_health(health_data) do

@@ -5,6 +5,10 @@ defmodule ZenWebsocket.Helpers.Deribit do
 
   require Logger
 
+  # Deribit public/test heartbeat request — sent both as a test_request response
+  # and as an outbound ping; encoded once at compile time.
+  @test_request Jason.encode!(%{jsonrpc: "2.0", method: "public/test", params: %{}})
+
   @doc """
   Handles Deribit test_request heartbeat messages.
   """
@@ -26,18 +30,10 @@ defmodule ZenWebsocket.Helpers.Deribit do
       )
     end
 
-    # Send immediate test response
-    response =
-      Jason.encode!(%{
-        jsonrpc: "2.0",
-        method: "public/test",
-        params: %{}
-      })
-
     Logger.info("📤 [HEARTBEAT RESPONSE] #{DateTime.to_string(DateTime.utc_now())}")
     Logger.info("   ✅ Sending automatic public/test response")
 
-    :ok = :gun.ws_send(state.gun_pid, state.stream_ref, {:text, response})
+    :ok = :gun.ws_send(state.gun_pid, state.stream_ref, {:text, @test_request})
 
     # Update heartbeat tracking
     %{
@@ -57,14 +53,7 @@ defmodule ZenWebsocket.Helpers.Deribit do
   """
   @spec send_heartbeat(map()) :: map()
   def send_heartbeat(state) do
-    message =
-      Jason.encode!(%{
-        jsonrpc: "2.0",
-        method: "public/test",
-        params: %{}
-      })
-
-    :ok = :gun.ws_send(state.gun_pid, state.stream_ref, {:text, message})
+    :ok = :gun.ws_send(state.gun_pid, state.stream_ref, {:text, @test_request})
 
     %{state | last_heartbeat_at: System.monotonic_time(:millisecond)}
   end

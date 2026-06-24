@@ -10,6 +10,7 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
 
   alias ZenWebsocket.Client
   alias ZenWebsocket.Examples.DeribitRpc
+  alias ZenWebsocket.Examples.JsonRpcTransport
 
   require Logger
 
@@ -126,9 +127,9 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
 
       {:authenticate, %{client: client}} ->
         with {:ok, auth_req} <- DeribitRpc.auth_request(state.client_id, state.client_secret),
-             {:ok, %{"result" => %{"access_token" => _}}} <- send_json_rpc(client, auth_req),
+             {:ok, %{"result" => %{"access_token" => _}}} <- JsonRpcTransport.send_json_rpc(client, auth_req),
              {:ok, hb_req} <- DeribitRpc.set_heartbeat(30),
-             {:ok, _} <- send_json_rpc(client, hb_req) do
+             {:ok, _} <- JsonRpcTransport.send_json_rpc(client, hb_req) do
           {:reply, :ok, %{state | authenticated: true, was_authenticated: true}}
         else
           error -> {:reply, error, state}
@@ -139,7 +140,7 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
 
       {{:subscribe, channels}, %{client: client}} ->
         with {:ok, req} <- DeribitRpc.subscribe(channels),
-             {:ok, %{"result" => _}} <- send_json_rpc(client, req) do
+             {:ok, %{"result" => _}} <- JsonRpcTransport.send_json_rpc(client, req) do
           new_subs = Enum.reduce(channels, state.subscriptions, &MapSet.put(&2, &1))
           {:reply, :ok, %{state | subscriptions: new_subs}}
         else
@@ -151,7 +152,7 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
 
       {{:send_request, method, params}, %{client: client}} ->
         {:ok, req} = DeribitRpc.build_request(method, params)
-        {:reply, send_json_rpc(client, req), state}
+        {:reply, JsonRpcTransport.send_json_rpc(client, req), state}
 
       {:get_state, _} ->
         {:reply, {:ok, state}, state}
@@ -219,13 +220,4 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
 
   @impl true
   def handle_info(_msg, state), do: {:noreply, state}
-
-  # Private helper to send JSON-RPC requests
-  defp send_json_rpc(client, request) do
-    case Client.send_message(client, Jason.encode!(request)) do
-      {:ok, response} -> {:ok, response}
-      :ok -> {:ok, %{}}
-      {:error, reason} -> {:error, reason}
-    end
-  end
 end

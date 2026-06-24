@@ -129,7 +129,6 @@ defmodule ZenWebsocket.Testing.Server do
 
   # Private helpers
 
-  @doc false
   # Builds a handler that captures frames to the agent before delegating to custom handler
   defp build_capture_handler(agent, custom_handler) do
     fn frame ->

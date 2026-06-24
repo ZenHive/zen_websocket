@@ -43,7 +43,7 @@ defmodule ZenWebsocket.RecordingIntegrationTest do
       entries = collect_entries(path)
       outbound = Enum.filter(entries, &(&1.dir == :out))
 
-      assert length(outbound) >= 2
+      assert Enum.count(outbound) >= 2
       assert Enum.any?(outbound, fn e -> String.contains?(e.data, "ping") end)
       assert Enum.any?(outbound, fn e -> String.contains?(e.data, "hello") end)
     end
@@ -122,7 +122,7 @@ defmodule ZenWebsocket.RecordingIntegrationTest do
       entries = collect_entries(path)
 
       # Should have recorded entries
-      assert length(entries) >= 3
+      assert Enum.count(entries) >= 3
 
       # Entries should have timestamps
       assert Enum.all?(entries, fn e -> e.ts != nil end)

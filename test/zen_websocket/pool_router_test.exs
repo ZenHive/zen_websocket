@@ -50,7 +50,7 @@ defmodule ZenWebsocket.PoolRouterTest do
 
       # Should have selected from all available pids
       unique = Enum.uniq(selections)
-      assert length(unique) > 1, "Expected round-robin to select different pids"
+      assert Enum.count(unique) > 1, "Expected round-robin to select different pids"
     end
   end
 
@@ -157,7 +157,7 @@ defmodule ZenWebsocket.PoolRouterTest do
 
       health_data = PoolRouter.pool_health(pids)
 
-      assert length(health_data) == 3
+      assert [_, _, _] = health_data
       assert Enum.all?(health_data, fn %{pid: pid, health: health} -> pid in pids and health == 100 end)
     end
 

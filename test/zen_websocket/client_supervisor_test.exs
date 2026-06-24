@@ -71,7 +71,7 @@ defmodule ZenWebsocket.ClientSupervisorTest do
       {:ok, client2} = ClientSupervisor.start_client(@deribit_test_url)
 
       clients = ClientSupervisor.list_clients()
-      assert length(clients) == 2
+      assert [_, _] = clients
       assert client1.server_pid in clients
       assert client2.server_pid in clients
 
@@ -120,7 +120,7 @@ defmodule ZenWebsocket.ClientSupervisorTest do
       assert :ok = ClientSupervisor.send_balanced(message)
 
       # Verify both are still in pool
-      assert length(ClientSupervisor.list_clients()) == 2
+      assert [_, _] = ClientSupervisor.list_clients()
 
       Client.close(client1)
       Client.close(client2)

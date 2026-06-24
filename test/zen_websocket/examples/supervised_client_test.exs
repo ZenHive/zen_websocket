@@ -63,7 +63,7 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
 
       results = SupervisedClient.start_multiple(configs)
 
-      assert length(results) == 2
+      assert [_, _] = results
 
       assert Enum.all?(results, fn {url, result} ->
                assert url == mock_url
@@ -94,7 +94,7 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
 
       results = SupervisedClient.start_multiple(configs)
 
-      assert length(results) == 2
+      assert [_, _] = results
 
       # Check first succeeded
       {url1, result1} = Enum.at(results, 0)
@@ -122,7 +122,7 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
       {:ok, client2} = SupervisedClient.start_connection(mock_url)
 
       connections = SupervisedClient.list_connections()
-      assert length(connections) == 2
+      assert [_, _] = connections
       assert client1.server_pid in connections
       assert client2.server_pid in connections
 
@@ -197,7 +197,7 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
           match?({:ok, _}, result)
         end)
 
-      assert length(successful) == 3
+      assert [_, _, _] = successful
 
       # All should be alive
       assert Enum.all?(successful, fn {_, {:ok, client}} ->

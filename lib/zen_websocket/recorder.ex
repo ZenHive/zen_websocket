@@ -272,6 +272,9 @@ defmodule ZenWebsocket.Recorder do
       :skip ->
         do_replay(file, handler_fn, realtime, prev_ts)
 
+      {:error, _} ->
+        do_replay(file, handler_fn, realtime, prev_ts)
+
       {:ok, entry} ->
         maybe_delay_realtime(realtime, prev_ts, entry.ts)
         handler_fn.(entry)
@@ -282,10 +285,7 @@ defmodule ZenWebsocket.Recorder do
   defp parse_replay_line("", _prev_ts), do: :skip
 
   defp parse_replay_line(line, _prev_ts) do
-    case parse_entry(line) do
-      {:ok, entry} -> {:ok, entry}
-      {:error, _} -> :skip
-    end
+    parse_entry(line)
   end
 
   defp maybe_delay_realtime(true, prev_ts, current_ts) when not is_nil(prev_ts) do

@@ -122,7 +122,6 @@ defmodule ZenWebsocket.ClientSupervisor do
   # Waits for a supervised client to establish connection and returns the client struct.
   # Terminates the child process on connection failure or timeout.
   # Invokes on_connect callback after successful connection.
-  @doc false
   defp await_connection(pid, timeout, on_connect) do
     case GenServer.call(pid, :await_connection, timeout) do
       {:ok, state} ->
@@ -140,14 +139,15 @@ defmodule ZenWebsocket.ClientSupervisor do
   end
 
   # Safely invokes a lifecycle callback, catching and logging any errors.
-  @doc false
   defp maybe_invoke_callback(nil, _pid), do: :ok
 
+  # TODO: user-provided callback may raise any exception type; using try/catch to prevent
+  # the caller from crashing regardless of what the callback raises, throws, or exits with.
   defp maybe_invoke_callback(callback, pid) when is_function(callback, 1) do
     callback.(pid)
     :ok
-  rescue
-    error ->
+  catch
+    _kind, error ->
       require Logger
 
       Logger.warning("Lifecycle callback error: #{inspect(error)}")
@@ -155,7 +155,6 @@ defmodule ZenWebsocket.ClientSupervisor do
   end
 
   # Builds a Client struct from the GenServer state after successful connection.
-  @doc false
   defp build_client_struct(pid, state) do
     %ZenWebsocket.Client{
       gun_pid: state.gun_pid,
@@ -267,7 +266,6 @@ defmodule ZenWebsocket.ClientSupervisor do
 
   # Recursive helper for send_balanced with failover logic.
   # Attempts to send via selected connection, failing over to next healthiest on error.
-  @doc false
   defp do_send_balanced(_message, _pids, _last_pid, max_attempts, attempt) when attempt > max_attempts do
     {:error, :max_attempts_exceeded}
   end

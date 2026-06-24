@@ -28,14 +28,7 @@ defmodule ZenWebsocket.Examples.UsagePatterns do
     {:ok, client} = Client.connect("wss://test.deribit.com/ws/api/v2")
 
     # Send a message
-    Client.send_message(
-      client,
-      Jason.encode!(%{
-        jsonrpc: "2.0",
-        method: "public/test",
-        params: %{}
-      })
-    )
+    Client.send_message(client, Jason.encode!(jsonrpc_request("public/test", %{})))
 
     # Check state
     Logger.debug("Connection state: #{Client.get_state(client)}")
@@ -110,6 +103,11 @@ defmodule ZenWebsocket.Examples.UsagePatterns do
        heartbeat_config: %{type: :deribit, interval: 30_000},
        retry_count: 10
      ]}
+  end
+
+  @spec jsonrpc_request(String.t(), term()) :: %{jsonrpc: String.t(), method: String.t(), params: term()}
+  defp jsonrpc_request(method, params) do
+    %{jsonrpc: "2.0", method: method, params: params}
   end
 
   defmodule ExampleApp do

@@ -46,7 +46,6 @@ defmodule ZenWebsocket.ErrorHandler do
     end
   end
 
-  @doc false
   # Checks if error is recoverable (network/connection issues that may resolve).
   # Returns {:recoverable, normalized_error} or :not_recoverable.
   defp check_recoverable({:error, reason})
@@ -61,7 +60,6 @@ defmodule ZenWebsocket.ErrorHandler do
   defp check_recoverable({:gun_error, _, _, reason}), do: {:recoverable, {:gun_error, reason}}
   defp check_recoverable(_), do: :not_recoverable
 
-  @doc false
   # Checks if error is fatal (protocol/auth issues that won't resolve on retry).
   # All unrecognized errors are treated as fatal.
   defp check_fatal({:error, reason})
@@ -82,10 +80,7 @@ defmodule ZenWebsocket.ErrorHandler do
   """
   @spec recoverable?(term()) :: boolean()
   def recoverable?(error) do
-    case categorize_error(error) do
-      {:recoverable, _} -> true
-      {:fatal, _} -> false
-    end
+    match?({:recoverable, _}, categorize_error(error))
   end
 
   api(:handle_error, "Return the appropriate action for an error.",
@@ -141,7 +136,6 @@ defmodule ZenWebsocket.ErrorHandler do
     |> do_explain()
   end
 
-  @doc false
   # Unwraps nested error tuples to get the core error reason.
   # Handles {:error, reason}, {:gun_down, reason}, {:gun_error, reason} patterns.
   defp unwrap_error({:error, reason}), do: reason
@@ -149,13 +143,11 @@ defmodule ZenWebsocket.ErrorHandler do
   defp unwrap_error({:gun_error, reason}), do: {:gun_error, reason}
   defp unwrap_error(error), do: error
 
-  @doc false
   # Builds explanation map from message and suggestion.
   defp explanation(message, suggestion, docs_url \\ nil) do
     %{message: message, suggestion: suggestion, docs_url: docs_url}
   end
 
-  @doc false
   # Returns human-readable explanation for a specific error reason.
   # Connection/network errors (recoverable)
   defp do_explain(:econnrefused) do

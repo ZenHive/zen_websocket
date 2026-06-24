@@ -177,10 +177,7 @@ defmodule ZenWebsocket.Reconnection do
   """
   @spec should_reconnect?(error :: term()) :: boolean()
   def should_reconnect?(error) do
-    case ZenWebsocket.ErrorHandler.handle_error(error) do
-      :reconnect -> true
-      _ -> false
-    end
+    match?(:reconnect, ZenWebsocket.ErrorHandler.handle_error(error))
   end
 
   api(:max_retries_exceeded?, "Check if the retry attempt count has exceeded the maximum.",

@@ -96,7 +96,7 @@ defmodule ZenWebsocket.SubscriptionManagerTest do
       result = SubscriptionManager.list(state)
 
       assert Enum.sort(result) == Enum.sort(channels)
-      assert length(result) == 3
+      assert [_, _, _] = result
     end
   end
 
@@ -298,7 +298,7 @@ defmodule ZenWebsocket.SubscriptionManagerTest do
       assert is_binary(restore_msg)
 
       decoded = Jason.decode!(restore_msg)
-      assert length(decoded["params"]["channels"]) == 2
+      assert [_, _] = decoded["params"]["channels"]
     end
 
     test "unsubscribe removes from restore set" do

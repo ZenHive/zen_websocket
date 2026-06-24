@@ -38,7 +38,7 @@ defmodule ZenWebsocket.RecorderServerTest do
       content = File.read!(path)
       lines = String.split(content, "\n", trim: true)
 
-      assert length(lines) == 2
+      assert [_, _] = lines
 
       assert {:ok, entry1} = Jason.decode(Enum.at(lines, 0))
       assert entry1["dir"] == "out"

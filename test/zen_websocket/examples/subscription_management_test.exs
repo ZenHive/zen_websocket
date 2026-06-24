@@ -86,7 +86,7 @@ defmodule ZenWebsocket.Examples.SubscriptionManagementTest do
       case result do
         {:ok, messages} ->
           # Messages might be in different formats from echo server
-          assert length(messages) == 4
+          assert [_, _, _, _] = messages
 
         {:error, :timeout, messages} ->
           # Echo server might be slow, but we should have some messages

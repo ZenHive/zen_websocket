@@ -17,6 +17,7 @@
 ### Recently Completed
 | Task | Description | Notes |
 |------|-------------|-------|
+| R054 | Deduplicate `send_json_rpc/2` across two Deribit adapters | Shared `JsonRpcTransport` helper |
 | R046 | MessageHandler property tests via GunStub | See CHANGELOG v0.4.1 |
 | R045 | GunStub test helper (R044-fenced transport shapes) | See CHANGELOG v0.4.1 |
 | R048 | Retire unreachable `:frame` / `:frame_error` handler shapes | See CHANGELOG v0.4.1 |
@@ -52,7 +53,6 @@
 | R052 | ⬜ | 1.25 📋 | Flatten `Client.connect/2` control flow (depth 22) |
 | R051 | ⬜ | 1.0 📋 | Decompose `Reconnection.establish_connection/1` (depth 39) |
 | R053 | ⬜ | 1.5 🚀 | Fix minor code smells surfaced by `mix reach.smell` |
-| R054 | ⬜ | 2.5 🎯 | Deduplicate `send_json_rpc/2` across two Deribit adapters |
 | R055 | ⬜ | 1.67 🚀 | Extract duplicated Gun connect/reconnect log block in `Client` |
 
 ### Quick Commands
@@ -146,7 +146,7 @@ One-off cleanups flagged by `mix reach.smell`:
 
 ---
 
-### Task R054: Deduplicate `send_json_rpc/2` across Deribit adapters — [D:2/B:4/U:4 → Eff:2.0] 🎯
+### Task R054: Deduplicate `send_json_rpc/2` across Deribit adapters — ✅ Done — [D:2/B:4/U:4 → Eff:2.0] 🎯
 
 `mix ex_dna` finds an exact duplicate of `send_json_rpc/2` across the two Deribit example adapters:
 

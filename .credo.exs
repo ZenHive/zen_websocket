@@ -9,7 +9,12 @@
       },
       strict: true,
       color: true,
+      # ExSlop: 31 default AI-slop checks. ExDNA.Credo: clone diagnostics inline.
+      plugins: [{ExSlop, []}],
       checks: [
+        # AST clone detection surfaced as Credo issues
+        {ExDNA.Credo, []},
+
         # Increase cyclomatic complexity threshold from 9 to 11
         # This accommodates legitimate complexity in:
         # - config.ex validation (10)

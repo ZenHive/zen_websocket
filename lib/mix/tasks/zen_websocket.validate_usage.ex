@@ -35,6 +35,7 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
   use Mix.Task
 
   @allowed_functions ~w(connect send_message subscribe get_state close)a
+  @allowed_function_strings Enum.map(@allowed_functions, &Atom.to_string/1)
 
   defp common_antipatterns do
     [
@@ -119,6 +120,8 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
   end
 
   defp find_antipatterns(file, content, lines) do
+    lines_tuple = List.to_tuple(lines)
+
     Enum.flat_map(common_antipatterns(), fn {pattern, message} ->
       case Regex.run(pattern, content, return: :index) do
         nil ->
@@ -126,23 +129,15 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
 
         [{start_idx, _length} | _] ->
           line_num = get_line_number(content, start_idx)
-          line_content = Enum.at(lines, line_num - 1, "")
-
-          [
-            %{
-              file: file,
-              line: line_num,
-              type: :antipattern,
-              message: message,
-              code: String.trim(line_content),
-              severity: :warning
-            }
-          ]
+          line_content = line_at(lines_tuple, line_num)
+          [diagnostic(:antipattern, :warning, file, line_num, message, line_content)]
       end
     end)
   end
 
   defp find_deprecated(file, content, lines) do
+    lines_tuple = List.to_tuple(lines)
+
     Enum.flat_map(deprecated_patterns(), fn {pattern, message} ->
       case Regex.run(pattern, content, return: :index) do
         nil ->
@@ -150,49 +145,58 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
 
         [{start_idx, _length} | _] ->
           line_num = get_line_number(content, start_idx)
-          line_content = Enum.at(lines, line_num - 1, "")
-
-          [
-            %{
-              file: file,
-              line: line_num,
-              type: :deprecated,
-              message: message,
-              code: String.trim(line_content),
-              severity: :error
-            }
-          ]
+          line_content = line_at(lines_tuple, line_num)
+          [diagnostic(:deprecated, :error, file, line_num, message, line_content)]
       end
     end)
   end
 
   defp validate_api_usage(file, content, lines) do
     # Find all ZenWebsocket.Client function calls
+    lines_tuple = List.to_tuple(lines)
     pattern = ~r/ZenWebsocket\.Client\.(\w+)/
 
     pattern
     |> Regex.scan(content, return: :index)
     |> Enum.map(fn [{start_idx, _}, {func_start, func_len}] ->
       function = String.slice(content, func_start, func_len)
-      func_atom = String.to_atom(function)
 
-      if func_atom in @allowed_functions do
+      if function in @allowed_function_strings do
         nil
       else
         line_num = get_line_number(content, start_idx)
-        line_content = Enum.at(lines, line_num - 1, "")
-
-        %{
-          file: file,
-          line: line_num,
-          type: :invalid_api,
-          message: "Unknown function Client.#{function}/N - allowed: #{inspect(@allowed_functions)}",
-          code: String.trim(line_content),
-          severity: :error
-        }
+        line_content = line_at(lines_tuple, line_num)
+        message = "Unknown function Client.#{function}/N - allowed: #{inspect(@allowed_functions)}"
+        diagnostic(:invalid_api, :error, file, line_num, message, line_content)
       end
     end)
     |> Enum.reject(&is_nil/1)
+  end
+
+  @spec line_at(tuple(), pos_integer()) :: String.t()
+  defp line_at(lines_tuple, line_num) when line_num >= 1 and line_num <= tuple_size(lines_tuple) do
+    elem(lines_tuple, line_num - 1)
+  end
+
+  defp line_at(_lines_tuple, _line_num), do: ""
+
+  @spec diagnostic(atom(), atom(), String.t(), pos_integer(), String.t(), String.t()) :: %{
+          file: String.t(),
+          line: pos_integer(),
+          type: atom(),
+          message: String.t(),
+          code: String.t(),
+          severity: atom()
+        }
+  defp diagnostic(type, severity, file, line, message, code) do
+    %{
+      file: file,
+      line: line,
+      type: type,
+      message: message,
+      code: String.trim(code),
+      severity: severity
+    }
   end
 
   defp get_line_number(content, char_index) do

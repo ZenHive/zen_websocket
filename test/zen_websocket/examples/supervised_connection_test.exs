@@ -69,7 +69,7 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       {:ok, _client2} = ClientSupervisor.start_client(mock_url)
 
       clients = ClientSupervisor.list_clients()
-      assert length(clients) == 2
+      assert [_, _] = clients
       assert Enum.all?(clients, &Process.alive?/1)
     end
   end
@@ -142,7 +142,7 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       pid = client.server_pid
 
       assert Process.alive?(pid)
-      assert length(ClientSupervisor.list_clients()) == 1
+      assert [_] = ClientSupervisor.list_clients()
 
       # Stop the client
       :ok = ClientSupervisor.stop_client(pid)
@@ -197,7 +197,7 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
           client
         end
 
-      assert length(clients) == 3
+      assert [_, _, _] = clients
       assert Enum.all?(clients, fn c -> Process.alive?(c.server_pid) end)
 
       # Clean up

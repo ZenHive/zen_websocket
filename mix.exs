@@ -106,35 +106,37 @@ defmodule ZenWebsocket.MixProject do
       # AI-friendly test output
       {:ex_unit_json, "~> 0.4", only: [:dev, :test], runtime: false},
       # AI-friendly dialyzer output
-      {:dialyzer_json, "~> 0.1", only: [:dev, :test], runtime: false},
+      {:dialyzer_json, "~> 0.2", only: [:dev, :test], runtime: false},
 
       # Tidewave for Claude Code MCP integration (non-Phoenix needs bandit)
-      {:tidewave, "~> 0.5", only: :dev},
+      {:tidewave, "~> 0.6", only: :dev},
       {:bandit, "~> 1.10", only: :dev},
 
       # Static code analysis
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      # Credo plugin flagging AI-generated-code antipatterns
+      {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false},
 
       # Code analysis tools
-      {:ex_dna, "~> 1.1", only: [:dev, :test], runtime: false},
-      {:ex_ast, "~> 0.3", only: [:dev, :test], runtime: false},
-      {:reach, "~> 1.5", only: [:dev, :test], runtime: false},
-      {:boxart, "~> 0.3", only: [:dev, :test], runtime: false},
+      {:ex_dna, "~> 1.5", only: [:dev, :test], runtime: false},
+      {:ex_ast, "~> 0.12", only: [:dev, :test], runtime: false},
+      {:reach, "~> 2.7", only: [:dev, :test], runtime: false},
+      {:boxart, "~> 0.3.3", only: [:dev, :test], runtime: false},
 
       # Self-describing APIs — full dep, macros expand at compile time
-      {:descripex, "~> 0.6"},
+      {:descripex, "~> 0.11"},
 
       # Documentation
       {:ex_doc, "~> 0.40", only: :dev, runtime: false},
-      {:doctor, "~> 0.22", only: [:dev, :test], runtime: false},
+      {:doctor, "~> 0.23", only: [:dev, :test], runtime: false},
       # Tasks
       {:task_validator, "~> 0.9.5", only: [:dev, :test], runtime: false},
       # Usage rules for AI agents and documentation
       {:usage_rules, "~> 1.2", only: :dev, runtime: false},
 
       # Security scanning
-      {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
       {:mix_test_watch, "~> 1.0", only: [:dev, :test], runtime: false},
 
       # Used for mock WebSocket server in tests
@@ -159,6 +161,12 @@ defmodule ZenWebsocket.MixProject do
 
   defp dialyzer do
     [
+      # OOM mitigation: skip transitive deps (default is :app_tree). Tidewave/bandit's
+      # HTTP stack (plug, mint, cowlib, etc.) isn't in lib/'s call graph and bloats the PLT.
+      plt_add_deps: :apps_direct,
+      # :public_key/:ssl are used directly (reconnection.ex calls :public_key.cacerts_get/0)
+      # but aren't listed deps, so :apps_direct would drop them from the PLT.
+      plt_add_apps: [:mix, :public_key, :ssl, :crypto],
       plt_core_path: "priv/plts",
       plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
       ignore_warnings: ".dialyzer_ignore.exs"
@@ -168,6 +176,35 @@ defmodule ZenWebsocket.MixProject do
   defp aliases do
     [
       security: ["sobelow --exit --skip --config"],
+      # VibeKit canonical deterministic CI gate (plain test/dialyzer).
+      ci: [
+        "compile --warnings-as-errors",
+        "format --check-formatted",
+        # preferred_envs (cli/0) is ignored inside alias steps — set MIX_ENV explicitly.
+        # `mix cmd` runs System.cmd with no shell, so use `env` to apply the assignment.
+        "cmd env MIX_ENV=test mix test --exclude integration",
+        # --ignore TagTODO/TagFIXME: tracked-debt visibility via plain `mix credo`,
+        # not a gate-blocking regression.
+        "credo --strict --ignore TagTODO,TagFIXME",
+        "ex_dna --max-clones 0",
+        "reach.check --arch --smells",
+        "dialyzer"
+      ],
+      # elixir-setup three-tier inner-loop gates (AI-friendly .json reporters).
+      "check.fast": [
+        "format --check-formatted",
+        "compile --warnings-as-errors",
+        "credo --strict --ignore TagTODO,TagFIXME"
+      ],
+      precommit: [
+        "format --check-formatted",
+        "compile --warnings-as-errors",
+        "credo --strict --ignore TagTODO,TagFIXME",
+        "doctor --raise",
+        "cmd env MIX_ENV=test mix test.json --quiet --cover --cover-threshold 80 --summary-only --exclude integration",
+        "sobelow --skip"
+      ],
+      "precommit.full": ["precommit", "dialyzer.json --quiet"],
       # Tidewave MCP server for Claude Code integration (non-Phoenix)
       tidewave: [
         "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4001) end)'"
