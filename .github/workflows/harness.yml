@@ -79,5 +79,12 @@ jobs:
       - name: Tests + coverage gate (>=50%)
         run: mix test.json --cover --cover-threshold 50 --summary-only
 
-      - name: Dialyzer
-        run: mix dialyzer
+      # Run in dev (not the job's test env): the dialyzer PLT config in mix.exs
+      # (plt_add_deps: :apps_direct + curated plt_add_apps) is OOM-tuned for the
+      # library call graph. Under MIX_ENV=test, test/support mock servers pull
+      # plug/ranch/cowboy into the analyzed set but not the PLT, yielding false
+      # unknown_function warnings. Dev matches the green Code Quality dialyzer and
+      # the PLT's design intent. (Those deps are `only: :test`, so they can't be
+      # added to plt_add_apps without breaking the dev PLT build.)
+      - name: Dialyzer (dev env — matches library PLT tuning)
+        run: MIX_ENV=dev mix dialyzer
