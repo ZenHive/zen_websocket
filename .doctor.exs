@@ -4,7 +4,9 @@
     # under-counts it even though both macros have docstrings.
     ZenWebsocket.JsonRpc
   ],
-  ignore_paths: [],
+  # Test-support modules (mock servers, stubs, monitors) are test infrastructure,
+  # not library API — they don't owe 100% moduledoc/spec coverage to the gate.
+  ignore_paths: [~r(test/support)],
   min_module_doc_coverage: 100,
   min_module_spec_coverage: 100,
   min_overall_doc_coverage: 100,

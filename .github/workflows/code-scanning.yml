@@ -56,11 +56,13 @@ jobs:
         run: mix compile
 
       # `--format sarif` emits structured JSON to stdout (no human banner); the
-      # preceding `mix compile` keeps that stdout clean. continue-on-error so a
-      # non-zero exit still lets us upload the report.
+      # preceding `mix compile` keeps that stdout clean. `--skip` honors the
+      # committed `.sobelow-skips` file (and inline `# sobelow_skip`) so vetted
+      # false positives stay suppressed in the Security tab. continue-on-error so
+      # a non-zero exit still lets us upload the report.
       - name: Run Sobelow (SARIF)
         continue-on-error: true
-        run: mix sobelow --format sarif > sobelow.sarif
+        run: mix sobelow --skip --format sarif > sobelow.sarif
 
       - name: Upload SARIF to code scanning
         uses: github/codeql-action/upload-sarif@v4
