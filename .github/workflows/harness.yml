@@ -1,0 +1,78 @@
+# Deterministic Elixir harness gate for PRs.
+# Closes the Codex-env-blocked-hex.pm gap: every PR push gets format / compile /
+# credo / doctor / sobelow / test+cover / dialyzer evidence as PR checks, instead
+# of needing a local reviewer to fetch the branch and run the suite.
+#
+# Elixir/OTP are pinned inline (this repo has no `.tool-versions`). Adopting a
+# `.tool-versions` and switching to `version-file` would make CI and local dev
+# share one source and is the recommended follow-up.
+
+name: Harness
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: harness-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harness:
+    name: Harness
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: test
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: beam
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.18"
+
+      - name: Cache deps & _build (covers dialyxir PLT default path)
+        uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+            priv/plts
+          key: mix-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            mix-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-
+
+      - run: mix deps.get
+
+      - name: Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
+
+      - name: Format check
+        run: mix format --check-formatted
+
+      # TODO/FIXME tags are tracked-debt visibility, not regressions — exclude
+      # so harness only fails on real Credo issues (see development-philosophy.md
+      # § "TODO Comment Requirements").
+      - name: Credo (strict, excluding TODO/FIXME design tags)
+        run: mix credo --strict --ignore TagTODO,TagFIXME
+
+      - name: Doctor (--raise overrides .doctor.exs raise=false to gate CI)
+        run: mix doctor --raise
+
+      - name: Sobelow (honors .sobelow-conf, exit=Low)
+        run: mix sobelow
+
+      # Coverage floor: 70% — conservative family floor (matches onchain_tempo).
+      # Raise per-repo as coverage climbs. `mix test.json`'s test_helper excludes
+      # `:integration` by default, so no `--exclude integration` needed here.
+      - name: Tests + coverage gate (>=70%)
+        run: mix test.json --cover --cover-threshold 70 --summary-only
+
+      - name: Dialyzer
+        run: mix dialyzer
