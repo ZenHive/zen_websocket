@@ -1,0 +1,70 @@
+# Elixir-native code scanning: Sobelow -> SARIF -> GitHub code scanning.
+#
+# CodeQL's "security-and-quality" suite does not support Elixir, so we surface
+# Sobelow findings in the same Security tab "Code scanning alerts" view by
+# uploading SARIF. This REPORTS (always uploads, even with findings); enforce a
+# hard `mix sobelow` gate in the repo's CI if you want it to block.
+
+name: Code Scanning
+
+on:
+  push:
+    branches: [main, development]
+  pull_request:
+    branches: [main, development]
+  schedule:
+    # Weekly resweep so new Sobelow rules / advisories surface without a push.
+    - cron: "27 6 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: code-scanning-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sobelow-sarif:
+    name: Sobelow SARIF
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: beam
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.18"
+
+      - name: Cache deps & _build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: scan-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            scan-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-
+
+      - run: mix deps.get
+
+      # Compile separately so build output never pollutes the SARIF stdout below.
+      - name: Compile
+        run: mix compile
+
+      # `--format sarif` emits structured JSON to stdout (no human banner); the
+      # preceding `mix compile` keeps that stdout clean. continue-on-error so a
+      # non-zero exit still lets us upload the report.
+      - name: Run Sobelow (SARIF)
+        continue-on-error: true
+        run: mix sobelow --format sarif > sobelow.sarif
+
+      - name: Upload SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: sobelow.sarif
+          category: sobelow
