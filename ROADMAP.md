@@ -54,6 +54,7 @@
 | R051 | ⬜ | 1.0 📋 | Decompose `Reconnection.establish_connection/1` (depth 39) |
 | R053 | ⬜ | 1.5 🚀 | Fix minor code smells surfaced by `mix reach.smell` |
 | R055 | ⬜ | 1.67 🚀 | Extract duplicated Gun connect/reconnect log block in `Client` |
+| R056 | ⬜ | 2.0 📋 | Make CI coverage gate measure core library only (ex_unit_json honors `ignore_modules`) |
 
 ### Quick Commands
 ```bash
@@ -117,6 +118,18 @@ Tasks below seeded from `mix reach` (1.5) analysis on 2026-04-20. Findings captu
 **Scope:** Only the flagged ranges. Don't refactor broader state-handling patterns. Don't rename fields.
 
 **Success:** Re-running `mix reach.smell` no longer reports the `:state.config called twice` findings in `client.ex`. All existing tests pass. No behavior change.
+
+---
+
+### Task R056: CI coverage gate should measure core library only — [D:4/B:5/U:5 → Eff:2.0] 📋
+
+The Harness CI coverage gate (`.github/workflows/harness.yml`) measures raw offline coverage at ~55%, but real core-library coverage is ~79%. The gap is `Examples.*` / `Mix.Tasks.*` / `Testing.*` modules that are exercised **only** by `:integration` tests (excluded in CI — no Deribit creds), so they read ~0% offline and drag the total down. `mix.exs` already declares these non-production via `test_coverage: [ignore_modules: …]`, but **`mix test.json --cover` (ex_unit_json) does not honor that list** — only built-in `mix test --cover` does. As a stopgap the CI floor was lowered to 50% (real core is ~79%).
+
+Make the gate measure core only, then restore the floor to ~80%. Investigate whether ex_unit_json supports a coverage-exclusion mechanism (config or flag); if not, file/contribute upstream so `mix test.json --cover` honors `:test_coverage` `ignore_modules`. Alternatively, gate coverage on a core-only module filter.
+
+**Scope:** CI coverage measurement + threshold only. Don't add tests to inflate the diluted number; don't remove the example/CLI modules.
+
+**Success:** `mix test.json --cover` excludes the modules listed in `mix.exs` `ignore_modules` (or an equivalent core-only filter); `harness.yml` floor raised back to ~80% over core; Harness CI green.
 
 ---
 
