@@ -1,0 +1,275 @@
+{
+  "schema_version": 2,
+  "project": "zen_websocket",
+  "default_branch": "main",
+  "vision": "Production-grade WebSocket client library for Elixir, designed for financial APIs (particularly Deribit). Trust working quality gates, fail gracefully on dead connections, and preserve caller configuration across reconnects.",
+  "focus": {
+    "phase": 1
+  },
+  "phases": {
+    "1": {
+      "name": "Post-v0.4.2 Backlog",
+      "order": 1,
+      "status": "pending"
+    }
+  },
+  "bundles": {
+    "ci": {
+      "phase": 1,
+      "order": 2,
+      "description": "CI coverage measurement and gating"
+    },
+    "code-quality": {
+      "phase": 1,
+      "order": 1,
+      "description": "Reach / ex_dna-driven quality and refactor cleanups seeded from mix reach (1.5) analysis on 2026-04-20"
+    }
+  },
+  "milestones": {},
+  "task": [
+    {
+      "id": "R050",
+      "phase": 1,
+      "bundle": "code-quality",
+      "status": "pending",
+      "title": "Audit unmatched-handler sites flagged by mix reach.otp",
+      "scores": {
+        "d": 3,
+        "b": 7,
+        "u": 6
+      },
+      "eff": 2.17,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Each of the 8 flagged sites has either (a) a matching handler clause + a test exercising the path, or (b) an inline comment explaining why reach flagged it and why it is safe"
+      ],
+      "files_to_modify": [
+        "lib/zen_websocket/client.ex",
+        "lib/zen_websocket/client_supervisor.ex",
+        "lib/zen_websocket/recorder_server.ex",
+        "lib/zen_websocket/examples/deribit_genserver_adapter.ex",
+        "lib/zen_websocket/examples/batch_subscription_manager.ex",
+        "lib/zen_websocket/examples/docs/error_handling.ex"
+      ],
+      "body": "mix reach.otp flags 8 call sites targeting handlers it can't resolve. In a WebSocket client with reconnect and recording paths, an unmatched message is a silent drop — the exact failure mode we cannot afford.\n\nSites flagged: client.ex:263, client_supervisor.ex:127, recorder_server.ex:102 & 137, examples/deribit_genserver_adapter.ex:59 & 96, examples/batch_subscription_manager.ex:96, examples/docs/error_handling.ex:105.\n\nFor each site, determine whether it's a genuine unmatched message (missing handle_call/handle_cast/handle_info clause, or a clause that won't pattern-match the sent shape) or a false positive (dynamic dispatch, cross-module call reach can't resolve). For each genuine miss, add the handler clause and a test that exercises the path. For each false positive, document the pattern so future audits can skip it.\n",
+      "scored_at": "2026-04-20",
+      "cross_repo": []
+    },
+    {
+      "id": "R049",
+      "phase": 1,
+      "bundle": "code-quality",
+      "status": "pending",
+      "title": "Collapse repeated state.config field reads in Client",
+      "scores": {
+        "d": 2,
+        "b": 3,
+        "u": 3
+      },
+      "eff": 1.5,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "acceptance_criteria": [
+        "mix reach.smell no longer reports the :state.config-called-twice findings in client.ex",
+        "All existing tests pass",
+        "No behavior change"
+      ],
+      "out_of_scope": [
+        "Broader state-handling refactors",
+        "Field renames"
+      ],
+      "files_to_modify": [
+        "lib/zen_websocket/client.ex"
+      ],
+      "body": "mix reach.smell flagged 14+ consecutive identical state.config field accesses in lib/zen_websocket/client.ex (lines 756-817, roughly covering handle_info/2 and nearby clauses). Destructure once at clause entry (%{config: cfg} = state) or use a `with` binding. Touch only the flagged ranges.\n",
+      "scored_at": "2026-04-20",
+      "cross_repo": []
+    },
+    {
+      "id": "R052",
+      "phase": 1,
+      "bundle": "code-quality",
+      "status": "pending",
+      "title": "Flatten Client.connect/2 control flow (dominator depth 22)",
+      "scores": {
+        "d": 4,
+        "b": 5,
+        "u": 5
+      },
+      "eff": 1.25,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Depth reduced meaningfully (target <15)",
+        "Behavior preserved — all integration and mock-server tests still pass",
+        "No new Dialyzer warnings"
+      ],
+      "out_of_scope": [
+        "Changing the public signature",
+        "Altering error return shapes",
+        "Restructuring callers"
+      ],
+      "files_to_modify": [
+        "lib/zen_websocket/client.ex"
+      ],
+      "body": "mix reach.depth reports ZenWebsocket.Client.connect/2 at dominator depth 22 (branches=4, callers=2). It's the public entry point — high cyclomatic complexity here hurts both testability and the mental model for new adapter authors.\n\nInvestigate the function at lib/zen_websocket/client.ex:228. Determine whether the depth comes from legitimate branching (protocol negotiation, config validation, transport selection) or from accumulated conditionals that can be extracted into small helpers or a `with` pipeline. Match the style already used in the rest of the module.\n",
+      "scored_at": "2026-04-20",
+      "cross_repo": []
+    },
+    {
+      "id": "R051",
+      "phase": 1,
+      "bundle": "code-quality",
+      "status": "pending",
+      "title": "Decompose Reconnection.establish_connection/1 (dominator depth 39)",
+      "scores": {
+        "d": 5,
+        "b": 6,
+        "u": 4
+      },
+      "eff": 1.0,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Depth reduced to <20",
+        "Existing reconnection regression tests (R033, R036) pass unchanged",
+        "No new Dialyzer warnings",
+        "Existing telemetry events preserved",
+        "Existing retry/backoff semantics preserved"
+      ],
+      "out_of_scope": [
+        "Changing the public return shape",
+        "Altering retry/backoff semantics or telemetry events"
+      ],
+      "files_to_modify": [
+        "lib/zen_websocket/reconnection.ex"
+      ],
+      "body": "mix reach.depth reports ZenWebsocket.Reconnection.establish_connection/1 at dominator depth 39 — the deepest function in the codebase by a wide margin. Reconnection logic is the most failure-prone area of any WebSocket client; depth here makes the \"what happens when X fails halfway through?\" question hard to answer.\n\nInvestigate lib/zen_websocket/reconnection.ex:50. The function almost certainly chains several phases (open transport → upgrade → authenticate → resubscribe → restore state). Extract each phase into a named helper with a clear error-return type. A `with` pipeline or an explicit phase-list reducer both work — pick what reads better against the existing codebase style.\n",
+      "scored_at": "2026-04-20",
+      "cross_repo": []
+    },
+    {
+      "id": "R053",
+      "phase": 1,
+      "bundle": "code-quality",
+      "status": "pending",
+      "title": "Fix minor code smells surfaced by mix reach.smell",
+      "scores": {
+        "d": 1,
+        "b": 2,
+        "u": 2
+      },
+      "eff": 2.0,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Each flagged site is either resolved or has a comment noting why the duplication is intentional",
+        "Existing tests pass"
+      ],
+      "body": "One-off cleanups flagged by mix reach.smell:\n- lib/mix/tasks/zen_websocket.usage.ex:182-183 — Enum.map |> Enum.map fusion\n- lib/zen_websocket/examples/deribit_genserver_adapter.ex:204 — state.subscriptions read twice; bind once\n- lib/zen_websocket/pool_router.ex:233 — duplicate module-attribute read\n- lib/zen_websocket/testing/server.ex:96 — duplicate module-attribute read\n- lib/zen_websocket/examples/usage_patterns.ex:78 — client.server_pid read twice\n",
+      "scored_at": "2026-04-20",
+      "cross_repo": []
+    },
+    {
+      "id": "R055",
+      "phase": 1,
+      "bundle": "code-quality",
+      "status": "pending",
+      "title": "Extract duplicated Gun connect/reconnect log block in Client",
+      "scores": {
+        "d": 2,
+        "b": 3,
+        "u": 2
+      },
+      "eff": 1.25,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "acceptance_criteria": [
+        "mix ex_dna --literal-mode abstract no longer reports the client.ex:598/640 clone",
+        "All existing tests pass",
+        "No behavior change"
+      ],
+      "files_to_modify": [
+        "lib/zen_websocket/client.ex"
+      ],
+      "body": "mix ex_dna --literal-mode abstract finds an 18-line Debug.log block duplicated at lib/zen_websocket/client.ex:598 and :640. The only differences are four log prefix strings — one branch logs \"Gun connection established\", the other \"Gun reconnection successful\", etc. Extract a helper that takes the four labels as arguments.\n\nNOTE: ex_dna's second abstract-mode hit (heartbeat_manager.ex:76 vs subscription_manager.ex:140) is a FALSE POSITIVE — both sites use descripex's api() macro, whose structural similarity is by design. Do not collapse those.\n",
+      "scored_at": "2026-04-20",
+      "cross_repo": []
+    },
+    {
+      "id": "R056",
+      "phase": 1,
+      "bundle": "ci",
+      "status": "pending",
+      "title": "Make CI coverage gate measure core library only",
+      "scores": {
+        "d": 4,
+        "b": 5,
+        "u": 5
+      },
+      "eff": 1.25,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "acceptance_criteria": [
+        "mix test.json --cover excludes the modules listed in mix.exs ignore_modules (or an equivalent core-only filter)",
+        "harness.yml coverage floor raised back to ~80% over core",
+        "Harness CI green"
+      ],
+      "out_of_scope": [
+        "Adding tests to inflate the diluted number",
+        "Removing the example/CLI modules"
+      ],
+      "files_to_modify": [
+        ".github/workflows/harness.yml",
+        "mix.exs"
+      ],
+      "body": "The Harness CI coverage gate (.github/workflows/harness.yml) measures raw offline coverage at ~55%, but real core-library coverage is ~79%. The gap is Examples.* / Mix.Tasks.* / Testing.* modules exercised ONLY by :integration tests (excluded in CI — no Deribit creds), so they read ~0% offline and drag the total down. mix.exs already declares these non-production via test_coverage: [ignore_modules: …], but mix test.json --cover (ex_unit_json) does not honor that list — only built-in mix test --cover does. As a stopgap the CI floor was lowered to 50%.\n\nMake the gate measure core only, then restore the floor to ~80%. Investigate whether ex_unit_json supports a coverage-exclusion mechanism (config or flag); if not, file/contribute upstream so mix test.json --cover honors :test_coverage ignore_modules. Alternatively, gate coverage on a core-only module filter.\n",
+      "scored_at": "2026-04-20",
+      "cross_repo": []
+    },
+    {
+      "id": "R054",
+      "phase": 1,
+      "bundle": "code-quality",
+      "status": "done",
+      "title": "Deduplicate send_json_rpc/2 across the two Deribit adapters",
+      "scores": {
+        "d": 2,
+        "b": 4,
+        "u": 4
+      },
+      "eff": 2.0,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "acceptance_criteria": [
+        "mix ex_dna no longer reports the send_json_rpc/2 clone",
+        "Both adapters still compile and their tests pass",
+        "Public example surface unchanged"
+      ],
+      "out_of_scope": [
+        "Merging the two adapters — they demonstrate standalone vs GenServer-wrapped patterns on purpose"
+      ],
+      "body": "mix ex_dna found an exact duplicate of send_json_rpc/2 across the two Deribit example adapters (examples/deribit_adapter.ex:127 and examples/deribit_genserver_adapter.ex:224) — the same 7-line case Client.send_message/Jason.encode! wrapper. Extract a shared helper in a neutral location.\n",
+      "scored_at": "2026-04-20",
+      "implemented": "Extracted a shared JsonRpcTransport helper consumed by both Deribit adapters; ex_dna clone resolved. See CHANGELOG (R054).",
+      "cross_repo": []
+    }
+  ]
+}
