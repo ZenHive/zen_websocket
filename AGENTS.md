@@ -67,6 +67,15 @@ The Phoenix server is always already running. Never run `mix phx.server` via Bas
 
 Every feature MUST have tests, even if the spec doesn't mention them. Unit tests for context functions, integration tests for LiveViews, tests for all CRUD/validations/error cases/edge cases (nil, empty, boundary). A feature without tests is not complete.
 
+## 🚨 AGAINST AN API, INTEGRATION TESTS ARE GROUND TRUTH — KEEP IT REAL
+
+**When writing code against an external API or service, the live endpoint is the only source of truth — not the docs, not your memory of the response shape, not a mock. Hit reality FIRST: explore the live call via Tidewave, then pin the behavior with a tagged integration test. This is not optional.**
+
+- **Mocks encode your assumptions; the API encodes the truth.** A mock that matches your guess passes green while the real call 400s on a field you misremembered. Observe the real response *before* you mock it — mock only what you've already seen.
+- **Cheap, and a time *saver* — not expensive.** A real call plus one assertion costs less than a debug loop against a wrong mental model. The integration test surfaces the actual error envelope, field names, and edge shapes up front, so the code is right the first time.
+- **Tidewave to explore, integration test to pin.** Use `project_eval` to see the live shape (per "NEVER HIDE TEST FAILURES": don't know what error to expect → explore via Tidewave first), then write the `@moduletag :integration` test that asserts it — helper module, flunk-on-missing-creds, never skip silently (`integration-testing` skill).
+- **No real signal → don't fake one.** Can't reach the API (missing creds, market not live)? Say so and `flunk` loudly per the credentials rule — never paper over it with a mock that ratifies a guess.
+
 ## 🚨 RAISE COVERAGE BEFORE MUTATING
 
 **Before any code-changing task on an existing module, that module's `mix test.json --cover` percentage must be at the target tier:**
