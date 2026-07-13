@@ -49,11 +49,11 @@
 > Managed by `rmap` — source of truth is `roadmap/tasks.toml`. Run `rmap show <id>` for full task detail, `rmap next` to pick the next task.
 
 <!-- FOCUS:BEGIN -->
-**Focus phase:** 1 — Post-v0.4.2 Backlog (1 of 8 done · 0 in progress)
+**Focus phase:** 1 — Post-v0.4.2 Backlog (1 of 9 done · 0 in progress)
 
 **Last shipped:** no recent shipments
 
-**Up next:** Task R050 — Audit unmatched-handler sites flagged by mix reach.otp [D:3/B:7/U:6 → Eff:2.17] 🎯
+**Up next:** Task 1 — Widen JsonRpc.build_request/2 params spec to accept list params [D:1/B:7/U:6 → Eff:6.5] 🎯
 <!-- FOCUS:END -->
 
 <!-- TASKS:BEGIN phase=1 -->
@@ -67,6 +67,7 @@
 | Task R055 | ⬜ | 🎁 **code-quality** · Extract duplicated Gun connect/reconnect log block in Client [D:2/B:3/U:2 → Eff:1.25?] 📋 |
 | Task R056 | ⬜ | 🎁 **ci** · Make CI coverage gate measure core library only [D:4/B:5/U:5 → Eff:1.25?] 📋 |
 | Task R054 | ✅ | 🎁 **code-quality** · Deduplicate send_json_rpc/2 across the two Deribit adapters [D:2/B:4/U:4 → Eff:2.0?] 🎯 |
+| Task 1 | ⬜ | 🎁 **code-quality** · Widen JsonRpc.build_request/2 params spec to accept list params [D:1/B:7/U:6 → Eff:6.5] 🎯 |
 <!-- TASKS:END -->
 
 ### Quick Commands
