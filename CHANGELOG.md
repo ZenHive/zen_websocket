@@ -7,13 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-07-31
+
+Additive release — no public-API or behavior change. Consumers upgrading from
+0.4.2 need no code changes; the declared runtime bounds (`gun ~> 2.2`,
+`jason ~> 1.4`, `telemetry ~> 1.3`, `certifi ~> 2.5`) are unchanged.
+
 ### Added
 - **`ZenWebsocket.Examples.JsonRpcTransport`** — shared JSON-RPC send helper extracted from the two Deribit example adapters, removing the duplicated `send_json_rpc/2` wrapper (R054).
 - **Reach architecture policy** (`.reach.exs`) and `ci` / `check.fast` / `precommit` / `precommit.full` mix aliases for deterministic quality gates.
 - **ex_slop** Credo plugin and inline `ExDNA.Credo` clone diagnostics in `.credo.exs`.
 
 ### Changed
-- **Dependency modernization** — `gun 2.2 → 2.4` (runtime), plus dev/test bumps: `reach 1.5 → 2.7`, `ex_ast 0.3 → 0.12`, `ex_dna 1.1 → 1.5`, `descripex 0.6 → 0.11`, `dialyzer_json`, `doctor`, `sobelow`, `tidewave`, `boxart`. Dialyzer PLT now uses `plt_add_deps: :apps_direct` to avoid transitive-dep bloat.
+- **Dependency modernization** — `gun 2.2 → 2.4` (runtime), plus dev/test bumps: `reach 1.5 → 2.7`, `ex_ast 0.3 → 0.12`, `ex_dna 1.1 → 1.5`, `descripex 0.6 → 0.11`, `dialyzer_json`, `doctor`, `sobelow`, `tidewave`, `boxart`. Dialyzer PLT now uses `plt_add_deps: :apps_direct` to avoid transitive-dep bloat. The gun move is a lockfile resolution only — the declared `~> 2.2` bound already admitted 2.4.
 - **Internal cleanups** — deduplicated the Deribit `public/test` heartbeat into a compile-time constant, removed redundant `@doc false` on private functions, and simplified pass-through `case` expressions to `match?/2`. No public-API or behavior change.
 
 ## [0.4.2] - 2026-04-18
