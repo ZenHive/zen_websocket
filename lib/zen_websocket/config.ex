@@ -158,13 +158,10 @@ defmodule ZenWebsocket.Config do
   def validate(_), do: {:error, "URL is required"}
 
   defp valid_url?(url) do
-    case URI.parse(url) do
-      %URI{scheme: scheme, host: host} when scheme in ["ws", "wss"] and is_binary(host) and host != "" ->
-        true
-
-      _ ->
-        false
-    end
+    match?(
+      %URI{scheme: scheme, host: host} when scheme in ["ws", "wss"] and is_binary(host) and host != "",
+      URI.parse(url)
+    )
   end
 end
 
