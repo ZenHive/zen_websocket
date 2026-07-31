@@ -7,10 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- **Lockfile dependency refresh** — `gun 2.4.1 → 2.5.0` (runtime), plus test/dev bumps: `cowboy 2.16.1 → 2.18.0`, `stream_data 1.3.0 → 1.4.0`, `styler 1.11.0 → 1.12.2`, `tidewave 0.6.1 → 0.8.1`, `reach 2.7.5 → 2.8.2`, `ex_slop 0.4.2 → 0.4.4`, `ex_dna 1.5.3 → 1.5.4`, `ex_ast 0.12.5 → 0.12.10`, `usage_rules 1.2.6 → 1.2.7`, and transitives (`plug`, `plug_crypto`, `req`, `mint`, `hpax`, `cowlib`, `ranch`, `igniter`, `bandit`, `earmark_parser`, `makeup`, `glob_ex`, `circular_buffer`). Lockfile resolution only — declared bounds in `mix.exs` are unchanged and the gun move stays inside `~> 2.2`. Verified green: 515 tests (incl. integration) passing, dialyzer clean, credo strict clean.
-
 ## [0.4.3] - 2026-07-31
+
+### Changed — dependency refresh
+- **Lockfile dependency refresh** — `gun 2.4.1 → 2.5.0` (runtime), plus test/dev bumps: `cowboy 2.16.1 → 2.18.0`, `stream_data 1.3.0 → 1.4.0`, `styler 1.11.0 → 1.12.2`, `tidewave 0.6.1 → 0.8.1`, `reach 2.7.5 → 2.8.2`, `ex_slop 0.4.2 → 0.4.4`, `ex_dna 1.5.3 → 1.5.4`, `ex_ast 0.12.5 → 0.12.10`, `usage_rules 1.2.6 → 1.2.7`, and transitives (`plug`, `plug_crypto`, `req`, `mint`, `hpax`, `cowlib`, `ranch`, `igniter`, `bandit`, `earmark_parser`, `makeup`, `glob_ex`, `circular_buffer`). Lockfile resolution only — declared bounds in `mix.exs` are unchanged and the gun move stays inside `~> 2.2`. Verified green: 515 tests (incl. integration) passing, dialyzer clean, credo strict clean.
+- `ex_ast` resolves to 0.12.10, not 0.13.1. Widening this project's `~> 0.12` bound would not change that: `reach 2.8.2` itself declares `ex_ast ~> 0.12.0`, so 0.13.x is unreachable in any project that depends on reach. The cap is upstream's, not this project's.
 
 Additive release — no public-API or behavior change. Consumers upgrading from
 0.4.2 need no code changes; the declared runtime bounds (`gun ~> 2.2`,
