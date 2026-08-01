@@ -1,7 +1,7 @@
 defmodule ZenWebsocket.MixProject do
   use Mix.Project
 
-  @version "0.5.0"
+  @version "0.6.0"
 
   def project do
     [
@@ -128,8 +128,13 @@ defmodule ZenWebsocket.MixProject do
       {:reach, "~> 2.7", only: [:dev, :test], runtime: false},
       {:boxart, "~> 0.3.3", only: [:dev, :test], runtime: false},
 
-      # Self-describing APIs — full dep, macros expand at compile time
-      {:descripex, "~> 0.11"},
+      # Self-describing APIs — full dep, macros expand at compile time.
+      # Three-segment on purpose (caps at < 0.13.0): descripex 0.12.0 changed
+      # `short_name` in describe/1 output from atom to string at a *minor*
+      # bump, which the previous `~> 0.11` would have absorbed silently. A 0.x
+      # package that breaks on minor earns the tighter form; raise the cap
+      # deliberately after reading its CHANGELOG.
+      {:descripex, "~> 0.12.0"},
 
       # Documentation
       {:ex_doc, "~> 0.40", only: :dev, runtime: false},

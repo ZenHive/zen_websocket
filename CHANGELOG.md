@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-01
+
+### Changed — `{:descripex, "~> 0.11"}` → `{:descripex, "~> 0.12.0"}` (breaking for consumers pinned below 0.12)
+
+descripex 0.12.0 changed `short_name` in `describe/1` output from an atom to a
+string — a consumer-visible contract change shipped at a *minor* bump. The old
+`~> 0.11` bound (`>= 0.11.0 and < 1.0.0`) would have absorbed that silently on
+any fresh resolution, so the requirement is now three-segment (`>= 0.12.0 and
+< 0.13.0`). A 0.x package that breaks on minor earns the tighter form; raise the
+cap deliberately after reading its release notes.
+
+zen_websocket itself does not read `short_name` — the 17 `use Descripex` sites
+and the `Descripex.Discoverable` root module are unaffected, and no library or
+test code changed. The break is in the *bound*, not the behaviour.
+
+**Minor, not patch**, for the same reason 0.5.0's gun floor was: narrowing a
+runtime dependency requirement can fail resolution for a consumer pinned to
+descripex 0.11.x. Loud failure, but still a compatibility break.
+
+### Changed — lockfile
+
+`req 0.7.1 → 0.7.2` (dev/test only, via the doc/tooling stack).
+
 ## [0.5.0] - 2026-08-01
 
 ### Changed — `{:gun, "~> 2.2"}` → `{:gun, "~> 2.4"}` (breaking for consumers pinned below 2.4)
@@ -376,7 +399,10 @@ Additive release — no public-API or behavior change. Consumers upgrading from
 - Real-world tested against live WebSocket endpoints
 - Strict code quality standards (max 5 functions per module, 15 lines per function)
 
-[Unreleased]: https://github.com/ZenHive/zen_websocket/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/ZenHive/zen_websocket/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/ZenHive/zen_websocket/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/ZenHive/zen_websocket/compare/v0.4.3...v0.5.0
+[0.4.3]: https://github.com/ZenHive/zen_websocket/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/ZenHive/zen_websocket/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/ZenHive/zen_websocket/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/ZenHive/zen_websocket/compare/v0.3.1...v0.4.0
