@@ -6,8 +6,42 @@ defmodule ZenWebsocket.PoolRouterTest do
   # ETS table name used by PoolRouter
   @table_name :zen_websocket_pool
 
+  # Stand-in for the Client GenServer. PoolRouter.calculate_health/1 only ever
+  # reaches a "client" through GenServer.call (via Client.get_state_metrics/1
+  # and Client.get_latency_stats/1), so a fake process answering those two
+  # calls drives the real metrics-gathering path without a live connection.
+  defmodule FakeMetricsClient do
+    @moduledoc false
+    use GenServer
+
+    def start_link(metrics), do: GenServer.start_link(__MODULE__, metrics)
+
+    @impl true
+    def init(metrics), do: {:ok, metrics}
+
+    @impl true
+    def handle_call(:get_state_metrics, _from, %{state_metrics: state_metrics} = metrics) do
+      {:reply, state_metrics, metrics}
+    end
+
+    def handle_call(:get_latency_stats, _from, %{latency_stats: latency_stats} = metrics) do
+      {:reply, latency_stats, metrics}
+    end
+  end
+
+  # A GenServer with no matching handle_call clauses - any call crashes it,
+  # simulating a client process that dies mid-metrics-lookup.
+  defmodule CrashingClient do
+    @moduledoc false
+    use GenServer
+
+    def start_link(_arg \\ nil), do: GenServer.start_link(__MODULE__, :ok)
+
+    @impl true
+    def init(:ok), do: {:ok, :ok}
+  end
+
   setup do
-    # Clean up ETS table before each test
     if :ets.whereis(@table_name) != :undefined do
       :ets.delete(@table_name)
     end
@@ -315,6 +349,71 @@ defmodule ZenWebsocket.PoolRouterTest do
         {:ok, selected} = PoolRouter.select_connection([healthy_pid, unhealthy_pid])
         assert selected == healthy_pid
       end
+    end
+  end
+
+  describe "calculate_health/1 with a live metrics-reporting process" do
+    test "pulls pending_requests and p99 latency from the client and applies the documented formula" do
+      {:ok, pid} =
+        start_supervised(
+          {FakeMetricsClient,
+           %{
+             state_metrics: %{pending_requests_size: 8},
+             latency_stats: %{p99: 50}
+           }}
+        )
+
+      # pending_penalty = min(8 * 10, 40) = 40
+      # latency_penalty = min(div(50, 25), 30) = 2
+      # error_penalty = 0, pressure_penalty = 0
+      # score = 100 - 40 - 2 - 0 - 0 = 58
+      assert PoolRouter.calculate_health(pid) == 58
+    end
+
+    test "caps the pending-requests penalty at 40 points regardless of queue depth" do
+      {:ok, pid} =
+        start_supervised(
+          {FakeMetricsClient,
+           %{
+             state_metrics: %{pending_requests_size: 999},
+             latency_stats: nil
+           }}
+        )
+
+      # pending_penalty = min(999 * 10, 40) = 40, everything else 0
+      assert PoolRouter.calculate_health(pid) == 60
+    end
+
+    test "returns the optimistic default when the client process crashes answering a metrics call" do
+      {:ok, pid} = start_supervised(CrashingClient)
+
+      # get_state_metrics/get_latency_stats hit a process with no matching
+      # handle_call clause, so it crashes mid-call; PoolRouter must catch
+      # that exit and fall back to the optimistic default instead of
+      # propagating the crash or hanging.
+      assert PoolRouter.calculate_health(pid) == 100
+    end
+  end
+
+  describe "error decay expiry" do
+    test "clears an error count once it is older than the decay window" do
+      pid = spawn(fn -> Process.sleep(:infinity) end)
+      on_exit(fn -> Process.exit(pid, :kill) end)
+
+      # Ensure the ETS table exists before writing to it directly (PoolRouter
+      # creates it lazily on first use).
+      :ok = PoolRouter.clear_errors(pid)
+
+      # Seed an already-expired error entry directly (the real decay window
+      # is 60s - too slow to actually sleep through in a test). This drives
+      # get_error_count/1's decay branch deterministically.
+      stale_timestamp = System.monotonic_time(:millisecond) - 61_000
+      :ets.insert(@table_name, {{:error_count, pid}, 5, stale_timestamp})
+
+      # The stale count must not penalize health...
+      assert PoolRouter.calculate_health(pid) == 100
+      # ...and the decayed entry must be cleared from the table as a side effect.
+      assert :ets.lookup(@table_name, {:error_count, pid}) == []
     end
   end
 end

@@ -79,6 +79,25 @@ defmodule ZenWebsocket.RecorderTest do
       assert {:error, _} = Recorder.parse_entry(line)
     end
 
+    test "returns error for an unrecognized direction" do
+      line = ~s({"ts":"2026-01-20T15:30:45.000000Z","dir":"sideways","type":"text","data":"hello"})
+      assert {:error, :invalid_direction} = Recorder.parse_entry(line)
+    end
+
+    test "returns error for an unrecognized frame type" do
+      line = ~s({"ts":"2026-01-20T15:30:45.000000Z","dir":"out","type":"ping","data":"hello"})
+      assert {:error, :invalid_type} = Recorder.parse_entry(line)
+    end
+
+    test "falls back to the raw data when a binary entry has invalid base64" do
+      line = ~s({"ts":"2026-01-20T15:30:45.000000Z","dir":"in","type":"binary","data":"not-base64!","binary":true})
+
+      assert {:ok, entry} = Recorder.parse_entry(line)
+      # Base.decode64/1 fails on this string, so decode_data/1 must fall back
+      # to returning the raw (still-encoded) data instead of crashing.
+      assert entry.data == "not-base64!"
+    end
+
     test "roundtrip: format then parse" do
       timestamp = ~U[2026-01-20 15:30:45.123456Z]
       original_frame = {:text, "test message"}
@@ -149,6 +168,48 @@ defmodule ZenWebsocket.RecorderTest do
     test "returns error for missing file" do
       assert {:error, :enoent} = Recorder.replay("/nonexistent/file.jsonl", fn _ -> :ok end)
     end
+
+    test "skips malformed lines instead of raising or aborting the replay", %{path: path} do
+      content =
+        Enum.join(
+          [
+            ~s({"ts":"2026-01-20T15:30:45.000000Z","dir":"out","type":"text","data":"good-one"}),
+            "this is not json at all",
+            ~s({"ts":"2026-01-20T15:30:46.000000Z","dir":"in","type":"text","data":"good-two"})
+          ],
+          "\n"
+        ) <> "\n"
+
+      File.write!(path, content)
+
+      assert :ok = Recorder.replay(path, fn entry -> send(self(), {:entry, entry}) end)
+
+      # Both valid entries surface around the bad line, and the handler is
+      # never invoked for the malformed one.
+      assert_receive {:entry, %{data: "good-one"}}
+      assert_receive {:entry, %{data: "good-two"}}
+      refute_receive {:entry, _}
+    end
+
+    test "realtime: true delays replay to match the original inter-entry timing", %{path: path} do
+      lines = [
+        ~s({"ts":"2026-01-20T15:30:45.000000Z","dir":"out","type":"text","data":"first"}),
+        ~s({"ts":"2026-01-20T15:30:45.050000Z","dir":"out","type":"text","data":"second"})
+      ]
+
+      File.write!(path, Enum.join(lines, "\n") <> "\n")
+
+      started_at = System.monotonic_time(:millisecond)
+      assert :ok = Recorder.replay(path, fn entry -> send(self(), {:entry, entry}) end, realtime: true)
+      elapsed_ms = System.monotonic_time(:millisecond) - started_at
+
+      assert_receive {:entry, %{data: "first"}}
+      assert_receive {:entry, %{data: "second"}}
+      # The two entries are 50ms apart in their recorded timestamps, so a
+      # realtime replay must take at least that long (a non-realtime replay
+      # would finish in well under 1ms).
+      assert elapsed_ms >= 40
+    end
   end
 
   describe "metadata/1" do
@@ -193,6 +254,28 @@ defmodule ZenWebsocket.RecorderTest do
 
     test "returns error for missing file" do
       assert {:error, :enoent} = Recorder.metadata("/nonexistent/file.jsonl")
+    end
+
+    test "skips blank and malformed lines when counting", %{path: path} do
+      content =
+        Enum.join(
+          [
+            ~s({"ts":"2026-01-20T15:30:45.000000Z","dir":"out","type":"text","data":"one"}),
+            "",
+            "not json",
+            ~s({"ts":"2026-01-20T15:30:46.000000Z","dir":"in","type":"text","data":"two"})
+          ],
+          "\n"
+        ) <> "\n"
+
+      File.write!(path, content)
+
+      assert {:ok, meta} = Recorder.metadata(path)
+      # Only the two well-formed entries are counted; the blank and
+      # malformed lines contribute nothing (and must not crash the count).
+      assert meta.count == 2
+      assert meta.inbound == 1
+      assert meta.outbound == 1
     end
   end
 end

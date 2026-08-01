@@ -1,0 +1,5 @@
+[mcp_servers.tidewave]
+url = "http://localhost:4001/tidewave/mcp"
+
+[mcp_servers.harness]
+url = "http://localhost:4018/harness/mcp"

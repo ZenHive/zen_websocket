@@ -1,0 +1,16 @@
+# GHSA-w4f7-4cxr-rv3c (CVE-2026-43966) — VERIFIED FALSE POSITIVE for gun.
+#
+# The advisory covers two erlang packages with DIFFERENT ranges. Per the GitHub
+# advisories API: cowboy `< 2.16.0` (patched 2.16.0), gun `< 2.4.0`. gun 2.4.0
+# shipped 2026-06-08, the advisory's own disclosure date; latest gun is 2.5.0.
+# There is no gun 2.16.x — the `first patched 2.16.0` shown for gun is cowboy's
+# value duplicated into gun's row upstream at GitHub.
+#
+# The advisory mirror's importer groups by ghsaId ALONE, so both packages collapse
+# into one file `packages/gun/…yml` carrying cowboy's `< 2.16.0` range, and no
+# cowboy file is written at all. mix_audit matches on vulnerable_version_ranges,
+# so gun 2.5.0 matches cowboy's inherited range. Filed: mirego/elixir-security-advisories#8
+#
+# This repo resolves gun 2.5.0 (above gun's real fix) and cowlib 2.19.0.
+# REMOVE this file once the importer fix lands and the mirror splits the advisory.
+GHSA-w4f7-4cxr-rv3c

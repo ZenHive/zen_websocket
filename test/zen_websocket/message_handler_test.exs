@@ -103,6 +103,14 @@ defmodule ZenWebsocket.MessageHandlerTest do
       assert_received :handler_called
     end
 
+    test "uses the default handler when none is given" do
+      unknown_msg = {:some, :message}
+
+      # Calling with arity 1 exercises the \\ &default_handler/1 default clause,
+      # which just returns :ok and never crashes on an arbitrary message.
+      assert {:ok, {:unknown_message, ^unknown_msg}} = MessageHandler.handle_message(unknown_msg)
+    end
+
     test "handles frame decode error" do
       conn_pid = self()
       stream_ref = make_ref()
@@ -197,6 +205,35 @@ defmodule ZenWebsocket.MessageHandlerTest do
       # Test down handling
       handler.({:connection_down, conn_pid, :normal})
       assert_received {:on_down, ^conn_pid, :normal}
+    end
+
+    test "routes :connection_error to on_error with the full tuple" do
+      error_handler = fn reason -> send(self(), {:on_error, reason}) end
+      handler = MessageHandler.create_handler(on_error: error_handler)
+
+      conn_pid = self()
+      stream_ref = make_ref()
+      handler.({:connection_error, conn_pid, stream_ref, :closed})
+
+      assert_received {:on_error, {^conn_pid, ^stream_ref, :closed}}
+    end
+
+    test "routes :unknown_message to on_error with the raw message" do
+      error_handler = fn reason -> send(self(), {:on_error, reason}) end
+      handler = MessageHandler.create_handler(on_error: error_handler)
+
+      handler.({:unknown_message, {:weird, :payload}})
+
+      assert_received {:on_error, {:weird, :payload}}
+    end
+
+    test "routes any other term to on_error via the catch-all clause" do
+      error_handler = fn reason -> send(self(), {:on_error, reason}) end
+      handler = MessageHandler.create_handler(on_error: error_handler)
+
+      handler.(:totally_unexpected)
+
+      assert_received {:on_error, :totally_unexpected}
     end
 
     test "uses default handlers when none provided" do

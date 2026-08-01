@@ -50,41 +50,24 @@ jobs:
 
       - run: mix deps.get
 
-      - name: Compile (warnings as errors)
-        run: mix compile --warnings-as-errors
-
-      - name: Format check
-        run: mix format --check-formatted
-
-      # TODO/FIXME tags are tracked-debt visibility, not regressions — exclude
-      # so harness only fails on real Credo issues (see development-philosophy.md
-      # § "TODO Comment Requirements").
-      - name: Credo (strict, excluding TODO/FIXME design tags)
-        run: mix credo --strict --ignore TagTODO,TagFIXME
-
-      - name: Doctor (--raise overrides .doctor.exs raise=false to gate CI)
-        run: mix doctor --raise
-
-      - name: Sobelow (honors .sobelow-conf, exit=Low)
-        run: mix sobelow
-
-      # Coverage floor: 50% — raw offline figure. NOTE: real core-library coverage
-      # is ~79%; the raw total is diluted by Examples.*/Mix.Tasks.*/Testing.* modules
-      # that are exercised ONLY by :integration tests (excluded in CI — no creds) and
-      # so read ~0% offline. mix.exs already declares these non-production via
-      # `test_coverage: [ignore_modules: …]`, but `mix test.json --cover` does not
-      # honor that (only built-in `mix test --cover` does). Once ex_unit_json honors
-      # the exclusion (tracked task), raise this back to ~80% over core. `test_helper`
-      # excludes `:integration` by default, so no `--exclude integration` needed.
-      - name: Tests + coverage gate (>=50%)
-        run: mix test.json --cover --cover-threshold 50 --summary-only
-
-      # Run in dev (not the job's test env): the dialyzer PLT config in mix.exs
-      # (plt_add_deps: :apps_direct + curated plt_add_apps) is OOM-tuned for the
-      # library call graph. Under MIX_ENV=test, test/support mock servers pull
-      # plug/ranch/cowboy into the analyzed set but not the PLT, yielding false
-      # unknown_function warnings. Dev matches the green Code Quality dialyzer and
-      # the PLT's design intent. (Those deps are `only: :test`, so they can't be
-      # added to plt_add_apps without breaking the dev PLT build.)
-      - name: Dialyzer (dev env — matches library PLT tuning)
-        run: MIX_ENV=dev mix dialyzer
+      # Single deterministic gate: compile / format / credo / doctor / ex_dna /
+      # reach.check (arch+smells) / sobelow --skip / deps.audit.gated /
+      # test.json (coverage >=58%) / dialyzer (forced MIX_ENV=dev inside the
+      # alias — see mix.exs `aliases/0` comment on the PLT OOM tuning) /
+      # agents.check (AGENTS.md freshness). Kept as one `mix ci` invocation so
+      # CI and the local/harness-reviewer gate cannot drift apart again.
+      #
+      # NOTE (2026-08-01): the coverage floor lives solely in mix.exs's
+      # `precommit`/`precommit.full` aliases (see the rationale comment
+      # there) — this workflow has no separate threshold of its own, it just
+      # runs `mix ci`. History: an earlier, undocumented CI-only workaround
+      # pinned this to ~50% (creds-less CI can't exercise `:integration`
+      # tests, which read ~0% offline); a later pass tried raising it to a
+      # blanket 80%, which turned out to have never actually been met by any
+      # run of this alias — it went red unconditionally rather than gating
+      # anything. The alias now pins the *measured* non-integration
+      # coverage (58%, rounded down) as a ratchet floor. Raise it in lockstep
+      # with real coverage growth; never restore a number that isn't
+      # currently met.
+      - name: mix ci
+        run: mix ci

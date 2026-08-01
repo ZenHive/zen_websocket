@@ -23,6 +23,24 @@ defmodule ZenWebsocket.RecorderServerTest do
     test "returns error for invalid path" do
       assert {:error, :enoent} = RecorderServer.start_link("/nonexistent/dir/file.jsonl")
     end
+
+    test "returns the File.open error when the path cannot be opened for writing" do
+      # The parent-directory check in start_link/1 passes (System.tmp_dir!()'s
+      # parent is a real directory), but File.open/2 then fails because the
+      # path itself is a directory, not a file - this exercises init/1's
+      # {:error, reason} -> {:stop, reason} branch. The failed init process is
+      # linked to us, so trap exits to observe the clean {:error, reason}
+      # return instead of crashing this test process.
+      Process.flag(:trap_exit, true)
+
+      assert {:error, :eisdir} = RecorderServer.start_link(System.tmp_dir!())
+
+      receive do
+        {:EXIT, _pid, :eisdir} -> :ok
+      after
+        0 -> :ok
+      end
+    end
   end
 
   describe "record/3" do
@@ -151,6 +169,41 @@ defmodule ZenWebsocket.RecorderServerTest do
       # Content should still be written
       content = File.read!(path)
       assert String.contains?(content, "final message")
+    end
+  end
+
+  describe "scheduled flush" do
+    test "the periodic :scheduled_flush message flushes the buffer to disk", %{path: path} do
+      {:ok, pid} = RecorderServer.start_link(path)
+
+      RecorderServer.record(pid, :out, {:text, "buffered-via-timer"})
+
+      # Wait for the internal record to land in the GenServer's buffer before
+      # driving the timer message directly (skipping the real 1s wait).
+      RecorderServer.stats(pid)
+      send(pid, :scheduled_flush)
+
+      # Give handle_info time to process the message and write to disk.
+      Process.sleep(20)
+
+      content = File.read!(path)
+      assert String.contains?(content, "buffered-via-timer")
+
+      RecorderServer.stop(pid)
+    end
+  end
+
+  describe "unrecognized messages" do
+    test "handle_info ignores unknown messages instead of crashing", %{path: path} do
+      {:ok, pid} = RecorderServer.start_link(path)
+
+      send(pid, :some_unexpected_message)
+
+      # Server must still be alive and responsive afterward.
+      assert Process.alive?(pid)
+      assert %{entries: 0, bytes: 0} = RecorderServer.stats(pid)
+
+      RecorderServer.stop(pid)
     end
   end
 

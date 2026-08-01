@@ -146,5 +146,23 @@ defmodule ZenWebsocket.ConfigTest do
                {"x-api-key", "super-secret"}
              ]
     end
+
+    test "does not add a redacted marker when there are no headers" do
+      config = Config.new!("wss://test.com")
+
+      inspected = inspect(config)
+
+      assert inspected =~ "#ZenWebsocket.Config<"
+      refute inspected =~ "[REDACTED]"
+    end
+
+    test "leaves non-tuple header entries unchanged" do
+      config = Config.new!("wss://test.com", headers: ["not-a-tuple"])
+
+      inspected = inspect(config)
+
+      assert inspected =~ "not-a-tuple"
+      refute inspected =~ "[REDACTED]"
+    end
   end
 end

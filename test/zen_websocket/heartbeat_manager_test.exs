@@ -133,6 +133,43 @@ defmodule ZenWebsocket.HeartbeatManagerTest do
 
       assert result == state
     end
+
+    test "emits round-trip telemetry when a previous heartbeat timestamp exists" do
+      test_pid = self()
+      handler_id = "heartbeat-manager-test-#{System.unique_integer()}"
+
+      :telemetry.attach(
+        handler_id,
+        [:zen_websocket, :heartbeat, :pong],
+        fn event, measurements, metadata, _config ->
+          send(test_pid, {:telemetry, event, measurements, metadata})
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      previous_ts = System.monotonic_time(:millisecond) - 250
+
+      state =
+        build_state(%{
+          heartbeat_config: %{type: :unknown},
+          last_heartbeat_at: previous_ts,
+          heartbeat_failures: 3
+        })
+
+      msg = %{"method" => "heartbeat", "params" => %{"type" => "custom"}}
+
+      result = HeartbeatManager.handle_message(msg, state)
+
+      assert_receive {:telemetry, [:zen_websocket, :heartbeat, :pong], measurements, %{type: "custom"}}
+      # rtt_ms is computed as now - previous_ts, so it must be >= the gap we seeded.
+      assert measurements.rtt_ms >= 250
+
+      assert MapSet.member?(result.active_heartbeats, "custom")
+      assert result.heartbeat_failures == 0
+      assert result.last_heartbeat_at > previous_ts
+    end
   end
 
   describe "send_heartbeat/1" do

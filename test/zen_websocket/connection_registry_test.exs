@@ -9,6 +9,20 @@ defmodule ZenWebsocket.ConnectionRegistryTest do
     :ok
   end
 
+  describe "init/0" do
+    test "is idempotent when the table already exists" do
+      # setup/0 already called init/0 once for this test; calling it again
+      # must hit the "table already exists" branch instead of raising.
+      assert :ok = ConnectionRegistry.init()
+      assert :ok = ConnectionRegistry.init()
+
+      # Table must still be usable afterward (not recreated/corrupted).
+      pid = spawn(fn -> :timer.sleep(100) end)
+      :ok = ConnectionRegistry.register("still-works", pid)
+      assert {:ok, ^pid} = ConnectionRegistry.get("still-works")
+    end
+  end
+
   describe "connection registration" do
     test "register/2 stores connection with monitoring" do
       pid = spawn(fn -> :timer.sleep(1000) end)

@@ -12,5 +12,8 @@
       {:core, :examples},
       {:core, :support}
     ]
-  ]
+  ],
+  # `--smells` is advisory unless strict is set (reach 2.8.2 config.ex ~L351);
+  # this makes every `mix reach.check --arch --smells` invocation gate.
+  smells: [strict: true]
 ]

@@ -1,11 +1,9 @@
 {
   "mcpServers": {
     "tidewave": {
-      "type": "http",
       "url": "http://localhost:4001/tidewave/mcp"
     },
     "harness": {
-      "type": "http",
       "url": "http://localhost:4018/harness/mcp"
     }
   }

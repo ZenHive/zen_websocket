@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-01
+
+### Changed — `{:gun, "~> 2.2"}` → `{:gun, "~> 2.4"}` (breaking for consumers pinned below 2.4)
+
+gun 2.4.0 (2026-06-08) carries the fix for GHSA-w4f7-4cxr-rv3c. Under the old
+`~> 2.2` bound a fresh install could still resolve a vulnerable gun; raising the
+floor makes the fixed version *required* rather than merely permitted.
+
+This is a **minor** bump, not a patch, because narrowing a runtime dependency
+requirement can fail resolution for a consumer pinned to gun 2.2.x or 2.3.x.
+That failure is loud rather than silent, but it is still a compatibility break
+and semver should say so. (The 0.4.3 notes below state that declared bounds were
+unchanged — true for 0.4.3; this release is where they change.)
+
+### Changed — the coverage gate now measures something
+
+`--cover-threshold` was **80** while actual coverage was **54.58%**, so
+`mix precommit` could never pass and CI ran a separate 50% workaround. A floor
+above actual coverage enforces nothing.
+
+Measured before deciding, and the first hypothesis was wrong: the gap is *not*
+an artifact of `--exclude integration`. Integration-inclusive coverage
+(excluding only `external_network`/`stability*`) is **67.67%** — still short of
+80. The floor was unreachable under every run mode.
+
+Coverage was raised first where it was cheap and meaningful — **54.58% →
+58.29%** — then the floor set to the measured value rounded down (**58**) at
+both `cover-threshold` sites. Ratchet it as real coverage grows; never pad it.
+
+New unit tests, all failure-capable rather than line-execution padding: `Config`
+redaction edge cases, `Debug` logging on/off, `ConnectionRegistry` double-init,
+`MessageHandler` routing branches, `PoolRouter` health formula and stale-error
+clearing, `Recorder` malformed-data / corrupt-line / realtime-delay handling,
+`RecorderServer` file-open failure and flush-timer paths, `HeartbeatManager`
+telemetry gating, and `ClientSupervisor.send_balanced/2` failover.
+
+Honest split of the remaining gap: most is genuinely integration-only (live
+Gun/WebSocket paths — 133 `integration` and 25 `external_network` tests of 570),
+plus an `ignore_modules` gap in `ex_unit_json --cover` for `Examples.*` /
+`Mix.Tasks.*`. Only a couple of one-line TOCTOU/IO-error branches are "hard but
+not integration."
+
+### Changed — the quality gates now actually gate
+
+- **`reach.check --smells` was reporting findings and exiting 0.** It raises only
+  when `opts[:strict] || config.smells.strict`, and neither was set. `.reach.exs`
+  now sets `smells: [strict: true]`; findings get fixed, never ignore-listed.
+- **`mix_audit` added and wired.** `deps.audit.gated` proves the advisory
+  database is current *before* auditing — `mix_audit` discards its own sync exit
+  status (mirego/mix_audit#61), so a database that can no longer sync still
+  prints "No vulnerabilities found" and exits 0.
+- **`agents.check`** fails when `AGENTS.md` has drifted from `CLAUDE.md`.
+- **CI invokes `mix ci`** instead of a hand-maintained check list, so the alias
+  and the workflow can no longer drift apart.
+- **MCP config mirrored to all four agent families** (`.cursor/`, `.codex/`,
+  `.grok/`) — a server declared only in `.mcp.json` is invisible to cross-family
+  agents.
+
+`.mix_audit_ignore` carries exactly one entry, GHSA-w4f7-4cxr-rv3c, a verified
+false positive *for gun*: the advisory covers cowboy (`< 2.16.0`) and gun
+(`< 2.4.0`), but the mirror's importer groups by `ghsaId` alone, so both collapse
+into one gun file carrying cowboy's range — and no cowboy file is written at all
+(mirego/elixir-security-advisories#8).
+
 ## [0.4.3] - 2026-07-31
 
 ### Changed — dependency refresh

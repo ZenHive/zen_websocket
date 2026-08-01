@@ -67,14 +67,17 @@ The Phoenix server is always already running. Never run `mix phx.server` via Bas
 
 Every feature MUST have tests, even if the spec doesn't mention them. Unit tests for context functions, integration tests for LiveViews, tests for all CRUD/validations/error cases/edge cases (nil, empty, boundary). A feature without tests is not complete.
 
-## 🚨 AGAINST AN API, INTEGRATION TESTS ARE GROUND TRUTH — KEEP IT REAL
+## 🚨 AGAINST AN API, THE PROVIDER-OWNED CONTRACT IS THE AUTHORITY — KEEP IT REAL
 
-**When writing code against an external API or service, the live endpoint is the only source of truth — not the docs, not your memory of the response shape, not a mock. Hit reality FIRST: explore the live call via Tidewave, then pin the behavior with a tagged integration test. This is not optional.**
+**When writing code against an external API or service, the provider-owned contract is the authority: the live endpoint / observed traffic establishes actual behavior, and the provider's official docs, specs, and SDKs establish intended meaning. Third-party clients, aggregators, wrappers, and reference implementations — including CCXT — are reference material only. Hit the live API FIRST, confront the result against the provider's own semantics, then pin both with a tagged integration test. This is not optional.**
 
 - **Mocks encode your assumptions; the API encodes the truth.** A mock that matches your guess passes green while the real call 400s on a field you misremembered. Observe the real response *before* you mock it — mock only what you've already seen.
 - **Cheap, and a time *saver* — not expensive.** A real call plus one assertion costs less than a debug loop against a wrong mental model. The integration test surfaces the actual error envelope, field names, and edge shapes up front, so the code is right the first time.
 - **Tidewave to explore, integration test to pin.** Use `project_eval` to see the live shape (per "NEVER HIDE TEST FAILURES": don't know what error to expect → explore via Tidewave first), then write the `@moduletag :integration` test that asserts it — helper module, flunk-on-missing-creds, never skip silently (`integration-testing` skill).
 - **No real signal → don't fake one.** Can't reach the API (missing creds, market not live)? Say so and `flunk` loudly per the credentials rule — never paper over it with a mock that ratifies a guess.
+- **Authority boundary is explicit:** live API / observed traffic + provider-owned docs/specs/SDKs > existing code > assumptions. When behavior and documentation disagree, record the discrepancy instead of silently choosing a third-party interpretation. A third-party client may prove compatibility with itself; it can never prove the provider's semantics or override the provider-owned contract.
+- **Observe both sides of the boundary.** Pin at least one real success and one relevant real error, assert domain semantics rather than only status/shape, and exercise stateful setup/cleanup/idempotency where writes are involved.
+- **Verification needs provenance.** A green claim names the independent evaluator and points to durable evidence when available (harness run, CI URL, review artifact); implementer self-report is not independent verification.
 
 ## 🚨 RAISE COVERAGE BEFORE MUTATING
 
@@ -211,7 +214,7 @@ You don't have data either way. The honest framing is: *"I don't know if you'll 
 - Cite **concrete precedents** when scoring complexity (see `development-philosophy.md` "Cite Ecosystem Precedents Before Crying Complexity"). Generic "this could grow" without naming a specific failure pattern is the same hedging by another name.
 - If the task genuinely scores low on benefit/usefulness, score it that way honestly — don't smuggle a demand-speculation into the U/B numbers and pretend it came from analysis.
 
-**Scope extends to task `body` fields and scoring justifications, not just live responses.** Same hedge phrases written into a task's `body` to justify B/U — "table-stakes", "increasingly expected", "now standard", "buyers expect", "competitors are starting to", "modern apps all do" — inflate the score the same way they inflate a response. Required instead: named consumer evidence (named partner asked, named competitor lever, measured conversion uplift) OR honest low score. Enforced at task-creation time by `task-writing.md` § Pre-Creation Gate (question 5).
+**Scope extends to task `body` fields and scoring justifications, not just live responses.** Same hedge phrases written into a task's `body` to justify B/U — "table-stakes", "increasingly expected", "now standard", "buyers expect", "competitors are starting to", "modern apps all do" — inflate the score the same way they inflate a response. Required instead: a concrete named reason — the user asked for it (the developer IS the demand signal), a named technical/legal trigger, a named competitor lever — OR an honest low score. Enforced at task-creation time by `task-writing.md` § Pre-Creation Gate (question 4).
 
 ## Git Commit / Push / PR-Create — Allowed by Default
 
@@ -229,6 +232,27 @@ The only residual caution is the general one for any hard-to-reverse action: **r
 - **Untracked dirs/files you didn't create:** leave them — don't `-u`-stash or `add` them.
 
 The failure mode this guards: you path-scope your *commit* correctly but `git add -A` first, or you stash `-u` to clear a hook and bury another session's staged work. Both corrupt parallel work silently.
+
+## 🚨 NEVER BROADCAST AN UNPATCHED VULNERABILITY IN A COMMITTED FILE
+
+**A committed file is a public file** — `roadmap/tasks.toml`, `ROADMAP.md`, `CHANGELOG.md`, code comments, and commit messages all ride to a repo that is often public (and is permanent in git history even if the repo is private today). **Exploit-actionable detail for a vulnerability that is not yet BOTH fixed AND publicly disclosed must never go into one.** A roadmap task that names the attack mechanism, the precise trigger value, a "this drains the wallet / leaks the key" walkthrough, or an unpublished GHSA/CVE id is a zero-day tip sheet you published yourself — handing every reader a working exploit for the entire window between *filing* and *fixing*.
+
+The rule:
+
+- **Open + undisclosed vuln → the detail stays OUT of git.** Track it where the scanners and reporters already live: **GitHub Security Advisories (private draft)**, a private issue, or a local/encrypted note. Not the public roadmap, not a `TODO:`, not the commit body.
+- **Fixed AND advisory published → fine to reference** (the hole is already public knowledge; describing the fix helps consumers patch). The gate is *both*, not either.
+- **You still need to schedule the work?** File the rmap task with a **sanitized body** — only what's needed to prioritize and route it (`"harden Tempo fee-payer gas bounds — see private advisory <id>"`), never the mechanism, trigger values, or PoC. The exploit recipe lives in the private advisory the task references by id.
+- **During an embargo window**, commit messages and `CHANGELOG` describe the *shape of the fix*, not the hole it closes, until disclosure day.
+
+**How to actually report, track, and disclose — the standing protocol for every repo:**
+
+- **Inbound reports land where you must actively look.** Privately-reported vulns (GitHub Private Vulnerability Reporting) appear ONLY in the repo's **Security → Advisories** tab (`gh api repos/<org>/<repo>/security-advisories`) — NOT in Dependabot, code/secret-scanning alerts, or the notifications inbox. A security sweep that queries the four scanning endpoints but skips `security-advisories` misses every human-reported zero-day. **Always query it**; act on `triage` (new, unreviewed) and `draft` (in-progress) states.
+- **Open vulns — inbound or self-discovered — are tracked in a private draft GitHub Security Advisory**, one per issue. Full detail (mechanism, precise trigger, affected version range, the fix to port, PoC) lives there and **only** there. Create with `gh api repos/<org>/<repo>/security-advisories -X POST` (draft state); the required `vulnerabilities[]` array names the package ecosystem + name + `vulnerable_version_range`. This is the single channel — never a committed file.
+- **Public artifacts carry only the reassuring posture.** A security/parity ledger, roadmap, or `CHANGELOG` shows only ✓ *closed / confirmed-fixed* and 📋 *tracked-as-work* rows; open-gap detail appears at most as a generic count ("N open items tracked privately per `SECURITY.md`"). A public list advertises what you **defend against** — never an enumerated map of your unpatched weaknesses.
+- **Coordinated disclosure on fix:** ship the patch → cut the release → publish the advisory naming the patched version, same day (`SECURITY.md` governs the timeline). Once fixed-and-published, the previously-private detail describes a *closed* vuln — fine to reference, and helps consumers patch. The window to minimize is **filed → fixed**; close it with fix-speed, not with scrubbing.
+- **A forward-only watcher (cron / routine / audit) obeys the same split:** parity-confirmed → ✓ public row; genuine open gap → private draft advisory, never a public task or ledger row.
+
+**Failure mode this prevents:** filing a detailed `"here's the CVE and exactly how to trigger it"` task into a committed public roadmap — the backlog becomes an attacker's to-do list, ranked by how long you've left each hole open. Adding this rule is prevention; a vuln already committed is **already leaked** — redact it now (and treat git history as compromised: rotate/patch on the assumption it was read), don't just delete it going forward.
 
 ## Shell Safety
 
@@ -249,6 +273,10 @@ The failure mode this guards: you path-scope your *commit* correctly but `git ad
 - Most "corrupt cache" issues are transient glitches
 
 Ask before running any destructive command.
+
+## 🚨 NO SCOPE-SEQUENCING QUALIFIERS IN DURABLE ARTIFACTS
+
+**Never write positioning/sequencing qualifiers — "X first", "starting with X", "initially", "for now", "MVP: X" — into durable artifacts:** repo descriptions, READMEs, moduledocs, code comments, config comments, commit messages, vision one-liners. These phrases metastasize (every future session copies them into new files and defends them as intent) and become practically unremovable. Scope sequencing lives in ONE place: the roadmap (milestones, task bodies, `out_of_scope`). Everywhere else, describe what the system IS, not what it will be next: "Coverage: Robinhood Chain tokenized equities" states a fact; "starting with Robinhood Chain" bakes a forecast into the artifact.
 
 ## 🚨 Integrity and Accuracy
 
@@ -332,6 +360,18 @@ mix test.api              # Real API integration tests
 mix test.api --deribit    # Deribit-specific tests
 mix test.performance      # Performance/stress testing
 ```
+
+## Toolchain & check commands
+
+Self-contained so it survives into `AGENTS.md` on regen — cross-family reviewers (codex / cursor / grok) read `AGENTS.md`, not the Claude skill set.
+
+- **Canonical gate:** `mix precommit.full` (alias `mix ci`) — the comprehensive pass the harness reviewer's `check_command` runs and what GitHub CI (`.github/workflows/harness.yml`) invokes directly. Fast local loop: `mix precommit` (skips the cold-PLT dialyzer + deps audit).
+- `mix precommit.full` runs, in order: `compile --warnings-as-errors`, `format --check-formatted`, `credo --strict` (ignoring TODO/FIXME tags), `doctor --raise`, `ex_dna --max-clones 0` (zero-clone budget), `reach.check --arch --smells` (policy in `.reach.exs`), `sobelow --skip`, `deps.audit.gated`, `test.json --cover --cover-threshold 58 --exclude integration` (`MIX_ENV=test`), `dialyzer` (forced `MIX_ENV=dev` — see below), `agents.check`.
+- **The coverage floor is a measured ratchet, not an aspiration.** 58 is the non-integration coverage measured 2026-08-01, rounded down; the previous 80 had never been met by any run and so gated nothing. Raise it in lockstep with real coverage; never pad it.
+- **`mix test.json` (`ex_unit_json`) and `mix dialyzer.json` (`dialyzer_json`) emit JSON by design — this is NOT a build failure.** Parse the JSON for real failures; never flag the envelope itself. Plain `mix dialyzer` is the authoritative dialyzer check when the JSON encoder can't serialize a warning shape.
+- **The gate's dialyzer step forces `MIX_ENV=dev`, not `:test`.** Under `:test`, the test-only mock-server stack (`cowboy`, `plug_cowboy`, `websock`, `x509`, `temp`, `stream_data`) joins this repo's `plt_add_deps: :apps_direct` analyzed set and produces false `unknown_function` warnings against the OOM-tuned PLT (see `defp dialyzer` in `mix.exs`). `preferred_envs` in `def cli` is ignored inside alias steps, so the dev override is an explicit `cmd env MIX_ENV=dev mix dialyzer`.
+- **`reach.check --arch --smells` gates from `.reach.exs`** (`smells: [strict: true]`). Smell findings must be fixed for real, never added to an ignore list.
+- **`deps.audit.gated` proves the local mix_audit advisory mirror is fresh (`bin/advisory-freshness.sh` in `onchain-stack`) before running `mix deps.audit --ignore-file .mix_audit_ignore`** — `mix_audit` discards its own sync exit status (`mirego/mix_audit#61`), so a frozen mirror would otherwise report a false "No vulnerabilities found." `.mix_audit_ignore` carries exactly one verified false positive (GHSA-w4f7-4cxr-rv3c on `gun`); do not add other advisory ids there — a real finding gets reported, never suppressed.
 
 ## Documentation
 
@@ -491,7 +531,7 @@ connect_opts = [
 ## Key Dependencies
 
 ### Core Runtime
-- `gun ~> 2.2` - HTTP/2 and WebSocket client
+- `gun ~> 2.4` - HTTP/2 and WebSocket client (bound requires the GHSA-w4f7-4cxr-rv3c fix, not just permits it)
 - `jason ~> 1.4` - JSON encoding/decoding
 - `telemetry ~> 1.3` - Metrics and monitoring
 
