@@ -216,7 +216,7 @@ defmodule ZenWebsocket.MixProject do
         # honored by ex_unit_json's `--cover`) — raise this number as real
         # coverage grows, never pad it to look higher than what's measured.
         "cmd env MIX_ENV=test mix test.json --quiet --cover --cover-threshold 58 --summary-only --exclude integration",
-        "sobelow --skip"
+        "sobelow --skip --exit low"
       ],
       # Comprehensive gate — the harness reviewer's `check_command` and `mix ci`
       # target.
@@ -227,7 +227,7 @@ defmodule ZenWebsocket.MixProject do
         "doctor --raise",
         "ex_dna --max-clones 0",
         "reach.check --arch --smells",
-        "sobelow --skip",
+        "sobelow --skip --exit low",
         "deps.audit.gated",
         # preferred_envs (cli/0) is ignored inside alias steps — set MIX_ENV explicitly.
         # `mix cmd` runs System.cmd with no shell, so use `env` to apply the assignment.
