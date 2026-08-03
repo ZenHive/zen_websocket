@@ -233,7 +233,16 @@ defmodule ZenWebsocket.MixProject do
         # `mix cmd` runs System.cmd with no shell, so use `env` to apply the assignment.
         # Coverage floor rationale: see the `precommit` alias above — same
         # measured, ratcheted 58% floor, kept in sync with it.
-        "cmd env MIX_ENV=test mix test.json --quiet --cover --cover-threshold 58 --summary-only --exclude integration",
+        #
+        # NO `--summary-only` here, deliberately — unlike the fast `precommit`
+        # alias above. This is the alias CI runs, and `--summary-only` omits the
+        # failure entries from the emitted JSON: run 30740941359 reported
+        # `"failed": 1` and nothing whatsoever about WHICH test, leaving the only
+        # route to the identity "edit the alias and push again". The flag saves
+        # nothing in CI (the log is machine-read, not human-scrolled) and costs
+        # the entire diagnosis. Locally the hooks already print per-file detail,
+        # so `precommit` keeps it.
+        "cmd env MIX_ENV=test mix test.json --quiet --cover --cover-threshold 58 --exclude integration",
         # Dialyzer runs in MIX_ENV=dev, not the canonical bare `dialyzer` step:
         # under :test, the test-only HTTP/mock stack (cowboy, plug_cowboy,
         # websock, x509, temp, stream_data) joins :apps_direct's analyzed set
