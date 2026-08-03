@@ -36,8 +36,7 @@ jobs:
       - id: beam
         uses: erlef/setup-beam@v1
         with:
-          otp-version: "27"
-          elixir-version: "1.18"
+          version-file: .tool-versions
 
       - name: Cache deps & _build
         uses: actions/cache@v6
