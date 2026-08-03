@@ -5,7 +5,8 @@
 #
 # Elixir/OTP come from `.tool-versions` via setup-beam's `version-file`, so CI
 # and local dev resolve one toolchain and cannot silently diverge. Change the
-# toolchain in that file, never here.
+# toolchain in that file, never here. `version-type: strict` is mandatory
+# alongside `version-file` — setup-beam hard-errors without it.
 
 name: Harness
 
@@ -35,6 +36,7 @@ jobs:
         uses: erlef/setup-beam@v1
         with:
           version-file: .tool-versions
+          version-type: strict
 
       - name: Cache deps & _build (covers dialyxir PLT default path)
         uses: actions/cache@v6

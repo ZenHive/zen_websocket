@@ -37,6 +37,7 @@ jobs:
         uses: erlef/setup-beam@v1
         with:
           version-file: .tool-versions
+          version-type: strict
 
       - name: Cache deps & _build
         uses: actions/cache@v6
