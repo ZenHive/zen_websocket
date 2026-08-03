@@ -263,9 +263,17 @@ defmodule ZenWebsocket.PoolRouter do
           end
         end)
 
+      # Both Task.yield/2 and Task.shutdown/2 can return `{:exit, reason}` when
+      # the task process dies (e.g. the metrics call crashes the client and the
+      # exit races the catch, or the task is killed mid-flight). That value is
+      # truthy, so `||` does not fall through to the shutdown branch and an
+      # `{:exit, _}`-shaped result reached the case unmatched — a CaseClauseError
+      # that only surfaced under load, when the 100ms yield actually times out.
+      # Any non-`{:ok, _}` outcome means "metrics unavailable", which is exactly
+      # what the optimistic default encodes.
       case Task.yield(task, @metrics_timeout_ms) || Task.shutdown(task, :brutal_kill) do
         {:ok, metrics} -> metrics
-        nil -> default
+        _ -> default
       end
     else
       default
