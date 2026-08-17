@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-17
+
+### Changed — dependency refresh
+
+- Resolved the published `descripex 0.12.1` patch within the unchanged
+  `~> 0.12.0` runtime requirement.
+- Updated development and analysis tooling: `ex_ast` 0.12.10 → 0.13.1,
+  `sobelow` 0.14.1 → 0.15.0, `tidewave` 0.8.1 → 0.8.4, and transitive
+  `spitfire` 0.3.13 → 0.4.0. The direct dev/test `ex_ast` dependency
+  explicitly overrides Reach 2.8.2's older `~> 0.12.0` declaration.
+
 ## [0.6.0] - 2026-08-01
 
 ### Changed — `{:descripex, "~> 0.11"}` → `{:descripex, "~> 0.12.0"}` (breaking for consumers pinned below 0.12)
