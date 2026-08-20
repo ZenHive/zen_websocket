@@ -5,3 +5,7 @@ enabled = true
 [mcp_servers.harness]
 url = "http://localhost:4018/harness/mcp"
 enabled = true
+
+[mcp_servers.harness_tidewave]
+url = "http://localhost:4018/tidewave/mcp"
+enabled = true

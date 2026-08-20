@@ -5,6 +5,9 @@
     },
     "harness": {
       "url": "http://localhost:4018/harness/mcp"
+    },
+    "harness_tidewave": {
+      "url": "http://localhost:4018/tidewave/mcp"
     }
   }
 }

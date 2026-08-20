@@ -25,6 +25,21 @@ zen_websocket-*.tar
 .elixir_ls/
 # .cursor/*
 
+# Harness writes these into the run worktree at dispatch time (per-run agent
+# rules + Cursor's native rule file). Ephemeral — never commit them.
+/.harness/
+/.cursor/rules/
+
+# Personal, machine-local Claude Code overrides. `.claude/settings.json`
+# (project scope: marketplaces + enabled plugins) IS committed.
+/.claude/settings.local.json
+/.claude/audit/
+/.claude/plans/
+/.claude/research/
+/.claude/reviews/
+/.claude/skill-metrics/
+/.claude/solutions/
+
 # Dialyzer PLT files
 /priv/plts/*.plt
 /priv/plts/*.plt.hash

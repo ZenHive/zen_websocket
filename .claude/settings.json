@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "zenhive": {
+      "source": { "source": "github", "repo": "ZenHive/claude-marketplace" },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": {
+    "elixir@zenhive": true,
+    "elixir-workflows@zenhive": true,
+    "harness@zenhive": true
+  }
+}

@@ -1,6 +1,17 @@
 # CLAUDE.md
 
 @~/.claude/includes/critical-rules.md
+@~/.claude/includes/harness-workflow.md
+
+<!--
+  Selective-load (Opus 4.8): the eager floor is `critical-rules` (hard guardrails
+  that must stay ambient) + `harness-workflow` (implement -> review -> land loop —
+  zen_websocket is a registered harness dispatch target). Everything else is
+  skill-on-demand: `elixir:ex-unit-json`, `elixir:dialyzer-json`,
+  `elixir:zen-websocket`, `elixir:code-style`, `tasks:rmap`,
+  `workflow:git-worktrees`. Re-add an `@`-import here only if Opus is observed
+  failing on that surface.
+-->
 
 ---
 

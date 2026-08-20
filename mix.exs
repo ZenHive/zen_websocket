@@ -269,6 +269,10 @@ defmodule ZenWebsocket.MixProject do
         "deps.audit --ignore-file .mix_audit_ignore"
       ],
       ci: ["precommit.full"],
+      # Stable name the harness reviewer is told to run (`check_command`).
+      # Aliased rather than registered as `mix ci` so the dispatch gate can
+      # diverge from the local one later without re-registering the project.
+      "check.dispatch": ["precommit.full"],
       # Tidewave MCP server for Claude Code integration (non-Phoenix)
       tidewave: [
         "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4001) end)'"
