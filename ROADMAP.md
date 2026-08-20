@@ -49,7 +49,7 @@
 > Managed by `rmap` — source of truth is `roadmap/tasks.toml`. Run `rmap show <id>` for full task detail, `rmap next` to pick the next task.
 
 <!-- FOCUS:BEGIN -->
-**Focus phase:** 1 — Post-v0.4.2 Backlog (1 of 17 done · 0 in progress)
+**Focus phase:** 1 — Post-v0.6.1 Backlog (1 of 14 done · 0 in progress)
 
 **Last shipped:** no recent shipments
 
@@ -59,13 +59,10 @@
 <!-- TASKS:BEGIN phase=1 -->
 | Task | Status | Notes |
 |------|--------|-------|
-| Task R050 | ⬜ | 🎁 **code-quality** · Audit unmatched-handler sites flagged by mix reach.otp [D:3/B:7/U:6 → Eff:2.17?] 🎯 |
-| Task R049 | ⬜ | 🎁 **code-quality** · Collapse repeated state.config field reads in Client [D:2/B:3/U:3 → Eff:1.5?] 🚀 |
-| Task R052 | ⬜ | 🎁 **code-quality** · Flatten Client.connect/2 control flow (dominator depth 22) [D:4/B:5/U:5 → Eff:1.25?] 📋 |
-| Task R051 | ⬜ | 🎁 **code-quality** · Decompose Reconnection.establish_connection/1 (dominator depth 39) [D:5/B:6/U:4 → Eff:1.0?] 📋 |
-| Task R053 | ⬜ | 🎁 **code-quality** · Fix minor code smells surfaced by mix reach.smell [D:1/B:2/U:2 → Eff:2.0?] 🎯 |
-| Task R055 | ⬜ | 🎁 **code-quality** · Extract duplicated Gun connect/reconnect log block in Client [D:2/B:3/U:2 → Eff:1.25?] 📋 |
-| Task R056 | ⬜ | 🎁 **ci** · Make CI coverage gate measure core library only [D:4/B:5/U:5 → Eff:1.25?] 📋 |
+| Task R052 | ⬜ | 🎁 **code-quality** · Flatten Client.connect/2 control flow (dominator depth 22) [D:4/B:5/U:4 → Eff:1.12] 📋 |
+| Task R051 | ⬜ | 🎁 **code-quality** · Decompose Reconnection.establish_connection/1 (dominator depth 39) [D:4/B:6/U:5 → Eff:1.38] 📋 |
+| Task R055 | ⬜ | 🎁 **code-quality** · Extract duplicated Gun connect/reconnect log block in Client [D:2/B:3/U:2 → Eff:1.25] 📋 |
+| Task R056 | ⬜ | 🎁 **ci** · Make CI coverage gate measure core library only [D:4/B:5/U:5 → Eff:1.25] 📋 |
 | Task R054 | ✅ | 🎁 **code-quality** · Deduplicate send_json_rpc/2 across the two Deribit adapters [D:2/B:4/U:4 → Eff:2.0?] 🎯 |
 | Task 1 | ⬜ | 🎁 **code-quality** · Widen JsonRpc.build_request/2 params spec to accept list params [D:1/B:7/U:6 → Eff:6.5?] 🎯 |
 | Task 2 | ⬜ | 🎁 **reconnect** · 🐛 Fix the reconnect state machine and its supervisor-side fallout [D:5/B:10/U:9 → Eff:1.9] 🚀 |
@@ -115,7 +112,12 @@ mix docs                                       # Local docs build
 
 ## Backlog
 
-Tasks below seeded from `mix reach` (1.5) analysis on 2026-04-20. Findings captured in conversation, not stored as an artifact — rerun `mix reach.{otp,hotspots,depth,smell}` to refresh before starting.
+The reach-derived tasks were re-measured on **2026-08-20** against reach **2.8.2** (originally seeded from reach 1.5 on 2026-04-20). The canonical CLI is now five commands — `mix reach.map --depth` / `--hotspots`, `mix reach.check --smells` / `--candidates`, `mix reach.otp` — the old `reach.{hotspots,depth,smell}` tasks no longer exist. Current state on the tree:
+
+- `reach.check --smells` reports **zero** findings, so **R049** and **R053** were removed: their acceptance criteria ("the smell is no longer reported") were satisfied vacuously by the analyzer upgrade while the code stayed unchanged. The patterns are still in the source; nothing gates them and no analyzer backs the tasks any more.
+- `reach.otp` reports **1** potentially-unmatched handler, down from the 8 that seeded **R050**, and that one (`deribit_genserver_adapter.ex:60`) is a verified false positive — `:authenticate` is handled inside the `case {request, state}` of the catch-all `handle_call/3` at :120. R050 removed.
+- **R051** (`Reconnection.establish_connection/1`, depth 39) and **R052** (`Client.connect/2`, depth 22) both reproduce and were rescored; R052's line reference was stale (:228 → :237).
+- **R055**'s ex_dna clone reproduces exactly, including its documented false positive.
 
 ---
 

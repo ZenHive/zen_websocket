@@ -7,7 +7,7 @@ vision = "Production-grade WebSocket client library for Elixir, designed for fin
 phase = 1
 
 [phases.1]
-name = "Post-v0.4.2 Backlog"
+name = "Post-v0.6.1 Backlog"
 order = 1
 status = "pending"
 
@@ -37,66 +37,14 @@ order = 5
 description = "Tests that cannot fail, documentation that describes a library that does not exist, and stated policies contradicted by shipped code"
 
 [[task]]
-id = "R050"
-phase = 1
-bundle = "code-quality"
-status = "pending"
-title = "Audit unmatched-handler sites flagged by mix reach.otp"
-scores = { d = 3, b = 7, u = 6 }
-acceptance_criteria = [
-  "Each of the 8 flagged sites has either (a) a matching handler clause + a test exercising the path, or (b) an inline comment explaining why reach flagged it and why it is safe",
-]
-files_to_modify = [
-  "lib/zen_websocket/client.ex",
-  "lib/zen_websocket/client_supervisor.ex",
-  "lib/zen_websocket/recorder_server.ex",
-  "lib/zen_websocket/examples/deribit_genserver_adapter.ex",
-  "lib/zen_websocket/examples/batch_subscription_manager.ex",
-  "lib/zen_websocket/examples/docs/error_handling.ex",
-]
-assignee = "codex"
-model = "gpt-5.6-sol"
-body = """
-mix reach.otp flags 8 call sites targeting handlers it can't resolve. In a WebSocket client with reconnect and recording paths, an unmatched message is a silent drop — the exact failure mode we cannot afford.
-
-Sites flagged: client.ex:263, client_supervisor.ex:127, recorder_server.ex:102 & 137, examples/deribit_genserver_adapter.ex:59 & 96, examples/batch_subscription_manager.ex:96, examples/docs/error_handling.ex:105.
-
-For each site, determine whether it's a genuine unmatched message (missing handle_call/handle_cast/handle_info clause, or a clause that won't pattern-match the sent shape) or a false positive (dynamic dispatch, cross-module call reach can't resolve). For each genuine miss, add the handler clause and a test that exercises the path. For each false positive, document the pattern so future audits can skip it.
-"""
-scored_at = "2026-04-20"
-depends_on = ["2", "4"]
-
-[[task]]
-id = "R049"
-phase = 1
-bundle = "code-quality"
-status = "pending"
-title = "Collapse repeated state.config field reads in Client"
-scores = { d = 2, b = 3, u = 3 }
-acceptance_criteria = [
-  "mix reach.smell no longer reports the :state.config-called-twice findings in client.ex",
-  "All existing tests pass",
-  "No behavior change",
-]
-out_of_scope = ["Broader state-handling refactors", "Field renames"]
-files_to_modify = ["lib/zen_websocket/client.ex"]
-assignee = "cursor"
-model = "cursor-grok-4.6-high"
-body = """
-mix reach.smell flagged 14+ consecutive identical state.config field accesses in lib/zen_websocket/client.ex (lines 756-817, roughly covering handle_info/2 and nearby clauses). Destructure once at clause entry (%{config: cfg} = state) or use a `with` binding. Touch only the flagged ranges.
-"""
-scored_at = "2026-04-20"
-depends_on = ["2"]
-
-[[task]]
 id = "R052"
 phase = 1
 bundle = "code-quality"
 status = "pending"
 title = "Flatten Client.connect/2 control flow (dominator depth 22)"
-scores = { d = 4, b = 5, u = 5 }
+scores = { d = 4, b = 5, u = 4 }
 acceptance_criteria = [
-  "Depth reduced meaningfully (target <15)",
+  "Depth reduced meaningfully (target <15), measured with mix reach.map --depth",
   "Behavior preserved — all integration and mock-server tests still pass",
   "No new Dialyzer warnings",
 ]
@@ -105,11 +53,13 @@ files_to_modify = ["lib/zen_websocket/client.ex"]
 assignee = "cursor"
 model = "cursor-grok-4.6-high"
 body = """
-mix reach.depth reports ZenWebsocket.Client.connect/2 at dominator depth 22 (branches=4, callers=2). It's the public entry point — high cyclomatic complexity here hurts both testability and the mental model for new adapter authors.
+mix reach.map --depth reports ZenWebsocket.Client.connect/2 at dominator depth 22, branches=5, at lib/zen_websocket/client.ex:237. It's the public entry point — high control-flow nesting here hurts both testability and the mental model for new adapter authors.
 
-Investigate the function at lib/zen_websocket/client.ex:228. Determine whether the depth comes from legitimate branching (protocol negotiation, config validation, transport selection) or from accumulated conditionals that can be extracted into small helpers or a `with` pipeline. Match the style already used in the rest of the module.
+Determine whether the depth comes from legitimate branching (protocol negotiation, config validation, transport selection) or from accumulated conditionals that can be extracted into small helpers or a `with` pipeline. Match the style already used in the rest of the module. reach also lists this function as refactoring candidate R2-002 (isolate effects, mixed pure/effectful) — advisory, not a mandate.
+
+RE-MEASURED 2026-08-20 on reach 2.8.2 (originally seeded from reach 1.5 on 2026-04-20). Depth is unchanged at 22 but branches grew 4 -> 5 and the definition moved from :228 to :237, so the original line reference was stale. U dropped 5 -> 4: task 2 rewrites the surrounding connect/reconnect clauses first, and a future client.ex decomposition would absorb most of this — flattening connect/2 in isolation buys less than it did in April.
 """
-scored_at = "2026-04-20"
+scored_at = "2026-08-20"
 depends_on = ["2"]
 
 [[task]]
@@ -118,10 +68,11 @@ phase = 1
 bundle = "code-quality"
 status = "pending"
 title = "Decompose Reconnection.establish_connection/1 (dominator depth 39)"
-scores = { d = 5, b = 6, u = 4 }
+scores = { d = 4, b = 6, u = 5 }
 acceptance_criteria = [
-  "Depth reduced to <20",
+  "Depth reduced to <20, measured with mix reach.map --depth",
   "Existing reconnection regression tests (R033, R036) pass unchanged",
+  "The task-2 regression tests for the reconnect state machine pass unchanged",
   "No new Dialyzer warnings",
   "Existing telemetry events preserved",
   "Existing retry/backoff semantics preserved",
@@ -131,35 +82,14 @@ files_to_modify = ["lib/zen_websocket/reconnection.ex"]
 assignee = "codex"
 model = "gpt-5.6-sol"
 body = """
-mix reach.depth reports ZenWebsocket.Reconnection.establish_connection/1 at dominator depth 39 — the deepest function in the codebase by a wide margin. Reconnection logic is the most failure-prone area of any WebSocket client; depth here makes the "what happens when X fails halfway through?" question hard to answer.
+mix reach.map --depth reports ZenWebsocket.Reconnection.establish_connection/1 at dominator depth 39, branches=4, at lib/zen_websocket/reconnection.ex:50 — still the deepest function in the codebase by a wide margin (next is Client.handle_continue/2 at 25). It is also reach's top hotspot (score=4). One function carries most of a 206-line module. Reconnection logic is the most failure-prone area of any WebSocket client; depth here makes the "what happens when X fails halfway through?" question hard to answer.
 
-Investigate lib/zen_websocket/reconnection.ex:50. The function almost certainly chains several phases (open transport → upgrade → authenticate → resubscribe → restore state). Extract each phase into a named helper with a clear error-return type. A `with` pipeline or an explicit phase-list reducer both work — pick what reads better against the existing codebase style.
+The function chains several phases (open transport -> upgrade -> authenticate -> resubscribe -> restore state). Extract each phase into a named helper with a clear error-return type. A `with` pipeline or an explicit phase-list reducer both work — pick what reads better against the existing codebase style.
+
+RE-MEASURED 2026-08-20 on reach 2.8.2 (originally seeded from reach 1.5 on 2026-04-20). Depth is unchanged at 39, so the finding survived two major analyzer versions. D dropped 5 -> 4 and U rose 4 -> 5 because this now runs AFTER task 2: that task lands the reconnect regression suite, which turns a blind restructuring into one with a real safety net.
 """
-scored_at = "2026-04-20"
+scored_at = "2026-08-20"
 depends_on = ["2"]
-
-[[task]]
-id = "R053"
-phase = 1
-bundle = "code-quality"
-status = "pending"
-title = "Fix minor code smells surfaced by mix reach.smell"
-scores = { d = 1, b = 2, u = 2 }
-acceptance_criteria = [
-  "Each flagged site is either resolved or has a comment noting why the duplication is intentional",
-  "Existing tests pass",
-]
-assignee = "grok"
-model = "grok-4.6"
-body = """
-One-off cleanups flagged by mix reach.smell:
-- lib/mix/tasks/zen_websocket.usage.ex:182-183 — Enum.map |> Enum.map fusion
-- lib/zen_websocket/examples/deribit_genserver_adapter.ex:204 — state.subscriptions read twice; bind once
-- lib/zen_websocket/pool_router.ex:233 — duplicate module-attribute read
-- lib/zen_websocket/testing/server.ex:96 — duplicate module-attribute read
-- lib/zen_websocket/examples/usage_patterns.ex:78 — client.server_pid read twice
-"""
-scored_at = "2026-04-20"
 
 [[task]]
 id = "R055"
@@ -177,11 +107,15 @@ files_to_modify = ["lib/zen_websocket/client.ex"]
 assignee = "grok"
 model = "grok-4.6"
 body = """
-mix ex_dna --literal-mode abstract finds an 18-line Debug.log block duplicated at lib/zen_websocket/client.ex:598 and :640. The only differences are four log prefix strings — one branch logs "Gun connection established", the other "Gun reconnection successful", etc. Extract a helper that takes the four labels as arguments.
+mix ex_dna --literal-mode abstract finds a 29-node Debug.log block duplicated at lib/zen_websocket/client.ex:598 and :640. The only differences are four log prefix strings — one branch logs "Gun connection established", the other "Gun reconnection successful", etc. Extract a helper that takes the four labels as arguments.
 
 NOTE: ex_dna's second abstract-mode hit (heartbeat_manager.ex:76 vs subscription_manager.ex:140) is a FALSE POSITIVE — both sites use descripex's api() macro, whose structural similarity is by design. Do not collapse those.
+
+NOTE ON THE GATE: mix precommit.full runs `ex_dna --max-clones 0` WITHOUT `--literal-mode abstract`, and in default literal mode the project reports zero clones. So this clone is real but ungated — a green `mix ci` is not evidence it is gone. Verify with the abstract-mode command explicitly.
+
+RE-MEASURED 2026-08-20: both the clone and the documented false positive reproduce exactly as written on the current tree. Scores unchanged.
 """
-scored_at = "2026-04-20"
+scored_at = "2026-08-20"
 depends_on = ["2"]
 
 [[task]]
@@ -191,18 +125,21 @@ bundle = "ci"
 status = "pending"
 title = "Make CI coverage gate measure core library only"
 scores = { d = 4, b = 5, u = 5 }
-scored_at = "2026-04-20"
-files_to_modify = [".github/workflows/harness.yml", "mix.exs"]
-out_of_scope = ["Adding tests to inflate the diluted number", "Removing the example/CLI modules"]
+scored_at = "2026-08-20"
+files_to_modify = ["mix.exs"]
+out_of_scope = ["Adding tests to inflate the diluted number", "Removing the example/CLI modules", "Editing .github/workflows/harness.yml — it deliberately carries no threshold of its own"]
 acceptance_criteria = [
   "mix test.json --cover excludes the modules listed in mix.exs ignore_modules (or an equivalent core-only filter)",
-  "harness.yml coverage floor raised back to ~80% over core",
-  "Harness CI green",
+  "The --cover-threshold in the mix.exs precommit/precommit.full aliases is raised to the measured core-only coverage, rounded down",
+  "The new floor is demonstrated to pass on a clean run and to fail when a covered module loses coverage",
+  "mix ci green",
 ]
 body = """
-The Harness CI coverage gate (.github/workflows/harness.yml) measures raw offline coverage at ~55%, but real core-library coverage is ~79%. The gap is Examples.* / Mix.Tasks.* / Testing.* modules exercised ONLY by :integration tests (excluded in CI — no Deribit creds), so they read ~0% offline and drag the total down. mix.exs already declares these non-production via test_coverage: [ignore_modules: …], but mix test.json --cover (ex_unit_json) does not honor that list — only built-in mix test --cover does. As a stopgap the CI floor was lowered to 50%.
+mix precommit / precommit.full gate on `mix test.json --cover --cover-threshold 58 --exclude integration`, which measures raw offline coverage. Real core-library coverage is substantially higher. The gap is Examples.* / Mix.Tasks.* / Testing.* modules exercised ONLY by :integration tests (excluded offline — no Deribit creds), so they read ~0% and drag the total down. mix.exs:19-25 already declares these non-production via `test_coverage: [ignore_modules: [...]]`, but `mix test.json --cover` (ex_unit_json 0.6.0) does not honor that list — only built-in `mix test --cover` does.
 
-Make the gate measure core only, then restore the floor to ~80%. Investigate whether ex_unit_json supports a coverage-exclusion mechanism (config or flag); if not, file/contribute upstream so mix test.json --cover honors :test_coverage ignore_modules. Alternatively, gate coverage on a core-only module filter.
+Make the gate measure core only, then raise the floor to whatever core-only coverage actually measures. Investigate whether ex_unit_json supports a coverage-exclusion mechanism (config or flag); if not, file/contribute upstream so `mix test.json --cover` honors `:test_coverage` ignore_modules. Alternatively, gate coverage on a core-only module filter.
+
+PREMISE CORRECTED 2026-08-20. Two facts in the original body were stale: (a) the floor is 58, not the "50% stopgap" it said — it was re-derived on 2026-08-01 as a measured ratchet (see the rationale comment above the alias in mix.exs); (b) the floor lives solely in the mix.exs aliases, NOT in .github/workflows/harness.yml, which explicitly documents that it has no threshold of its own and just invokes `mix ci`. Do not restore a specific target number like "~80%" — measure first, then set the floor to the measured value rounded down, per the ratchet rule the repo already follows. Re-verified 2026-08-20 that ex_unit_json still ignores :test_coverage ignore_modules, so the task is genuinely open.
 """
 
 [[task]]
