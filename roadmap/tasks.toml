@@ -28,7 +28,9 @@ bundle = "code-quality"
 status = "pending"
 title = "Audit unmatched-handler sites flagged by mix reach.otp"
 scores = { d = 3, b = 7, u = 6 }
-scored_at = "2026-04-20"
+acceptance_criteria = [
+  "Each of the 8 flagged sites has either (a) a matching handler clause + a test exercising the path, or (b) an inline comment explaining why reach flagged it and why it is safe",
+]
 files_to_modify = [
   "lib/zen_websocket/client.ex",
   "lib/zen_websocket/client_supervisor.ex",
@@ -37,9 +39,8 @@ files_to_modify = [
   "lib/zen_websocket/examples/batch_subscription_manager.ex",
   "lib/zen_websocket/examples/docs/error_handling.ex",
 ]
-acceptance_criteria = [
-  "Each of the 8 flagged sites has either (a) a matching handler clause + a test exercising the path, or (b) an inline comment explaining why reach flagged it and why it is safe",
-]
+assignee = "codex"
+model = "gpt-5.6-sol"
 body = """
 mix reach.otp flags 8 call sites targeting handlers it can't resolve. In a WebSocket client with reconnect and recording paths, an unmatched message is a silent drop — the exact failure mode we cannot afford.
 
@@ -47,6 +48,7 @@ Sites flagged: client.ex:263, client_supervisor.ex:127, recorder_server.ex:102 &
 
 For each site, determine whether it's a genuine unmatched message (missing handle_call/handle_cast/handle_info clause, or a clause that won't pattern-match the sent shape) or a false positive (dynamic dispatch, cross-module call reach can't resolve). For each genuine miss, add the handler clause and a test that exercises the path. For each false positive, document the pattern so future audits can skip it.
 """
+scored_at = "2026-04-20"
 
 [[task]]
 id = "R049"
@@ -55,17 +57,19 @@ bundle = "code-quality"
 status = "pending"
 title = "Collapse repeated state.config field reads in Client"
 scores = { d = 2, b = 3, u = 3 }
-scored_at = "2026-04-20"
-files_to_modify = ["lib/zen_websocket/client.ex"]
-out_of_scope = ["Broader state-handling refactors", "Field renames"]
 acceptance_criteria = [
   "mix reach.smell no longer reports the :state.config-called-twice findings in client.ex",
   "All existing tests pass",
   "No behavior change",
 ]
+out_of_scope = ["Broader state-handling refactors", "Field renames"]
+files_to_modify = ["lib/zen_websocket/client.ex"]
+assignee = "cursor"
+model = "cursor-grok-4.6-high"
 body = """
 mix reach.smell flagged 14+ consecutive identical state.config field accesses in lib/zen_websocket/client.ex (lines 756-817, roughly covering handle_info/2 and nearby clauses). Destructure once at clause entry (%{config: cfg} = state) or use a `with` binding. Touch only the flagged ranges.
 """
+scored_at = "2026-04-20"
 
 [[task]]
 id = "R052"
@@ -74,19 +78,21 @@ bundle = "code-quality"
 status = "pending"
 title = "Flatten Client.connect/2 control flow (dominator depth 22)"
 scores = { d = 4, b = 5, u = 5 }
-scored_at = "2026-04-20"
-files_to_modify = ["lib/zen_websocket/client.ex"]
-out_of_scope = ["Changing the public signature", "Altering error return shapes", "Restructuring callers"]
 acceptance_criteria = [
   "Depth reduced meaningfully (target <15)",
   "Behavior preserved — all integration and mock-server tests still pass",
   "No new Dialyzer warnings",
 ]
+out_of_scope = ["Changing the public signature", "Altering error return shapes", "Restructuring callers"]
+files_to_modify = ["lib/zen_websocket/client.ex"]
+assignee = "cursor"
+model = "cursor-grok-4.6-high"
 body = """
 mix reach.depth reports ZenWebsocket.Client.connect/2 at dominator depth 22 (branches=4, callers=2). It's the public entry point — high cyclomatic complexity here hurts both testability and the mental model for new adapter authors.
 
 Investigate the function at lib/zen_websocket/client.ex:228. Determine whether the depth comes from legitimate branching (protocol negotiation, config validation, transport selection) or from accumulated conditionals that can be extracted into small helpers or a `with` pipeline. Match the style already used in the rest of the module.
 """
+scored_at = "2026-04-20"
 
 [[task]]
 id = "R051"
@@ -95,9 +101,6 @@ bundle = "code-quality"
 status = "pending"
 title = "Decompose Reconnection.establish_connection/1 (dominator depth 39)"
 scores = { d = 5, b = 6, u = 4 }
-scored_at = "2026-04-20"
-files_to_modify = ["lib/zen_websocket/reconnection.ex"]
-out_of_scope = ["Changing the public return shape", "Altering retry/backoff semantics or telemetry events"]
 acceptance_criteria = [
   "Depth reduced to <20",
   "Existing reconnection regression tests (R033, R036) pass unchanged",
@@ -105,11 +108,16 @@ acceptance_criteria = [
   "Existing telemetry events preserved",
   "Existing retry/backoff semantics preserved",
 ]
+out_of_scope = ["Changing the public return shape", "Altering retry/backoff semantics or telemetry events"]
+files_to_modify = ["lib/zen_websocket/reconnection.ex"]
+assignee = "codex"
+model = "gpt-5.6-sol"
 body = """
 mix reach.depth reports ZenWebsocket.Reconnection.establish_connection/1 at dominator depth 39 — the deepest function in the codebase by a wide margin. Reconnection logic is the most failure-prone area of any WebSocket client; depth here makes the "what happens when X fails halfway through?" question hard to answer.
 
 Investigate lib/zen_websocket/reconnection.ex:50. The function almost certainly chains several phases (open transport → upgrade → authenticate → resubscribe → restore state). Extract each phase into a named helper with a clear error-return type. A `with` pipeline or an explicit phase-list reducer both work — pick what reads better against the existing codebase style.
 """
+scored_at = "2026-04-20"
 
 [[task]]
 id = "R053"
@@ -118,11 +126,12 @@ bundle = "code-quality"
 status = "pending"
 title = "Fix minor code smells surfaced by mix reach.smell"
 scores = { d = 1, b = 2, u = 2 }
-scored_at = "2026-04-20"
 acceptance_criteria = [
   "Each flagged site is either resolved or has a comment noting why the duplication is intentional",
   "Existing tests pass",
 ]
+assignee = "grok"
+model = "grok-4.6"
 body = """
 One-off cleanups flagged by mix reach.smell:
 - lib/mix/tasks/zen_websocket.usage.ex:182-183 — Enum.map |> Enum.map fusion
@@ -131,6 +140,7 @@ One-off cleanups flagged by mix reach.smell:
 - lib/zen_websocket/testing/server.ex:96 — duplicate module-attribute read
 - lib/zen_websocket/examples/usage_patterns.ex:78 — client.server_pid read twice
 """
+scored_at = "2026-04-20"
 
 [[task]]
 id = "R055"
@@ -139,18 +149,20 @@ bundle = "code-quality"
 status = "pending"
 title = "Extract duplicated Gun connect/reconnect log block in Client"
 scores = { d = 2, b = 3, u = 2 }
-scored_at = "2026-04-20"
-files_to_modify = ["lib/zen_websocket/client.ex"]
 acceptance_criteria = [
   "mix ex_dna --literal-mode abstract no longer reports the client.ex:598/640 clone",
   "All existing tests pass",
   "No behavior change",
 ]
+files_to_modify = ["lib/zen_websocket/client.ex"]
+assignee = "grok"
+model = "grok-4.6"
 body = """
 mix ex_dna --literal-mode abstract finds an 18-line Debug.log block duplicated at lib/zen_websocket/client.ex:598 and :640. The only differences are four log prefix strings — one branch logs "Gun connection established", the other "Gun reconnection successful", etc. Extract a helper that takes the four labels as arguments.
 
 NOTE: ex_dna's second abstract-mode hit (heartbeat_manager.ex:76 vs subscription_manager.ex:140) is a FALSE POSITIVE — both sites use descripex's api() macro, whose structural similarity is by design. Do not collapse those.
 """
+scored_at = "2026-04-20"
 
 [[task]]
 id = "R056"
@@ -201,6 +213,8 @@ title = "Widen JsonRpc.build_request/2 params spec to accept list params"
 scores = { d = 1, b = 7, u = 6 }
 acceptance_criteria = ["build_request/2 spec accepts list params without dialyzer contract violations", "A dialyzer-checked test or example exercises list params (Ethereum-style) and map params (Deribit-style)", "Downstream consumers (onchain Onchain.Subscription, blockwatch LiveTransferSubscriber) can remove their @dialyzer suppressions against this cascade"]
 files_to_modify = ["lib/zen_websocket/json_rpc.ex"]
+assignee = "codex"
+model = "gpt-5.6-sol"
 body = """@spec build_request(String.t(), map() | nil) :: {:ok, map()} is narrower than the implementation, which accepts any params term and always returns {:ok, map}. Ethereum JSON-RPC consumers pass LIST params (e.g. onchain calls it with ["newHeads"], ["logs", filter], [subscription_id]), so dialyzer concludes every such call violates the contract and poisons success typings downstream: onchain carries an UPSTREAM(zen_websocket) comment plus @dialyzer suppressions in Onchain.Subscription, and blockwatch had to mirror the suppression in its own subscriber (false 'can never match {:ok, _}' at every Subscription.subscribe call site). Widen the params type to what the body actually accepts (term(), or list() | map() | nil), keeping the {:ok, map()} return. After release, drop the suppressions in onchain and blockwatch."""
 created_at = "2026-07-13"
 scored_at = "2026-07-13"

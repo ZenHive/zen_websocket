@@ -43,6 +43,8 @@
       "unlocks": 0,
       "markers": [],
       "depends_on": [],
+      "assignee": "codex",
+      "model": "gpt-5.6-sol",
       "acceptance_criteria": [
         "Each of the 8 flagged sites has either (a) a matching handler clause + a test exercising the path, or (b) an inline comment explaining why reach flagged it and why it is safe"
       ],
@@ -74,6 +76,8 @@
       "unlocks": 0,
       "markers": [],
       "depends_on": [],
+      "assignee": "cursor",
+      "model": "cursor-grok-4.6-high",
       "acceptance_criteria": [
         "mix reach.smell no longer reports the :state.config-called-twice findings in client.ex",
         "All existing tests pass",
@@ -106,6 +110,8 @@
       "unlocks": 0,
       "markers": [],
       "depends_on": [],
+      "assignee": "cursor",
+      "model": "cursor-grok-4.6-high",
       "acceptance_criteria": [
         "Depth reduced meaningfully (target <15)",
         "Behavior preserved — all integration and mock-server tests still pass",
@@ -139,6 +145,8 @@
       "unlocks": 0,
       "markers": [],
       "depends_on": [],
+      "assignee": "codex",
+      "model": "gpt-5.6-sol",
       "acceptance_criteria": [
         "Depth reduced to <20",
         "Existing reconnection regression tests (R033, R036) pass unchanged",
@@ -173,6 +181,8 @@
       "unlocks": 0,
       "markers": [],
       "depends_on": [],
+      "assignee": "grok",
+      "model": "grok-4.6",
       "acceptance_criteria": [
         "Each flagged site is either resolved or has a comment noting why the duplication is intentional",
         "Existing tests pass"
@@ -197,6 +207,8 @@
       "unlocks": 0,
       "markers": [],
       "depends_on": [],
+      "assignee": "grok",
+      "model": "grok-4.6",
       "acceptance_criteria": [
         "mix ex_dna --literal-mode abstract no longer reports the client.ex:598/640 clone",
         "All existing tests pass",
@@ -287,6 +299,8 @@
       "unlocks": 0,
       "markers": [],
       "depends_on": [],
+      "assignee": "codex",
+      "model": "gpt-5.6-sol",
       "acceptance_criteria": [
         "build_request/2 spec accepts list params without dialyzer contract violations",
         "A dialyzer-checked test or example exercises list params (Ethereum-style) and map params (Deribit-style)",
