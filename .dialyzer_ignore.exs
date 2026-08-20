@@ -5,7 +5,6 @@
   # https://github.com/elixir-lang/elixir/issues/9078
   {"lib/zen_websocket/subscription_manager.ex", :contract_with_opaque},
   # Mix.Task callback warnings are a known dialyzer issue
-  {"lib/mix/tasks/stability_test.ex", :callback_info_missing},
   {"lib/mix/tasks/zen_websocket.usage.ex", :callback_info_missing},
   {"lib/mix/tasks/zen_websocket.validate_usage.ex", :callback_info_missing},
   # Mix module functions are not available during Dialyzer analysis

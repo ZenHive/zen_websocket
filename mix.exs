@@ -47,7 +47,6 @@ defmodule ZenWebsocket.MixProject do
           "docs/guides/deployment_considerations.md",
           "docs/architecture/reconnection.md",
           "docs/gun_integration.md",
-          "docs/stability_testing.md",
           "docs/supervision_strategy.md"
         ],
         groups_for_extras: [
@@ -63,8 +62,7 @@ defmodule ZenWebsocket.MixProject do
             "docs/architecture/reconnection.md",
             "docs/gun_integration.md",
             "docs/supervision_strategy.md"
-          ],
-          Testing: ["docs/stability_testing.md"]
+          ]
         ],
         source_url: "https://github.com/ZenHive/zen_websocket",
         source_ref: "v#{@version}"
