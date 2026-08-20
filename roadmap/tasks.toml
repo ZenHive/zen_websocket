@@ -21,6 +21,21 @@ phase = 1
 order = 2
 description = "CI coverage measurement and gating"
 
+[bundles.reconnect]
+phase = 1
+order = 3
+description = "Reconnect state machine correctness — the retry_count/backoff path and the supervisor-side fallout of abnormal Client termination"
+
+[bundles.correctness]
+phase = 1
+order = 4
+description = "Defects on paths the mix precommit.full gate structurally cannot see: races, always-true guards, discarded requests, metrics pinned to a constant"
+
+[bundles.hygiene]
+phase = 1
+order = 5
+description = "Tests that cannot fail, documentation that describes a library that does not exist, and stated policies contradicted by shipped code"
+
 [[task]]
 id = "R050"
 phase = 1
@@ -49,6 +64,7 @@ Sites flagged: client.ex:263, client_supervisor.ex:127, recorder_server.ex:102 &
 For each site, determine whether it's a genuine unmatched message (missing handle_call/handle_cast/handle_info clause, or a clause that won't pattern-match the sent shape) or a false positive (dynamic dispatch, cross-module call reach can't resolve). For each genuine miss, add the handler clause and a test that exercises the path. For each false positive, document the pattern so future audits can skip it.
 """
 scored_at = "2026-04-20"
+depends_on = ["2", "4"]
 
 [[task]]
 id = "R049"
@@ -70,6 +86,7 @@ body = """
 mix reach.smell flagged 14+ consecutive identical state.config field accesses in lib/zen_websocket/client.ex (lines 756-817, roughly covering handle_info/2 and nearby clauses). Destructure once at clause entry (%{config: cfg} = state) or use a `with` binding. Touch only the flagged ranges.
 """
 scored_at = "2026-04-20"
+depends_on = ["2"]
 
 [[task]]
 id = "R052"
@@ -93,6 +110,7 @@ mix reach.depth reports ZenWebsocket.Client.connect/2 at dominator depth 22 (bra
 Investigate the function at lib/zen_websocket/client.ex:228. Determine whether the depth comes from legitimate branching (protocol negotiation, config validation, transport selection) or from accumulated conditionals that can be extracted into small helpers or a `with` pipeline. Match the style already used in the rest of the module.
 """
 scored_at = "2026-04-20"
+depends_on = ["2"]
 
 [[task]]
 id = "R051"
@@ -118,6 +136,7 @@ mix reach.depth reports ZenWebsocket.Reconnection.establish_connection/1 at domi
 Investigate lib/zen_websocket/reconnection.ex:50. The function almost certainly chains several phases (open transport → upgrade → authenticate → resubscribe → restore state). Extract each phase into a named helper with a clear error-return type. A `with` pipeline or an explicit phase-list reducer both work — pick what reads better against the existing codebase style.
 """
 scored_at = "2026-04-20"
+depends_on = ["2"]
 
 [[task]]
 id = "R053"
@@ -163,6 +182,7 @@ mix ex_dna --literal-mode abstract finds an 18-line Debug.log block duplicated a
 NOTE: ex_dna's second abstract-mode hit (heartbeat_manager.ex:76 vs subscription_manager.ex:140) is a FALSE POSITIVE — both sites use descripex's api() macro, whose structural similarity is by design. Do not collapse those.
 """
 scored_at = "2026-04-20"
+depends_on = ["2"]
 
 [[task]]
 id = "R056"
@@ -218,3 +238,220 @@ model = "gpt-5.6-sol"
 body = """@spec build_request(String.t(), map() | nil) :: {:ok, map()} is narrower than the implementation, which accepts any params term and always returns {:ok, map}. Ethereum JSON-RPC consumers pass LIST params (e.g. onchain calls it with ["newHeads"], ["logs", filter], [subscription_id]), so dialyzer concludes every such call violates the contract and poisons success typings downstream: onchain carries an UPSTREAM(zen_websocket) comment plus @dialyzer suppressions in Onchain.Subscription, and blockwatch had to mirror the suppression in its own subscriber (false 'can never match {:ok, _}' at every Subscription.subscribe call site). Widen the params type to what the body actually accepts (term(), or list() | map() | nil), keeping the {:ok, map()} return. After release, drop the suppressions in onchain and blockwatch."""
 created_at = "2026-07-13"
 scored_at = "2026-07-13"
+
+[[task]]
+id = "2"
+phase = 1
+bundle = "reconnect"
+status = "pending"
+title = "Fix the reconnect state machine and its supervisor-side fallout"
+scores = { d = 5, b = 10, u = 9 }
+markers = ["bug"]
+acceptance_criteria = ["A regression test drives the TCP-connects-but-101-never-arrives case and is demonstrated to FAIL against current main before the state machine is touched", "Under that test the client stops after config.retry_count attempts instead of retrying forever, and successive attempts are separated by the configured backoff", "Each connection attempt's timeout timer carries an attempt identity and is cancelled when that attempt resolves; a stale timer from attempt N cannot terminate attempt N+1", "connect/2 against an unresolvable host returns the underlying reason (e.g. :nxdomain) without blocking for the full configured timeout", "Client.connect/2 and the ClientSupervisor connect path return {:error, reason} instead of exiting the caller when the client terminates with :max_reconnection_attempts, asserted by a test that checks the caller survives", "ClientSupervisor.list_clients/0 and send_balanced/2 tolerate a child reported as :restarting without raising ArgumentError", "mix precommit.full green"]
+out_of_scope = ["Decomposing client.ex into smaller modules — that is a separate refactor and must not ride along", "Changing the public Client API surface", "Reworking heartbeat or subscription restore beyond what the timer fix requires"]
+files_to_modify = ["lib/zen_websocket/client.ex", "lib/zen_websocket/client_supervisor.ex", "lib/zen_websocket/reconnection.ex", "test/zen_websocket/client_reconnect_test.exs"]
+assignee = "cursor"
+model = "cursor-grok-4.6-xhigh"
+body = """
+Four defects on the same connect/reconnect clauses. Fix them as one change — splitting them means four agents rewriting the same function bodies.
+
+1. UNBOUNDED, BACKOFF-FREE RECONNECT when TCP connects but the WebSocket upgrade never completes. `retry_count` is incremented ONLY in the `{:error, _}` branch of `handle_continue(:reconnect)` (client.ex:665), and `Reconnection.max_retries_exceeded?/2` is consulted ONLY in `handle_info(:retry_reconnect)` (client.ex:892), which is reachable only from that same branch. When `establish_connection/1` returns `{:ok, _}` but the 101 never arrives, the SUCCESS branch runs, the `{:connection_timeout, _}` timer fires, `handle_connection_error/2` routes back to `{:continue, :reconnect}`, and it succeeds again. `retry_count` stays 0 forever and backoff is never applied — the client hammers the endpoint at 1/timeout Hz indefinitely, and `retry_count: 3` does not stop it. This is the Cloudflare-5xx-in-front-of-an-exchange shape the repo already keeps a test file for (test/zen_websocket/cloudflare_alpn_integration_test.exs).
+
+2. CONNECTION TIMERS ARE NEVER CANCELLED AND CARRY NO ATTEMPT IDENTITY. Scheduled at client.ex:610 and :649 as `{:connection_timeout, config.timeout}` — the payload is a duration, not an attempt ref — and the only `Process.cancel_timer` in the module is for the heartbeat. A stale timer from attempt N therefore still matches the `%{state: :connecting}` clause at :869 and tears down attempt N+1 mid-connect. Under defect 1 these accumulate without bound.
+
+3. `handle_continue({:connection_failed, reason})` at client.ex:620 is a bare `{:noreply, state}`. The reason is discarded, the waiting caller is never replied to, and no retry is scheduled, so `connect("wss://bad-host.invalid", timeout: 30_000)` blocks the full 30s and reports `:timeout` instead of `:nxdomain`.
+
+4. ABNORMAL TERMINATION KILLS CALLERS. The await_connection wrappers catch only `:exit, {:timeout, _}` (client.ex:271, client_supervisor.ex:136), so a `:max_reconnection_attempts` stop during the call propagates and kills the CALLER instead of returning `{:error, _}` — violating both @specs. Same root cause on the supervisor side: `list_clients/0` pipes `DynamicSupervisor.which_children/1` through `Process.alive?/1` (client_supervisor.ex:195), which raises ArgumentError on the `:restarting` atom a restarting child carries in place of a pid. Because Client stops abnormally, `send_balanced/2` crashes its caller exactly when it should be routing around the dead connection.
+
+Write the defect-1 regression test FIRST and confirm it fails before changing the state machine. All four line references were read directly from the source on 2026-08-20.
+"""
+created_at = "2026-08-20"
+scored_at = "2026-08-20"
+
+[[task]]
+id = "3"
+phase = 1
+bundle = "correctness"
+status = "pending"
+title = "Fix RateLimiter token race and the queue that discards requests"
+scores = { d = 4, b = 8, u = 7 }
+markers = ["bug"]
+acceptance_criteria = ["A concurrency test spawns overlapping consume/2 and refill/1 against one limiter and asserts the token count never exceeds the configured capacity and never regains tokens that were spent — demonstrated to fail against current main", "Token accounting in refill/1 uses an atomic ETS operation rather than lookup-then-insert", "A queued request is either actually delivered when tokens become available, or the queue is removed and consume/2 stops enqueueing — no code path spends tokens on a request it then discards", "A test asserts the chosen behaviour end to end: either the queued request reaches its destination, or no tokens are consumed on behalf of a request that is never sent", "mix precommit.full green"]
+out_of_scope = ["Redesigning the public RateLimiter API", "Changing the default bucket size, refill rate, or cost function"]
+files_to_modify = ["lib/zen_websocket/rate_limiter.ex", "test/zen_websocket/rate_limiter_test.exs"]
+assignee = "codex"
+model = "gpt-5.6-sol"
+body = """
+Two verified defects in lib/zen_websocket/rate_limiter.ex, both read from source on 2026-08-20.
+
+1. NON-ATOMIC REFILL AGAINST A :public TABLE. The ETS table is created `[:named_table, :public, :set]` (:67) and `consume/2` mutates tokens with `:ets.update_counter` (:105, :117) from arbitrary caller processes. But `refill/1` (:136) does a read-modify-write — `:ets.lookup(name, :tokens)` then `min(current + refill_rate, capacity)` then `:ets.insert` — so any `consume/2` that lands between the lookup and the insert is silently overwritten and its spent tokens are resurrected. Under sustained concurrent load the bucket drifts upward and the limiter stops limiting, which on a venue with hard rate limits means bans rather than backpressure.
+
+2. THE QUEUE IS A TOKEN SINK. When tokens are exhausted, `consume/2` restores the cost, calls `handle_rate_limit/5`, and the caller receives `{:error, :rate_limited}` — so the caller is expected to retry. The request is ALSO enqueued. Later, `process_queue_with_tokens/4` (:296) pops `{{:value, {_request, cost}}, new_queue}` — it binds the request to `_request`, charges `cost` via `update_counter`, emits the pressure event, and recurses. The request is never sent anywhere. So every rate-limited request burns its token cost a second time, stealing capacity from the caller's real retry, and the queue's only observable effect is `queue_size` in `status/1`. Decide deliberately: wire the queue to a delivery callback, or delete it and keep consume/2 a pure allow/deny gate. Either is acceptable; silently spending tokens on discarded requests is not.
+"""
+created_at = "2026-08-20"
+scored_at = "2026-08-20"
+
+[[task]]
+id = "4"
+phase = 1
+bundle = "correctness"
+status = "pending"
+title = "Fix always-true guard, silent auth pass-through, subscription re-add, and recorder data loss"
+scores = { d = 4, b = 7, u = 6 }
+markers = ["bug"]
+acceptance_criteria = ["authenticate/1 returns {:error, reason} when Deribit replies with a JSON-RPC error body, asserted by a test that feeds a realistic error response — {:ok, adapter} must not match a failed authentication", "The subscription-restore guard uses MapSet.size/1, and a test covers the empty-subscriptions case that the current map_size/1 guard admits", "Subscriptions survive a failed restore: a test asserts that when re-subscribe fails, the tracked set is not silently emptied and get_state does not report success", "SubscriptionManager.handle_message/2 only registers a channel on an actual subscription confirmation, not on every data frame carrying params.channel — covered by a test that feeds a data frame for an unsubscribed channel and asserts it is not added", "Either remove/2 has a caller in lib/ or it is removed; an unsubscribed channel is not restored on the next reconnect, asserted by a test", "RecorderServer buffered entries survive an abnormal exit of the client that started it, asserted by a test", "mix precommit.full green"]
+out_of_scope = ["Merging the two Deribit adapters — they demonstrate standalone vs GenServer-wrapped patterns on purpose", "Changing the Client GenServer or the reconnect state machine"]
+files_to_modify = ["lib/zen_websocket/examples/deribit_adapter.ex", "lib/zen_websocket/examples/deribit_genserver_adapter.ex", "lib/zen_websocket/subscription_manager.ex", "lib/zen_websocket/recorder_server.ex"]
+assignee = "grok"
+model = "grok-4.6"
+body = """
+Four independent defects in modules the gate cannot see into. All line references read from source on 2026-08-20.
+
+1. FAILED AUTH MATCHES THE SUCCESS PATTERN. `DeribitAdapter.authenticate/1` uses a `with` chain with NO `else` clause. `JsonRpcTransport.send_json_rpc/2` returns `{:ok, response}` for a transport-level success even when the body is a JSON-RPC error, so on bad credentials the `with` falls through and returns that `{:ok, %{"error" => ...}}` verbatim. Callers writing the idiomatic `{:ok, adapter} = authenticate(adapter)` therefore MATCH on failed credentials and proceed to the trading path unauthenticated.
+
+2. ALWAYS-TRUE GUARD. `deribit_genserver_adapter.ex:215` guards `handle_info(:restore_subs, %{subscriptions: subs} = state) when map_size(subs) > 0`, but `subscriptions` is a MapSet — a 2-key struct — so `map_size/1` is always 2 and the guard never excludes anything. Its own siblings at :176, :201 and :204 correctly use `MapSet.size/1`. Separately, the restore path clears the tracked subscriptions before re-subscribing and discards the reply, so a failed restore loses them permanently while `get_state` still reports an empty-but-healthy set.
+
+3. UNSUBSCRIBES ARE UNDONE ON RECONNECT. `SubscriptionManager.handle_message/2` matches the bare shape `%{"params" => %{"channel" => channel}}` and calls `add/2`. There is no `"method" => "subscription"` constraint, so EVERY data frame carrying a channel re-adds that channel to the tracked set. Combined with `remove/2` having zero callers anywhere in lib/, an unsubscribe is undone by the next inbound tick and the channel is re-subscribed on the following reconnect.
+
+4. RECORDER LOSES THE INTERESTING SLICE. RecorderServer sets no `trap_exit` and is started via `start_link` from Client, so a client crash kills it instantly and discards up to 99 buffered entries — precisely the window the recording exists to capture.
+"""
+created_at = "2026-08-20"
+scored_at = "2026-08-20"
+
+[[task]]
+id = "5"
+phase = 1
+bundle = "correctness"
+status = "pending"
+title = "Make heartbeat and pool health metrics report reality instead of a constant"
+scores = { d = 3, b = 7, u = 6 }
+markers = ["bug"]
+acceptance_criteria = ["get_heartbeat_health/1 reports a non-zero failure_count on a connection whose pings stop being answered, asserted by a test that withholds pongs", "The :ping_pong path correlates the returning pong to the ping that was sent, so an unanswered ping is observable rather than assumed successful", "get_client_metrics returns the real pressure level rather than a hardcoded :none, and a test asserts pressure_penalty is non-zero under queue pressure", "Either the pool ETS table survives the exit of whichever process created it, or the module documents in its moduledoc why per-process health state is acceptable and failover no longer re-selects a connection whose health was lost", "lib/zen_websocket/helpers/deribit.ex has at least one test covering its heartbeat response path", "mix precommit.full green"]
+out_of_scope = ["Adding an application callback module solely to supervise the pool table — evaluate it, but a documented decision is an acceptable outcome", "Changing the public shape of get_heartbeat_health/1 or the pool health score formula"]
+files_to_modify = ["lib/zen_websocket/heartbeat_manager.ex", "lib/zen_websocket/pool_router.ex", "lib/zen_websocket/helpers/deribit.ex"]
+assignee = "codex"
+model = "gpt-5.6-sol"
+body = """
+Two health surfaces report a constant instead of a measurement, so both read healthy on exactly the failures they exist to detect. Read from source on 2026-08-20.
+
+1. `heartbeat_failures` is assigned `0` at heartbeat_manager.ex:73 and :176 and is never incremented anywhere. `get_heartbeat_health/1` reads it at :146 as `failure_count`. The `:ping_pong` path also never correlates the returning pong with the ping that was sent, so a half-open connection — TCP alive, peer not responding — reports `failure_count: 0` indefinitely. For a trading client this is the difference between failing over and silently sitting on a dead socket.
+
+2. `pool_router.ex` documents `pressure_penalty` as a 0-10 point component of the health score (:19), and `@pressure_penalties %{high: 10, medium: 6, low: 3, none: 0}` (:309) with `pressure_to_penalty/1` (:312) implements it. But `get_client_metrics` hardcodes `pressure_level: :none` at both :245 and :260, so the penalty is permanently 0 and the map lookup — added with a comment explaining it exists to avoid dead-code warnings — is unreachable in practice. Separately the pool ETS table is created lazily by whichever process calls first (:231) and is unsupervised (the app has no callback module), so when that process exits all health state vanishes and failover re-selects connections it had already marked bad.
+
+While in heartbeat_manager.ex, note that `lib/zen_websocket/helpers/deribit.ex` sits on the same heartbeat hot path, calls `:gun.ws_send/3` directly (bypassing Frame/MessageHandler), and currently has zero tests — cover it here rather than filing a separate task.
+"""
+created_at = "2026-08-20"
+scored_at = "2026-08-20"
+
+[[task]]
+id = "6"
+phase = 1
+bundle = "hygiene"
+status = "pending"
+title = "Remove tests that pass on every outcome and tag the untagged network tests"
+scores = { d = 3, b = 8, u = 7 }
+markers = ["bug"]
+acceptance_criteria = ["No test in the repo has a case/cond branch set where every branch is :ok or assert true — each either asserts a specific expected value or flunks with the unexpected term", "supervised_connection_test.exs no longer contains an assertion-free test body", "recording_integration_test.exs asserts that no recording file was created, rather than only commenting it", "Every test that opens a network or mock-server connection carries :integration or :external_network, so mix test with the default excludes performs no socket connections", "The FakeClient stand-in in client_supervisor_send_balanced_test.exs is either replaced with a real supervised process, or CLAUDE.md's Real API Testing Policy is amended to cover it deliberately", "mix precommit.full green"]
+out_of_scope = ["Raising overall coverage or the mix.exs coverage threshold", "Rewriting the MockWebSockServer"]
+files_to_modify = ["test/zen_websocket/examples/supervised_connection_test.exs", "test/zen_websocket/recording_integration_test.exs", "test/zen_websocket/error_integration_test.exs", "test/zen_websocket/examples/rate_limiting_test.exs", "test/zen_websocket/client_supervisor_send_balanced_test.exs"]
+assignee = "cursor"
+model = "cursor-grok-4.6-high"
+body = """
+The project's own CLAUDE.md carries a NEVER HIDE TEST FAILURES rule; four tests violate it directly. Verified 2026-08-20.
+
+- `examples/supervised_connection_test.exs:209` — a 26-line test body with zero assertions, ending in a comment that it "may or may not have clients depending on timing".
+- `recording_integration_test.exs:73` — comments "No recording file should be created" and never asserts it.
+- `error_integration_test.exs:102` — the textbook `case Client.send_message(...) do :ok -> :ok; {:error, _reason} -> :ok end`. Both outcomes pass, so the test asserts nothing about malformed-frame handling.
+- `examples/rate_limiting_test.exs:200-210` — nested `case` in which every branch is `:ok`.
+
+Replace each with an assertion on the specific expected outcome, and `flunk/1` on anything else. If the expected error term is not known, determine it against the mock server or the live testnet first — do not paper over it with a permissive match.
+
+SECOND, SMALLER ITEM — test tagging. `examples/rate_limiting_test.exs` guards its three live-network describes with `@describetag :integration` (at :45, :159 and :245), so the CI coverage gate's `--exclude integration` does cover them; an earlier review claim that these ran unguarded in the default suite was WRONG and is retracted here so nobody re-derives it. The real gap is narrower: several mock-server tests (`client_reconnect_test.exs`, `reconnection_test.exs`, `heartbeat_manager_test.exs`, `examples/basic_usage_test.exs`) open real sockets while carrying no tag, which contradicts CLAUDE.md's stated policy that :integration marks tests using MockWebSockServer. Tag them, or amend the policy — but the tree and the policy must agree.
+
+Also in scope: `client_supervisor_send_balanced_test.exs:27` defines a `FakeClient` GenServer stand-in, which sits outside CLAUDE.md's narrow four-Gun-tuple mock exception. Either widen the fence deliberately in CLAUDE.md or replace the stand-in.
+"""
+created_at = "2026-08-20"
+scored_at = "2026-08-20"
+
+[[task]]
+id = "7"
+phase = 1
+bundle = "hygiene"
+status = "pending"
+title = "Make CLAUDE.md, README and the docs describe the library that actually ships"
+scores = { d = 3, b = 9, u = 8 }
+markers = ["docs"]
+acceptance_criteria = ["Every module, mix task, alias and test-support module named in CLAUDE.md exists in the tree, verified by grepping each name", "CLAUDE.md's task-tracking section describes the rmap / roadmap-tasks.toml substrate actually in use, with D/B/U scoring and real task ids", "CLAUDE.md's Example Code Policy no longer prescribes the separate-mix-project approach that R026 abandoned", "README installation snippet matches the current published version, and no document claims a 5-function public API while Client exposes more", "docs/gun_integration.md contains no call to a function that does not exist; docs/supervision_strategy.md does not diagram a ZenWebsocket.Application that the app does not define", "mix zen_websocket.validate_usage run against this repo reports no :invalid_api error for the library's own legitimate Client calls", "The validate_usage --fix path no longer performs an unguarded whole-file rewrite driven by the completed WebsockexAdapter rename, or the task is removed", "AGENTS.md regenerated from CLAUDE.md and its freshness check passes", "mix precommit.full green"]
+out_of_scope = ["ROADMAP.md prose — it is excluded from harness delivery commits and is corrected separately by the orchestrator", "Changing the actual public API to match the documentation — the docs are what is wrong here, not the code"]
+files_to_modify = ["CLAUDE.md", "AGENTS.md", "README.md", "docs/gun_integration.md", "docs/supervision_strategy.md", "lib/mix/tasks/zen_websocket.validate_usage.ex"]
+assignee = "grok"
+model = "grok-4.6"
+body = """
+CLAUDE.md regenerates into AGENTS.md, which is published to hexdocs AND is what the cross-family reviewers gate against — so every false claim in it steers future agents wrong. Each item below was verified by grep on 2026-08-20.
+
+FALSE IN CLAUDE.md:
+- Test Support Modules lists `NetworkSimulator` and `TestEnvironment`. Neither string appears anywhere in lib/ or test/. The list omits `GunStub`, which does exist.
+- Commands `mix test.api`, `mix test.api --deribit` and `mix test.performance` are documented. None exist as aliases, mix tasks, or dep-supplied tasks — zero matches in mix.exs.
+- The module tree lists `correlation_manager.ex`; the real module is `request_correlator.ex`. Roughly ten real modules are missing from the tree.
+- "Public API (5 Functions)" — the actual non-callback public surface on Client is eleven.
+- Task tracking links `[roadmap.md](roadmap.md)`, which does not exist, prescribes `WNX####` ids of which zero exist (real ids are R0NN and numeric), says "D/B scoring" where the substrate is D/B/U, and never mentions rmap.
+- The Example Code Policy prescribes moving large examples to `examples/<name>/` as a separate mix project — the exact approach R026 attempted, abandoned and reverted.
+
+FALSE ELSEWHERE:
+- `docs/gun_integration.md:110` calls `MessageHandler.parse/1` and :129 calls `Reconnection.reconnect/1`; neither function exists.
+- `docs/supervision_strategy.md:238` diagrams a `ZenWebsocket.Application` — the app declares no `mod:` in application/0.
+- `README.md:32` installs `~> 0.4` against a 0.6.1 library; `README.md:16` claims "5 core functions".
+
+SAME ROOT CAUSE, IN CODE: `lib/mix/tasks/zen_websocket.validate_usage.ex:37` pins `@allowed_functions ~w(connect send_message subscribe get_state close)a`, so the task flags this repo's own legitimate Client calls as :invalid_api errors — the five-function myth encoded as a gate. Its `--fix` path (:232-240) additionally does an unguarded `File.write!` over whole files driven by a global `WebsockexAdapter` regex; that rename completed before v0.1.3 and the only remaining mentions of the old name in the tree are inside this task itself. Fix the allowed-function list and remove the dead rename rewrite, or delete the task.
+"""
+created_at = "2026-08-20"
+scored_at = "2026-08-20"
+
+[[task]]
+id = "8"
+phase = 1
+bundle = "hygiene"
+status = "pending"
+title = "Resolve three places where stated policy and shipped code disagree"
+scores = { d = 3, b = 6, u = 5 }
+acceptance_criteria = ["A written recommendation for ConnectionRegistry (deprecate for 0.7 and delete in 0.8, keep and wire it, or keep as-is) lands in the repo with its reasoning, and docs/Architecture.md stops depicting it as wired in if it is not", "No breaking change to the public surface is made in this task", "The example-code policy and the shipped tree agree: either the stated per-example line limit is changed to match reality, or examples and mix tasks are dropped from package.files — with the choice and its consumer impact written down", "The .reach.exs architecture policy and the actual dependency graph agree: either testing/server.ex stops reaching Test.Support via apply/3, or the policy is amended to permit it explicitly and the credo disable comment is justified in place", "mix precommit.full green"]
+out_of_scope = ["Removing ConnectionRegistry in this task — it is public API, so deletion needs a deprecation cycle and explicit approval", "Rewriting the examples themselves"]
+files_to_modify = ["lib/zen_websocket.ex", "lib/zen_websocket/testing/server.ex", ".reach.exs", "mix.exs", "docs/Architecture.md"]
+assignee = "codex"
+model = "gpt-5.6-sol"
+body = """
+Three cases where a written rule and the shipped tree contradict each other. The right output is a decision plus whichever side moves — not a unilateral breaking change. Verified 2026-08-20.
+
+1. CONNECTIONREGISTRY IS ORPHANED BUT DOCUMENTED AS LIVE. 104 LOC plus a 145-line test, and zero callers anywhere in lib/ (grep confirms). It is absent from the Descripex discoverable list in zen_websocket.ex, yet docs/Architecture.md:189 draws it into the architecture as if wired in. It is public API, so removal is breaking. Recommend a path — deprecate for 0.7 and delete in 0.8, wire it up, or keep it and correct the diagram — and implement only the non-breaking part.
+
+2. THE EXAMPLE-CODE POLICY IS UNENFORCEABLE AS WRITTEN. CLAUDE.md caps small in-tree examples at 50 lines and directs anything larger to a separate mix project. The tree has 13 example files totalling 1488 lines — about 20% of lib/ — of which 12 exceed 50 lines, and all of them ship to consumers through `package.files: ~w(lib ...)`. The prescribed escape hatch is the approach R026 abandoned. Either the limit changes or examples and mix tasks leave package.files; note the consumer impact either way.
+
+3. THE ARCHITECTURE POLICY IS EVADED, NOT SATISFIED. `.reach.exs` forbids `{:core, :support}`. But `lib/zen_websocket/testing/server.ex:14` binds `@mock_server_module ZenWebsocket.Test.Support.MockWebSockServer` and reaches it through `apply/3` at :44, :47, :72, :90, :96 and :111, with a `credo:disable-for-this-file Credo.Check.Refactor.Apply` at :9. The dependency is real; only its static-analysis visibility was removed, so `mix reach.check --arch` passes on a dependency the policy forbids. Decide whether the dependency is legitimate — if so, encode the exemption in .reach.exs where it can be reviewed, rather than hiding it behind apply/3.
+"""
+created_at = "2026-08-20"
+scored_at = "2026-08-20"
+
+[[task]]
+id = "9"
+phase = 1
+bundle = "code-quality"
+status = "pending"
+title = "Extract three cross-module duplications that ex_dna does not catch"
+scores = { d = 3, b = 6, u = 6 }
+acceptance_criteria = ["build_client_struct/2 exists once and both call sites use it", "reconnect_opts_from_state/1 is no longer public, or its continued export is justified in a comment naming the caller that needs it", "The duplicated heartbeat telemetry and state-update block exists once and both pong paths use it", "The safe-callback wrapper exists once and both modules use it", "A short written finding explains why mix ex_dna --max-clones 0 passes on these three duplications, so the gate's blind spot is known rather than assumed absent", "mix precommit.full green"]
+out_of_scope = ["Decomposing client.ex — that is a separate, larger refactor", "Collapsing the heartbeat_manager/subscription_manager descripex api() sites, which R055 already documents as a false positive"]
+files_to_modify = ["lib/zen_websocket/client.ex", "lib/zen_websocket/client_supervisor.ex", "lib/zen_websocket/heartbeat_manager.ex", "lib/zen_websocket/helpers/deribit.ex"]
+assignee = "cursor"
+model = "cursor-grok-4.6-high"
+body = """
+Three duplications that survive a zero-clone budget. Sequenced after the reconnect fix and the health-metrics fix, because both rewrite the same functions.
+
+- `build_client_struct/2` is byte-identical at client.ex:1017 and client_supervisor.ex:158, and is the sole reason `reconnect_opts_from_state/1` is exported at all (client.ex:518, marked @doc false but public). Extracting it should let that export close.
+- The heartbeat telemetry plus state-update block is duplicated verbatim — including its two-line explanatory comment — at heartbeat_manager.ex:155-178 and helpers/deribit.ex:19-45, with both emitting `[:zen_websocket, :heartbeat, :pong]`.
+- The safe-callback wrapper appears at client.ex:952-964 and client_supervisor.ex:142-155.
+
+All three pass `mix ex_dna --max-clones 0`, which runs TWICE per `mix ci` — standalone at mix.exs:229 and again as a Credo plugin via .credo.exs:16. That is worth a paragraph of explanation as part of this task: a duplication gate that misses byte-identical cross-module functions is a gate the project is over-trusting. Record what its actual detection boundary is.
+"""
+created_at = "2026-08-20"
+scored_at = "2026-08-20"
+depends_on = ["2", "5"]
