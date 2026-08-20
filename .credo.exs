@@ -16,16 +16,15 @@
         {ExDNA.Credo, []},
 
         # Increase cyclomatic complexity threshold from 9 to 11
-        # This accommodates legitimate complexity in:
-        # - config.ex validation (10)
-        # - client.ex routing and message handling (10)
-        # - error_handler.ex comprehensive categorization (19 - still warned)
+        # Verified 2026-08-20 against max_complexity: 9 — exactly two sites need it:
+        # - config.ex validate/1 cond chain (11)
+        # - client.ex handle_info/2 :gun_ws frame routing (10)
         {Credo.Check.Refactor.CyclomaticComplexity, max_complexity: 11},
-        
+
         # Increase nesting depth for test files which need deeper nesting
         # for comprehensive integration testing scenarios
         {Credo.Check.Refactor.Nesting, max_nesting: 3, files: %{included: ["test/"]}},
-        
+
         # Keep default nesting for lib files
         {Credo.Check.Refactor.Nesting, max_nesting: 2, files: %{included: ["lib/"]}}
       ]
