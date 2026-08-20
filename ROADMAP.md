@@ -2,7 +2,7 @@
 
 **Vision:** Production-grade WebSocket client library for Elixir, designed for financial APIs.
 
-**Status:** v0.4.2 published on hex.pm (2026-04-18)
+**Status:** v0.6.1 published on hex.pm (2026-08-17)
 
 **Completed work:** See [CHANGELOG.md](CHANGELOG.md) for finished tasks.
 
@@ -10,7 +10,7 @@
 
 ## Current Focus
 
-**Post-v0.4.2: Backlog open**
+**Post-v0.6.1: Backlog open**
 
 > **Philosophy reminder:** Trust working quality gates, fail gracefully on dead connections, and preserve caller configuration across reconnects.
 
@@ -106,6 +106,10 @@ mix docs                                       # Local docs build
 | v0.4.0 | Correctness, stability, descripex, doc review (R024-R041) | 16 |
 | v0.4.1 | Config preservation, pending-request safety, property tests, transport-shape policy (R010-R011, R025, R030, R042-R048) | 11 |
 | v0.4.2 | Credo dep restored to hex (release-only maintenance) | — |
+| v0.4.3 | Dependency modernization (gun 2.2 -> 2.4, reach 1.5 -> 2.7), .reach.exs arch policy, ci/precommit aliases, JsonRpcTransport (R054) | — |
+| v0.5.0 | Quality gates made to actually gate: reach.check --smells raises, mix_audit wired with freshness proof, agents.check drift gate, CI invokes mix ci | — |
+| v0.6.0 | descripex ~> 0.11 -> ~> 0.12.0 (breaking below 0.12) | — |
+| v0.6.1 | Dependency refresh (descripex 0.12.1, dev/analysis tooling) | — |
 
 ---
 
@@ -146,7 +150,9 @@ mix doctor                                     # 100% moduledoc coverage
 
 ### Why Split Client.ex?
 
-Original Client handled too many concerns. Extracted HeartbeatManager, SubscriptionManager, RequestCorrelator. Client.ex reduced from 870 to ~200 lines.
+Original Client handled too many concerns. Extracted HeartbeatManager, SubscriptionManager, RequestCorrelator, which cut Client.ex to roughly 200 lines at the time.
+
+**That reduction has fully re-accreted:** client.ex measured 1154 lines on 2026-08-20 — 15.7% of lib/, with the next-largest module three times smaller. Re-splitting it is deliberately NOT scheduled yet; the reconnect state machine (task 2) rewrites the same clauses and must land first.
 
 ### Example Code Policy
 
@@ -156,10 +162,10 @@ All examples live in `lib/zen_websocket/examples/`. R026 attempted separate mix 
 
 ## Notes for Future Claude Instances
 
-1. **v0.4.2 is live on hex.pm** — Latest release. v0.4.0 added R024-R041 (custom discovery hooks, stale PID safety, handler contract change, descripex integration, full doc review — breaking handler contract from v0.3.x). v0.4.1 added R010-R011, R025, R030, R042-R048 (config preservation, pending-request drain on disconnect, property tests, transport-shape testing policy). v0.4.2 restored credo to hex (no consumer-visible changes)
+1. **v0.6.1 is live on hex.pm (2026-08-17)** — Latest release. Earlier: v0.4.0 added R024-R041 (custom discovery hooks, stale PID safety, handler contract change, descripex integration, full doc review — breaking handler contract from v0.3.x). v0.4.1 added R010-R011, R025, R030, R042-R048 (config preservation, pending-request drain on disconnect, property tests, transport-shape testing policy). v0.4.2 restored credo to hex (no consumer-visible changes)
 2. **Before v0.4.0, v0.3.1 was the last published version** — Pool routing, session recording, test helpers, docs rewrite
 3. **R026 was abandoned** — Moving examples to separate mix projects caused too many problems
 4. **Real API testing is non-negotiable** — Project principle. One narrow exception (R044): opaque Gun transport message-shape fixtures. See CLAUDE.md → Real API Testing Policy → Narrow exception
 5. **Quality aliases removed** — No `mix lint/check/typecheck/coverage/rebuild`. Use `mix test.json`, `mix dialyzer.json --quiet`, `mix credo --strict --format json` directly
 6. **Every task updates docs** — A task without updated `.md` files is incomplete
-7. **Client has 9+ public functions** — Not "only 5". Core: connect, send_message, subscribe, get_state, close. Monitoring: get_latency_stats, get_heartbeat_health, get_state_metrics, reconnect
+7. **Client has 10 non-callback public functions** — not "only 5", whatever CLAUDE.md and README still claim (tracked as task 7). Core: connect, send_message, subscribe, get_state, close. Monitoring: get_latency_stats, get_heartbeat_health, get_state_metrics, reconnect. Plus reconnect_opts_from_state, which is @doc false but public. Counted 2026-08-20

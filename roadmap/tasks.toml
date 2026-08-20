@@ -393,7 +393,7 @@ FALSE IN CLAUDE.md:
 - Test Support Modules lists `NetworkSimulator` and `TestEnvironment`. Neither string appears anywhere in lib/ or test/. The list omits `GunStub`, which does exist.
 - Commands `mix test.api`, `mix test.api --deribit` and `mix test.performance` are documented. None exist as aliases, mix tasks, or dep-supplied tasks — zero matches in mix.exs.
 - The module tree lists `correlation_manager.ex`; the real module is `request_correlator.ex`. Roughly ten real modules are missing from the tree.
-- "Public API (5 Functions)" — the actual non-callback public surface on Client is eleven.
+- "Public API (5 Functions)" — the actual non-callback public surface on Client is ten: connect, send_message, close, subscribe, get_state, get_heartbeat_health, get_state_metrics, get_latency_stats, reconnect, and reconnect_opts_from_state (the last is @doc false but public). Counted 2026-08-20.
 - Task tracking links `[roadmap.md](roadmap.md)`, which does not exist, prescribes `WNX####` ids of which zero exist (real ids are R0NN and numeric), says "D/B scoring" where the substrate is D/B/U, and never mentions rmap.
 - The Example Code Policy prescribes moving large examples to `examples/<name>/` as a separate mix project — the exact approach R026 attempted, abandoned and reverted.
 
