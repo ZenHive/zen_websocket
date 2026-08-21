@@ -278,7 +278,7 @@ shipped_in = "3dfd9eb44d653791a9cef73579636e46d5fece1c"
 id = "4"
 phase = 1
 bundle = "correctness"
-status = "in_progress"
+status = "done"
 title = "Fix always-true guard, silent auth pass-through, subscription re-add, and recorder data loss"
 scores = { d = 4, b = 7, u = 6 }
 markers = ["bug"]
@@ -313,9 +313,16 @@ Defect 4 — RUNTIME-VERIFIED, total loss. Harness: an owner process `start_link
 
 Adjacent finding while verifying, worth folding into defect 4's fix rather than filing separately: `HeartbeatManager.handle_generic_heartbeat/2` only ever does `MapSet.put` on `active_heartbeats` and never removes, so that set grows monotonically for the process lifetime.
 """
+implemented = "Landed by grok via merge-train; reviewer-approved (run run-1787298069810-3305cc3a, a90639dc2531327d7284b33239864aa9e99b8b2a)."
+delivered_by = "grok"
+verified = true
+verified_by = "cursor"
+verification_ref = "harness-run:run-1787298069810-3305cc3a"
 created_at = "2026-08-20"
 started_at = "2026-08-21"
 scored_at = "2026-08-20"
+done_at = "2026-08-21"
+shipped_in = "a90639dc2531327d7284b33239864aa9e99b8b2a"
 
 [[task]]
 id = "5"
