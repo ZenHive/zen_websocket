@@ -179,6 +179,8 @@
       "unlocks": 0,
       "markers": [],
       "depends_on": [],
+      "assignee": "grok",
+      "model": "grok-4.6",
       "acceptance_criteria": [
         "mix test.json --cover excludes the modules listed in mix.exs ignore_modules (or an equivalent core-only filter)",
         "The --cover-threshold in the mix.exs precommit/precommit.full aliases is raised to the measured core-only coverage, rounded down",

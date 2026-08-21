@@ -144,6 +144,8 @@ title = "Make CI coverage gate measure core library only"
 scores = { d = 4, b = 5, u = 5 }
 scored_at = "2026-08-20"
 files_to_modify = ["mix.exs"]
+assignee = "grok"
+model = "grok-4.6"
 out_of_scope = ["Adding tests to inflate the diluted number", "Removing the example/CLI modules", "Editing .github/workflows/harness.yml — it deliberately carries no threshold of its own"]
 acceptance_criteria = [
   "mix test.json --cover excludes the modules listed in mix.exs ignore_modules (or an equivalent core-only filter)",
