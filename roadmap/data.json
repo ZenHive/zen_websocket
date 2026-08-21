@@ -1082,7 +1082,7 @@
       "id": "17",
       "phase": 1,
       "bundle": "correctness",
-      "status": "pending",
+      "status": "in_progress",
       "title": "Decide whether SubscriptionManager's narrowing to Deribit's JSON-RPC dialect is intended, and make the result explicit",
       "scores": {
         "d": 4,
@@ -1120,6 +1120,7 @@
       ],
       "body": "DISCOVERED 2026-08-21 during release preparation for 0.7.0, by an audit of CHANGELOG [Unreleased] against git diff v0.6.1..HEAD. Filed as a decision because the answer is a product call, not a defect fix.\n\nWHAT CHANGED. v0.6.1's SubscriptionManager.handle_message/2 tracked subscriptions from any inbound message shaped %{\"params\" => %{\"channel\" => ch}}. That clause is deleted. HEAD matches outbound requests whose method is literally \"public/subscribe\" or \"public/unsubscribe\" with params.channels - Deribit's dialect - plus their id-keyed confirmations and rejections.\n\nTHE TWO CONSEQUENCES, BOTH UNDOCUMENTED.\n\nFirst, a capability regression. For a server that does not speak Deribit's public/subscribe dialect, subscription tracking and therefore reconnect restoration silently stop working where they previously worked. The changelog presents this purely as a fix. It is also a narrowing, and nothing in the module or the docs tells a non-Deribit user that automatic restoration no longer applies to them. This library is documented as a general WebSocket client with Deribit as one example adapter, so the narrowing is at odds with the stated positioning - which is exactly why this needs a decision rather than a patch.\n\nSecond, the confirmation gate does not cover the library's own primary path. track_outbound/4 applies channels immediately when a request carries no id (subscription_manager.ex:175), and Client.subscribe/2 encodes a public/subscribe request with no id (client.ex:315). So ZenWebsocket's own subscribe call is tracked optimistically at send time, and a server-side rejection leaves the channel sitting in the restore set to be replayed on the next reconnect. The changelog entry claims tracking \"follows confirmed subscribe and unsubscribe operations\", which holds only for hand-built id-carrying requests.\n\nWHAT THIS TASK IS NOT. It is not a request to revert. Either answer is defensible: Deribit-only is honest if that is what the library actually supports and it is written down, and generic tracking is better if the general-client positioning is real. What is not defensible is the current state, where the narrowing is undocumented and the module's own contract is described in terms that its primary caller does not satisfy. Pick one, write it down, pin it with a test.\n\nCONTEXT ON URGENCY. The two live consumers are bourse and onchain. Neither calls SubscriptionManager - a grep across both found zero references - and both pin below 0.7.0, so nothing is currently broken by this. U is 4 for that reason: it should be settled before the general-client positioning gets quoted at someone, not this week.\n\nWHY D=4. The code change either way is small; the cost is in deciding and in making the docs and tests agree with the decision across four files.\n",
       "created_at": "2026-08-21",
+      "started_at": "2026-08-21",
       "scored_at": "2026-08-21",
       "cross_repo": []
     }
