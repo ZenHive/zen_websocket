@@ -55,8 +55,9 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
   - `:ok` on successful authentication
   - `{:error, :not_connected}` if not connected
   - `{:error, :missing_credentials}` if credentials not configured
+  - `{:error, reason}` when Deribit replies with a JSON-RPC error body
   """
-  @spec authenticate(GenServer.server()) :: :ok | {:error, atom()}
+  @spec authenticate(GenServer.server()) :: :ok | {:error, term()}
   def authenticate(adapter), do: GenServer.call(adapter, :authenticate)
 
   @doc """
@@ -69,8 +70,9 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
   ## Returns
   - `:ok` on successful subscription
   - `{:error, :not_connected}` if not connected
+  - `{:error, reason}` when Deribit replies with a JSON-RPC error body
   """
-  @spec subscribe(GenServer.server(), list(String.t())) :: :ok | {:error, atom()}
+  @spec subscribe(GenServer.server(), list(String.t())) :: :ok | {:error, term()}
   def subscribe(adapter, channels), do: GenServer.call(adapter, {:subscribe, channels})
 
   @doc """

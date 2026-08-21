@@ -14,8 +14,9 @@ defmodule ZenWebsocket.Examples.JsonRpcTransport do
   end
 
   @doc "Maps a transport {:ok, error-body} to {:error, reason} for `with` else clauses."
-  @spec rpc_or_error({:ok, map()} | {:error, term()}) :: {:ok, map()} | {:error, term()}
+  @spec rpc_or_error(term()) :: {:error, term()}
   def rpc_or_error({:ok, %{"error" => reason}}), do: {:error, reason}
   def rpc_or_error({:ok, other}), do: {:error, other}
-  def rpc_or_error(other), do: other
+  def rpc_or_error({:error, reason}), do: {:error, reason}
+  def rpc_or_error(other), do: {:error, other}
 end

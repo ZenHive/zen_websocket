@@ -126,6 +126,7 @@ defmodule ZenWebsocket.Client do
           optional(:awaiting_connection) => GenServer.from(),
           optional(:connection_timer) => reference() | nil,
           optional(:connection_attempt) => reference() | nil,
+          optional(:pending_subscription_ops) => %{optional(term()) => :add | :remove},
           # Connection fields
           gun_pid: pid() | nil,
           stream_ref: reference() | nil,
@@ -648,14 +649,13 @@ defmodule ZenWebsocket.Client do
   end
 
   def handle_call({:send_message, message}, from, %{gun_pid: gun_pid, stream_ref: stream_ref, state: :connected} = state) do
-    state = track_subscription_outbound(state, message)
-
     case RequestCorrelator.extract_id(message) do
       {:ok, id} ->
         case RequestCorrelator.track(state, id, from, state.config.request_timeout) do
           {:ok, new_state} ->
+            new_state = track_subscription_outbound(new_state, message)
             :gun.ws_send(gun_pid, stream_ref, {:text, message})
-            maybe_record(state.recorder_pid, :out, {:text, message})
+            maybe_record(new_state.recorder_pid, :out, {:text, message})
             {:noreply, new_state}
 
           {:error, :duplicate_id, state} ->
@@ -663,6 +663,7 @@ defmodule ZenWebsocket.Client do
         end
 
       :no_id ->
+        state = track_subscription_outbound(state, message)
         result = :gun.ws_send(gun_pid, stream_ref, {:text, message})
         maybe_record(state.recorder_pid, :out, {:text, message})
         {:reply, result, state}
@@ -1190,15 +1191,13 @@ defmodule ZenWebsocket.Client do
     {:stop, error, state}
   end
 
-  @spec track_subscription_outbound(state(), term()) :: state()
+  @spec track_subscription_outbound(state(), binary()) :: state()
   defp track_subscription_outbound(state, message) when is_binary(message) do
     case Jason.decode(message) do
       {:ok, decoded} -> SubscriptionManager.handle_message(decoded, state)
       _ -> state
     end
   end
-
-  defp track_subscription_outbound(state, _message), do: state
 
   @spec maybe_start_recorder(String.t() | nil) :: pid() | nil
   defp maybe_start_recorder(nil), do: nil

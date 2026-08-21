@@ -161,6 +161,11 @@ defmodule ZenWebsocket.SubscriptionManager do
     apply_pending_result(state, id, channels)
   end
 
+  def handle_message(%{"id" => id, "error" => _}, state) do
+    pending = Map.get(state, :pending_subscription_ops, %{})
+    Map.put(state, :pending_subscription_ops, Map.delete(pending, id))
+  end
+
   def handle_message(_msg, state), do: state
 
   defp subscription_op("subscribe"), do: :add

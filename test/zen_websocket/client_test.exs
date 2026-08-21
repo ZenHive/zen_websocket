@@ -624,6 +624,62 @@ defmodule ZenWebsocket.ClientTest do
       Client.close(client)
     end
 
+    @tag :local_network
+    test "unsubscribe confirmation is not restored after a later data tick", %{server: server, mock_url: mock_url} do
+      channel = "book.BTC-PERPETUAL.raw"
+
+      MockWebSockServer.set_handler(server, fn
+        {:text, msg} ->
+          decoded = Jason.decode!(msg)
+
+          {:reply,
+           {:text,
+            Jason.encode!(%{
+              "jsonrpc" => "2.0",
+              "id" => decoded["id"],
+              "result" => decoded["params"]["channels"]
+            })}}
+      end)
+
+      {:ok, client} = Client.connect(mock_url)
+
+      subscribe = %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "public/subscribe",
+        "params" => %{"channels" => [channel]}
+      }
+
+      assert {:ok, %{"result" => [^channel]}} = Client.send_message(client, Jason.encode!(subscribe))
+      assert Client.get_state_metrics(client).subscriptions_size == 1
+
+      unsubscribe = %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "method" => "public/unsubscribe",
+        "params" => %{"channels" => [channel]}
+      }
+
+      assert {:ok, %{"result" => [^channel]}} = Client.send_message(client, Jason.encode!(unsubscribe))
+      assert Client.get_state_metrics(client).subscriptions_size == 0
+
+      tick =
+        Jason.encode!(%{
+          "method" => "subscription",
+          "params" => %{"channel" => channel, "data" => %{}}
+        })
+
+      MockWebSockServer.set_handler(server, fn
+        {:text, _msg} -> {:reply, {:text, tick}}
+      end)
+
+      :ok = Client.send_message(client, "trigger")
+      assert_receive {:websocket_message, %{"method" => "subscription"}}, 5_000
+      assert Client.get_state_metrics(client).subscriptions_size == 0
+
+      Client.close(client)
+    end
+
     test "custom handler receives unmatched JSON-RPC responses (R047)", %{server: server, mock_url: mock_url} do
       test_pid = self()
 

@@ -234,6 +234,31 @@ defmodule ZenWebsocket.SubscriptionManagerTest do
       refute MapSet.member?(result.subscriptions, "book.BTC-PERPETUAL.raw")
     end
 
+    test "a JSON-RPC error drops the pending subscribe so a later result does not add" do
+      state = build_state()
+
+      state =
+        SubscriptionManager.handle_message(
+          %{
+            "id" => 7,
+            "method" => "public/subscribe",
+            "params" => %{"channels" => ["book.BTC-PERPETUAL.raw"]}
+          },
+          state
+        )
+
+      state =
+        SubscriptionManager.handle_message(
+          %{"id" => 7, "error" => %{"code" => 13_009, "message" => "unauthorized"}},
+          state
+        )
+
+      result =
+        SubscriptionManager.handle_message(%{"id" => 7, "result" => ["book.BTC-PERPETUAL.raw"]}, state)
+
+      refute MapSet.member?(result.subscriptions, "book.BTC-PERPETUAL.raw")
+    end
+
     test "handles message without channel" do
       state = build_state()
       msg = %{"method" => "subscription", "params" => %{}}
