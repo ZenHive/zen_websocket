@@ -49,7 +49,7 @@
 > Managed by `rmap` — source of truth is `roadmap/tasks.toml`. Run `rmap show <id>` for full task detail, `rmap next` to pick the next task.
 
 <!-- FOCUS:BEGIN -->
-**Focus phase:** 1 — Post-v0.6.1 Backlog (1 of 14 done · 1 in progress)
+**Focus phase:** 1 — Post-v0.6.1 Backlog (1 of 14 done · 2 in progress)
 
 **Last shipped:** no recent shipments
 
@@ -66,7 +66,7 @@
 | Task R054 | ✅ | 🎁 **code-quality** · Deduplicate send_json_rpc/2 across the two Deribit adapters [D:2/B:4/U:4 → Eff:2.0?] 🎯 |
 | Task 1 | ⬜ | 🎁 **code-quality** · Widen JsonRpc.build_request/2 params spec to accept list params [D:1/B:7/U:6 → Eff:6.5?] 🎯 |
 | Task 2 | 🔄 | 🎁 **reconnect** · 🐛 Fix the reconnect state machine and its supervisor-side fallout [D:5/B:10/U:9 → Eff:1.9] 🚀 |
-| Task 3 | ⬜ | 🎁 **correctness** · 🐛 Fix RateLimiter token race and the queue that discards requests [D:4/B:8/U:7 → Eff:1.88] 🚀 |
+| Task 3 | 🔄 | 🎁 **correctness** · 🐛 Fix RateLimiter token race and the queue that discards requests [D:4/B:8/U:7 → Eff:1.88] 🚀 |
 | Task 4 | ⬜ | 🎁 **correctness** · 🐛 Fix always-true guard, silent auth pass-through, subscription re-add, and recorder data loss [D:4/B:7/U:6 → Eff:1.62] 🚀 |
 | Task 5 | ⬜ | 🎁 **correctness** · 🐛 Make heartbeat and pool health metrics report reality instead of a constant [D:3/B:7/U:6 → Eff:2.17] 🎯 |
 | Task 6 | ⬜ | 🎁 **hygiene** · 🐛 Remove tests that pass on every outcome and tag the untagged network tests [D:3/B:8/U:7 → Eff:2.5] 🎯 |
