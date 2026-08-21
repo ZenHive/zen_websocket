@@ -84,9 +84,9 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
   - `params` - Method parameters (default: %{})
 
   ## Returns
-  The response from Deribit or `{:error, :not_connected}`.
+  The response from Deribit or `{:error, reason}`.
   """
-  @spec send_request(GenServer.server(), String.t(), map()) :: {:ok, map()} | {:error, atom()}
+  @spec send_request(GenServer.server(), String.t(), map()) :: {:ok, map()} | {:error, term()}
   def send_request(adapter, method, params \\ %{}), do: GenServer.call(adapter, {:send_request, method, params})
 
   @doc """

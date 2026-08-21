@@ -20,6 +20,12 @@ cannot resurrect tokens a refill just overwrote.
 existing callers keep compiling; those keys no longer describe a live
 queue.
 
+### Changed — JSON-RPC parameter typing reflects the protocol
+
+`JsonRpc.build_request/2` and the JSON-RPC client example accept positional
+parameter lists as well as named parameter maps. Runtime behavior is unchanged;
+the public specs and discovery metadata now describe both JSON-RPC forms.
+
 ### Changed — Heartbeat and pool health measure the connection they report on
 
 `:ping_pong` heartbeats send a unique ping payload and only count a
@@ -29,6 +35,21 @@ Gun WebSocket upgrades set `silence_pings: false` so pong frames reach
 the client; `MessageHandler` no longer sends a second pong (Gun already
 did). The pool ETS table is owned by a dedicated process so health
 state survives the first caller exiting.
+
+### Fixed — connection lifecycle and state restoration
+
+- Client-owned Gun attempts now use one retry state machine, disable Gun's
+  independent retries, reject stale connection timers, and return connection
+  failures to callers without taking the caller process down.
+- Supervisor discovery ignores non-PID child states such as `:restarting`, and
+  supervised startup returns connection failures instead of exiting callers.
+- Deribit authentication and subscription helpers return JSON-RPC error bodies
+  as `{:error, reason}`. Subscription tracking follows confirmed subscribe and
+  unsubscribe operations, clears failed operations, and does not re-add channels
+  from later market-data ticks.
+- Recorder buffers flush when their linked owner terminates abnormally, and
+  generic heartbeat tracking replaces the active type instead of accumulating
+  stale types.
 
 ## [0.6.1] - 2026-08-17
 

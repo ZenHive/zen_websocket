@@ -3,7 +3,8 @@ defmodule ZenWebsocket.SubscriptionManager do
   Manages subscription tracking for WebSocket connections.
 
   Pure functional module - state ownership stays with Client GenServer.
-  Tracks subscribed channels and provides restoration on reconnect.
+  Tracks pending subscribe/unsubscribe operations, applies confirmations, and
+  provides restoration on reconnect.
 
   ## Telemetry Events
 
@@ -44,7 +45,7 @@ defmodule ZenWebsocket.SubscriptionManager do
   @doc """
   Adds a channel to the tracked subscription set.
 
-  Called when a subscription confirmation is received.
+  Used after a subscribe operation is confirmed or when it has no correlation ID.
   """
   @spec add(state(), String.t()) :: state()
   def add(state, channel) when is_binary(channel) do
@@ -70,7 +71,7 @@ defmodule ZenWebsocket.SubscriptionManager do
   @doc """
   Removes a channel from the tracked subscription set.
 
-  Called when unsubscribing from a channel.
+  Used after an unsubscribe operation is confirmed or when it has no correlation ID.
   """
   @spec remove(state(), String.t()) :: state()
   def remove(state, channel) when is_binary(channel) do
@@ -137,12 +138,12 @@ defmodule ZenWebsocket.SubscriptionManager do
     end
   end
 
-  api(:handle_message, "Handle incoming subscription confirmation messages.",
+  api(:handle_message, "Track subscription operations from requests and confirmations.",
     params: [
-      msg: [kind: :value, description: "Parsed WebSocket message map with subscription confirmation"],
+      msg: [kind: :value, description: "Parsed subscribe/unsubscribe request, confirmation, or error map"],
       state: [kind: :value, description: "Client state map containing subscription fields"]
     ],
-    returns: %{type: "state()", description: "Updated state with confirmed channel tracked"}
+    returns: %{type: "state()", description: "Updated pending or confirmed subscription state"}
   )
 
   @doc """

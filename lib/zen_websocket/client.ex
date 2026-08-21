@@ -926,8 +926,7 @@ defmodule ZenWebsocket.Client do
   @spec maybe_invoke_on_disconnect((pid() -> any()) | nil) :: :ok
   defp maybe_invoke_on_disconnect(nil), do: :ok
 
-  # TODO: user-provided callback may raise any exception type; using try/catch to prevent
-  # terminate/2 crash regardless of what the callback raises, throws, or exits with.
+  # User-provided callbacks may raise, throw, or exit; none should crash terminate/2.
   defp maybe_invoke_on_disconnect(callback) when is_function(callback, 1) do
     callback.(self())
     :ok

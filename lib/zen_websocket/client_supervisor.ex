@@ -150,8 +150,7 @@ defmodule ZenWebsocket.ClientSupervisor do
   # Safely invokes a lifecycle callback, catching and logging any errors.
   defp maybe_invoke_callback(nil, _pid), do: :ok
 
-  # TODO: user-provided callback may raise any exception type; using try/catch to prevent
-  # the caller from crashing regardless of what the callback raises, throws, or exits with.
+  # User-provided callbacks may raise, throw, or exit; none should crash the caller.
   defp maybe_invoke_callback(callback, pid) when is_function(callback, 1) do
     callback.(pid)
     :ok
