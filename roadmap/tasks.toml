@@ -511,7 +511,7 @@ shipped_in = "f3d58fb921a65de61f921c9987637b45548ea458"
 id = "10"
 phase = 1
 bundle = "correctness"
-status = "in_progress"
+status = "done"
 title = "Give pool health a real pressure signal or drop the dead penalty"
 scores = { d = 3, b = 6, u = 5 }
 markers = ["bug"]
@@ -534,9 +534,16 @@ Decide one of: (a) a real per-connection pressure source that PoolRouter can rea
 
 Docs in USAGE_RULES.md, docs/guides/performance_tuning.md, docs/Architecture.md, and CHANGELOG Unreleased were corrected in the post-merge audit of a89f090 — they no longer describe a live RateLimiter queue. Do not treat those as still open.
 """
+implemented = "Landed by codex via merge-train; reviewer-approved (run run-1787302857184-f0bc5be8, 8556c0305f1d69975d2f4dd8e007cd008a41dbe4)."
+delivered_by = "codex"
+verified = true
+verified_by = "cursor"
+verification_ref = "harness-run:run-1787302857184-f0bc5be8"
 created_at = "2026-08-21"
 started_at = "2026-08-21"
 scored_at = "2026-08-21"
+done_at = "2026-08-21"
+shipped_in = "8556c0305f1d69975d2f4dd8e007cd008a41dbe4"
 
 [[task]]
 id = "11"
