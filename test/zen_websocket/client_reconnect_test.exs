@@ -51,7 +51,7 @@ defmodule ZenWebsocket.ClientReconnectTest do
 
     setup do
       echo_handler = fn
-        {:text, msg} -> {:reply, {:text, msg}}
+        {:text, msg} -> {:reply, {:text, "echo: #{msg}"}}
         {:binary, data} -> {:reply, {:binary, data}}
       end
 
@@ -88,14 +88,14 @@ defmodule ZenWebsocket.ClientReconnectTest do
 
       # Verify echo works after first reconnect
       assert :ok = Client.send_message(client, "after-first-reconnect")
-      assert_receive {:websocket_message, "after-first-reconnect"}, 2_000
+      assert_receive {:websocket_message, "echo: after-first-reconnect"}, 2_000
 
       # Second disconnect-reconnect cycle — would fail if retry_count wasn't reset
       server3 = disconnect_and_reconnect(client, server2, port, handler)
 
       # Verify echo works after second reconnect
       assert :ok = Client.send_message(client, "after-second-reconnect")
-      assert_receive {:websocket_message, "after-second-reconnect"}, 2_000
+      assert_receive {:websocket_message, "echo: after-second-reconnect"}, 2_000
 
       Client.close(client)
       MockWebSockServer.stop(server3)
@@ -117,14 +117,14 @@ defmodule ZenWebsocket.ClientReconnectTest do
 
       # Verify handler works before disconnect
       assert :ok = Client.send_message(client, "before-disconnect")
-      assert_receive {:custom_handler, {:message, "before-disconnect"}}, 2_000
+      assert_receive {:custom_handler, {:message, "echo: before-disconnect"}}, 2_000
 
       # Disconnect and reconnect
       server2 = disconnect_and_reconnect(client, server, port, handler)
 
       # Verify the SAME custom handler receives messages after reconnect
       assert :ok = Client.send_message(client, "after-reconnect")
-      assert_receive {:custom_handler, {:message, "after-reconnect"}}, 2_000
+      assert_receive {:custom_handler, {:message, "echo: after-reconnect"}}, 2_000
 
       Client.close(client)
       MockWebSockServer.stop(server2)
@@ -208,7 +208,7 @@ defmodule ZenWebsocket.ClientReconnectTest do
       assert state_after.heartbeat_timer
 
       assert :ok = Client.send_message(new_client, "after-explicit-reconnect")
-      assert_receive {:explicit_reconnect_handler, "after-explicit-reconnect"}, 2_000
+      assert_receive {:explicit_reconnect_handler, "echo: after-explicit-reconnect"}, 2_000
 
       Client.close(new_client)
 
@@ -241,7 +241,7 @@ defmodule ZenWebsocket.ClientReconnectTest do
 
       assert state_after.config == state_before.config
       assert :ok = Client.send_message(new_client, "after-closed-client-reconnect")
-      assert_receive {:closed_client_reconnect_handler, "after-closed-client-reconnect"}, 2_000
+      assert_receive {:closed_client_reconnect_handler, "echo: after-closed-client-reconnect"}, 2_000
 
       Client.close(new_client)
     end
@@ -279,7 +279,7 @@ defmodule ZenWebsocket.ClientReconnectTest do
       refute original_pid in ClientSupervisor.list_clients()
 
       assert :ok = Client.send_message(new_client, "after-supervised-reconnect")
-      assert_receive {:supervised_reconnect_handler, "after-supervised-reconnect"}, 2_000
+      assert_receive {:supervised_reconnect_handler, "echo: after-supervised-reconnect"}, 2_000
 
       Client.close(new_client)
 
