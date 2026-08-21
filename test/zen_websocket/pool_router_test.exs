@@ -43,7 +43,7 @@ defmodule ZenWebsocket.PoolRouterTest do
 
   setup do
     if :ets.whereis(@table_name) != :undefined do
-      :ets.delete(@table_name)
+      :ets.delete_all_objects(@table_name)
     end
 
     :ok
@@ -156,6 +156,35 @@ defmodule ZenWebsocket.PoolRouterTest do
       [{_, count, timestamp}] = :ets.lookup(@table_name, {:error_count, pid})
       assert count == 1
       assert is_integer(timestamp)
+    end
+
+    test "error state survives the process that first invoked the router" do
+      if :ets.whereis(@table_name) != :undefined do
+        table_owner = :ets.info(@table_name, :owner)
+        owner_ref = Process.monitor(table_owner)
+        Process.exit(table_owner, :kill)
+        assert_receive {:DOWN, ^owner_ref, :process, ^table_owner, :killed}
+      end
+
+      assert :ets.whereis(@table_name) == :undefined
+
+      connection_pid = spawn(fn -> Process.sleep(:infinity) end)
+      test_pid = self()
+
+      on_exit(fn -> Process.exit(connection_pid, :kill) end)
+
+      creator_pid =
+        spawn(fn ->
+          PoolRouter.record_error(connection_pid)
+          send(test_pid, :error_recorded)
+        end)
+
+      creator_ref = Process.monitor(creator_pid)
+
+      assert_receive :error_recorded
+      assert_receive {:DOWN, ^creator_ref, :process, ^creator_pid, :normal}
+      assert :ets.whereis(@table_name) != :undefined
+      assert PoolRouter.calculate_health(connection_pid) == 85
     end
   end
 
@@ -382,6 +411,19 @@ defmodule ZenWebsocket.PoolRouterTest do
 
       # pending_penalty = min(999 * 10, 40) = 40, everything else 0
       assert PoolRouter.calculate_health(pid) == 60
+    end
+
+    test "applies a non-zero pressure penalty when the client reports queue pressure" do
+      {:ok, pid} =
+        start_supervised(
+          {FakeMetricsClient,
+           %{
+             state_metrics: %{pending_requests_size: 0, pressure_level: :high},
+             latency_stats: nil
+           }}
+        )
+
+      assert PoolRouter.calculate_health(pid) == 90
     end
 
     test "returns the optimistic default when the client process crashes answering a metrics call" do

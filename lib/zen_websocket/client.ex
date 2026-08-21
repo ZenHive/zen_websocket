@@ -135,9 +135,11 @@ defmodule ZenWebsocket.Client do
           # Heartbeat tracking
           heartbeat_config: :disabled | map(),
           active_heartbeats: MapSet.t(term()),
-          last_heartbeat_at: DateTime.t() | nil,
+          last_heartbeat_at: integer() | nil,
           heartbeat_failures: non_neg_integer(),
           heartbeat_timer: reference() | nil,
+          heartbeat_ping_payload: binary() | nil,
+          heartbeat_ping_sent_at: integer() | nil,
           # Latency tracking
           connect_start_time: integer() | nil,
           latency_stats: LatencyStats.t(),
@@ -565,6 +567,8 @@ defmodule ZenWebsocket.Client do
       last_heartbeat_at: nil,
       heartbeat_failures: 0,
       heartbeat_timer: nil,
+      heartbeat_ping_payload: nil,
+      heartbeat_ping_sent_at: nil,
       # Reconnection tracking
       retry_count: 0,
       # Latency tracking
@@ -850,19 +854,21 @@ defmodule ZenWebsocket.Client do
         Debug.log(state.config, "   🔍 Frame: #{inspect(other)}")
     end
 
+    heartbeat_state = track_heartbeat_frame(frame, state)
+
     # Decode frame and handle control frames (ping/pong auto-response).
     # Uses decode_and_handle_control (not handle_message) to avoid double
     # handler delivery — route_data_frame handles user callback dispatch.
     case ZenWebsocket.MessageHandler.decode_and_handle_control({:gun_ws, gun_pid, stream_ref, frame}) do
       {:ok, {:data, decoded_frame}} ->
-        new_state = route_data_frame(decoded_frame, state)
+        new_state = route_data_frame(decoded_frame, heartbeat_state)
         {:noreply, new_state}
 
       {:ok, :control_frame_handled} ->
-        {:noreply, state}
+        {:noreply, heartbeat_state}
 
       {:error, {:protocol_error, _} = error} ->
-        handle_frame_error(state, error)
+        handle_frame_error(heartbeat_state, error)
     end
   end
 
@@ -976,6 +982,12 @@ defmodule ZenWebsocket.Client do
   end
 
   # Private functions
+
+  defp track_heartbeat_frame({:pong, payload}, %{heartbeat_config: %{type: :ping_pong}} = state) do
+    HeartbeatManager.handle_message({:pong, payload}, state)
+  end
+
+  defp track_heartbeat_frame(_frame, state), do: state
 
   # Handles connection errors and triggers internal reconnection when appropriate.
   # This maintains Gun ownership by reconnecting from within the same GenServer.

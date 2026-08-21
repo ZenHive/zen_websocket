@@ -29,6 +29,7 @@ defmodule ZenWebsocket.Reconnection do
   alias ZenWebsocket.Debug
 
   @default_max_backoff_ms 30_000
+  @websocket_opts %{silence_pings: false}
 
   api(:establish_connection, "Establish a Gun WebSocket connection from the given config.",
     params: [config: [kind: :value, description: "Client configuration struct"]],
@@ -78,7 +79,7 @@ defmodule ZenWebsocket.Reconnection do
             Debug.log(config, "   🌐 Protocol: #{inspect(protocol)}")
             Debug.log(config, "   🔄 Upgrading to WebSocket...")
 
-            stream_ref = :gun.ws_upgrade(gun_pid, upgrade_path, config.headers)
+            stream_ref = :gun.ws_upgrade(gun_pid, upgrade_path, config.headers, @websocket_opts)
             Debug.log(config, "   📡 WebSocket upgrade initiated")
             Debug.log(config, "   📡 Stream Ref: #{inspect(stream_ref)}")
             Debug.log(config, "   ✅ Connection establishment complete")

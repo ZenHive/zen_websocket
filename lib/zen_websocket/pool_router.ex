@@ -24,6 +24,10 @@ defmodule ZenWebsocket.PoolRouter do
   - Round-robin index for fallback selection
   - Per-connection error tracking with 60-second decay
 
+  The table is created by a dedicated, lazily spawned owner process. It lives
+  for the lifetime of the BEAM and therefore survives the process that first
+  invokes the router.
+
   ## Performance Notes
 
   Round-robin selection among equally-healthy connections is O(n) where n is
@@ -223,17 +227,37 @@ defmodule ZenWebsocket.PoolRouter do
 
   # Private functions
 
-  # Ensures the ETS table exists, handling race conditions when multiple
-  # processes attempt creation simultaneously.
+  # Ensures the ETS table exists under a dedicated owner process, handling
+  # races when multiple callers attempt creation simultaneously.
   defp ensure_table_exists do
     if :ets.whereis(@table_name) == :undefined do
-      try do
-        :ets.new(@table_name, [:named_table, :public, :set])
-        :ets.insert(@table_name, {:round_robin_index, 0})
-      rescue
-        # Another process created the table between our check and creation
-        ArgumentError -> :ok
+      caller = self()
+      ready_ref = make_ref()
+      spawn(fn -> create_table(caller, ready_ref) end)
+
+      receive do
+        {^ready_ref, :pool_table_ready} -> :ok
       end
+    end
+  end
+
+  defp create_table(caller, ready_ref) do
+    owns_table =
+      try do
+        table = :ets.new(@table_name, [:named_table, :public, :set])
+        :ets.insert(table, {:round_robin_index, 0})
+        true
+      rescue
+        ArgumentError -> false
+      end
+
+    send(caller, {ready_ref, :pool_table_ready})
+    if owns_table, do: table_owner_loop()
+  end
+
+  defp table_owner_loop do
+    receive do
+      _message -> table_owner_loop()
     end
   end
 
@@ -256,8 +280,9 @@ defmodule ZenWebsocket.PoolRouter do
 
             pending = Map.get(state_metrics, :pending_requests_size, 0)
             p99 = extract_p99(latency_stats)
+            pressure_level = Map.get(state_metrics, :pressure_level, :none)
 
-            %{pending_requests: pending, p99_ms: p99, pressure_level: :none}
+            %{pending_requests: pending, p99_ms: p99, pressure_level: pressure_level}
           catch
             :exit, _ -> default
           end
@@ -304,8 +329,6 @@ defmodule ZenWebsocket.PoolRouter do
   end
 
   # Pressure level penalty mapping (0-10 points)
-  # Using map lookup to avoid dead code warnings since pressure_level
-  # is currently always :none (future expansion for rate limiter integration)
   @pressure_penalties %{high: 10, medium: 6, low: 3, none: 0}
 
   # Converts a pressure level atom to its penalty score (0-10 points).

@@ -21,7 +21,7 @@ defmodule ZenWebsocket.ClientSupervisorTest do
   setup do
     # Clean up PoolRouter ETS table before each test
     if :ets.whereis(@pool_table) != :undefined do
-      :ets.delete(@pool_table)
+      :ets.delete_all_objects(@pool_table)
     end
 
     # Start the supervisor for tests

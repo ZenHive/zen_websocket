@@ -5,6 +5,8 @@ defmodule ZenWebsocket.HeartbeatManagerTest do
   alias ZenWebsocket.HeartbeatManager
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
+  @heartbeat_interval_ms 60_000
+
   # Helper to build test state with required fields
   defp build_state(overrides) do
     default_config = %ZenWebsocket.Config{
@@ -26,6 +28,8 @@ defmodule ZenWebsocket.HeartbeatManagerTest do
         heartbeat_failures: 0,
         active_heartbeats: MapSet.new(),
         last_heartbeat_at: nil,
+        heartbeat_ping_payload: nil,
+        heartbeat_ping_sent_at: nil,
         gun_pid: nil,
         stream_ref: nil
       },
@@ -134,6 +138,30 @@ defmodule ZenWebsocket.HeartbeatManagerTest do
       assert result == state
     end
 
+    test "only acknowledges the pong matching the outstanding ping" do
+      sent_state =
+        %{
+          heartbeat_config: %{type: :ping_pong},
+          gun_pid: self(),
+          stream_ref: make_ref(),
+          heartbeat_failures: 2
+        }
+        |> build_state()
+        |> HeartbeatManager.send_heartbeat()
+
+      payload = sent_state.heartbeat_ping_payload
+
+      assert HeartbeatManager.handle_message({:pong, "other-ping"}, sent_state) == sent_state
+
+      acknowledged = HeartbeatManager.handle_message({:pong, payload}, sent_state)
+
+      assert MapSet.member?(acknowledged.active_heartbeats, :ping_pong)
+      assert acknowledged.heartbeat_failures == 0
+      assert acknowledged.heartbeat_ping_payload == nil
+      assert acknowledged.heartbeat_ping_sent_at == nil
+      assert is_integer(acknowledged.last_heartbeat_at)
+    end
+
     test "emits round-trip telemetry when a previous heartbeat timestamp exists" do
       test_pid = self()
       handler_id = "heartbeat-manager-test-#{System.unique_integer()}"
@@ -180,16 +208,107 @@ defmodule ZenWebsocket.HeartbeatManagerTest do
       assert result == state
     end
 
+    test "reports a missed pong when the next ping is sent unanswered" do
+      state =
+        build_state(%{
+          heartbeat_config: %{type: :ping_pong},
+          gun_pid: self(),
+          stream_ref: make_ref()
+        })
+
+      first_ping = HeartbeatManager.send_heartbeat(state)
+      second_ping = HeartbeatManager.send_heartbeat(first_ping)
+
+      assert first_ping.heartbeat_ping_payload != second_ping.heartbeat_ping_payload
+      assert HeartbeatManager.get_health(second_ping).failure_count == 1
+    end
+
     @tag :integration
     @tag timeout: 10_000
-    test "sends ping frame and updates last_heartbeat_at for ping_pong type" do
+    test "client health reports a failure when the server withholds pongs" do
+      {:ok, server, port} = MockWebSockServer.start_link()
+      MockWebSockServer.set_handler(server, fn _frame -> :ok end)
+
+      {:ok, client} =
+        Client.connect("ws://localhost:#{port}/ws",
+          heartbeat_config: %{type: :ping_pong, interval: @heartbeat_interval_ms}
+        )
+
+      on_exit(fn ->
+        Client.close(client)
+        MockWebSockServer.stop(server)
+      end)
+
+      send(client.server_pid, :send_heartbeat)
+      send(client.server_pid, :send_heartbeat)
+
+      assert Client.get_heartbeat_health(client).failure_count == 1
+    end
+
+    @tag :integration
+    @tag timeout: 10_000
+    test "client correlates the server pong with its outstanding ping" do
+      test_pid = self()
+      handler_id = "ping-pong-client-test-#{System.unique_integer()}"
+      {:ok, server, port} = MockWebSockServer.start_link()
+
+      handler = fn
+        {:text, "handler-ready"} ->
+          send(test_pid, :handler_ready)
+          :ok
+
+        {:ping, payload} ->
+          {:reply, {:pong, payload}}
+
+        _frame ->
+          :ok
+      end
+
+      MockWebSockServer.set_handler(server, handler)
+
+      :telemetry.attach(
+        handler_id,
+        [:zen_websocket, :heartbeat, :pong],
+        fn event, measurements, metadata, _config ->
+          send(test_pid, {:telemetry, event, measurements, metadata})
+        end,
+        nil
+      )
+
+      {:ok, client} =
+        Client.connect("ws://localhost:#{port}/ws",
+          heartbeat_config: %{type: :ping_pong, interval: @heartbeat_interval_ms}
+        )
+
+      MockWebSockServer.set_handler(server, handler)
+      :ok = Client.send_message(client, "handler-ready")
+      assert_receive :handler_ready
+
+      on_exit(fn ->
+        :telemetry.detach(handler_id)
+        Client.close(client)
+        MockWebSockServer.stop(server)
+      end)
+
+      send(client.server_pid, :send_heartbeat)
+
+      assert_receive {:telemetry, [:zen_websocket, :heartbeat, :pong], %{rtt_ms: rtt_ms}, %{type: :ping_pong}}
+
+      assert rtt_ms >= 0
+      assert Client.get_heartbeat_health(client).failure_count == 0
+      assert is_integer(Client.get_heartbeat_health(client).last_heartbeat_at)
+    end
+
+    @tag :integration
+    @tag timeout: 10_000
+    test "sends a correlated ping frame over a real WebSocket connection" do
       # Start mock WebSocket server
       {:ok, server, port} = MockWebSockServer.start_link()
 
       MockWebSockServer.set_handler(server, fn
         {:text, msg} -> {:reply, {:text, msg}}
         {:binary, data} -> {:reply, {:binary, data}}
-        :ping -> {:reply, :pong}
+        {:ping, payload} -> {:reply, {:pong, payload}}
       end)
 
       mock_url = "ws://localhost:#{port}/ws"
@@ -212,8 +331,8 @@ defmodule ZenWebsocket.HeartbeatManagerTest do
       # Send ping_pong heartbeat
       result = HeartbeatManager.send_heartbeat(state)
 
-      # Verify last_heartbeat_at was updated (monotonic time can be negative)
-      assert is_integer(result.last_heartbeat_at)
+      assert is_binary(result.heartbeat_ping_payload)
+      assert is_integer(result.heartbeat_ping_sent_at)
 
       # Clean up
       Client.close(client)

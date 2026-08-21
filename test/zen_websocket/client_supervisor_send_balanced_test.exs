@@ -55,7 +55,7 @@ defmodule ZenWebsocket.ClientSupervisorSendBalancedTest do
 
   setup do
     if :ets.whereis(@pool_table) != :undefined do
-      :ets.delete(@pool_table)
+      :ets.delete_all_objects(@pool_table)
     end
 
     {:ok, sup_pid} = start_supervised(ClientSupervisor)

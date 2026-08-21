@@ -22,6 +22,8 @@ defmodule ZenWebsocket.HeartbeatManager do
           :heartbeat_timer => reference() | nil,
           :heartbeat_failures => non_neg_integer(),
           :active_heartbeats => MapSet.t(),
+          optional(:heartbeat_ping_payload) => binary() | nil,
+          optional(:heartbeat_ping_sent_at) => integer() | nil,
           optional(atom()) => term()
         }
 
@@ -70,12 +72,17 @@ defmodule ZenWebsocket.HeartbeatManager do
 
   def cancel_timer(%{heartbeat_timer: timer_ref} = state) do
     Process.cancel_timer(timer_ref)
-    %{state | heartbeat_timer: nil, heartbeat_failures: 0}
+
+    state
+    |> Map.put(:heartbeat_timer, nil)
+    |> Map.put(:heartbeat_failures, 0)
+    |> Map.put(:heartbeat_ping_payload, nil)
+    |> Map.put(:heartbeat_ping_sent_at, nil)
   end
 
   api(:handle_message, "Route incoming heartbeat message to platform-specific handler.",
     params: [
-      msg: [kind: :value, description: "Incoming heartbeat message map"],
+      msg: [kind: :value, description: "Incoming heartbeat message or pong frame"],
       state: [kind: :value, description: "Client state map with heartbeat config"]
     ],
     returns: %{type: "state()", description: "Updated state after processing heartbeat"}
@@ -86,7 +93,11 @@ defmodule ZenWebsocket.HeartbeatManager do
 
   Returns updated state after processing heartbeat.
   """
-  @spec handle_message(map(), state()) :: state()
+  @spec handle_message(map() | {:pong, binary()}, state()) :: state()
+  def handle_message({:pong, payload}, %{heartbeat_config: %{type: :ping_pong}} = state) do
+    acknowledge_pong(payload, state)
+  end
+
   def handle_message(msg, state) do
     case state.heartbeat_config do
       %{type: :deribit} ->
@@ -103,13 +114,13 @@ defmodule ZenWebsocket.HeartbeatManager do
 
   api(:send_heartbeat, "Send platform-specific heartbeat message.",
     params: [state: [kind: :value, description: "Client state map with heartbeat config and gun connection"]],
-    returns: %{type: "state()", description: "Updated state with last_heartbeat_at timestamp"}
+    returns: %{type: "state()", description: "Updated state with outbound heartbeat tracking"}
   )
 
   @doc """
   Sends platform-specific heartbeat message.
 
-  Returns updated state with last_heartbeat_at timestamp for known types.
+  Returns updated state with outbound heartbeat tracking for known types.
   Returns unchanged state for unrecognized or disabled configs.
   """
   @spec send_heartbeat(state()) :: state()
@@ -118,8 +129,15 @@ defmodule ZenWebsocket.HeartbeatManager do
   end
 
   def send_heartbeat(%{heartbeat_config: %{type: :ping_pong}} = state) do
-    :ok = :gun.ws_send(state.gun_pid, state.stream_ref, :ping)
-    %{state | last_heartbeat_at: System.monotonic_time(:millisecond)}
+    payload = [:positive, :monotonic] |> :erlang.unique_integer() |> Integer.to_string()
+    failures = missed_pong_count(state)
+
+    :ok = :gun.ws_send(state.gun_pid, state.stream_ref, {:ping, payload})
+
+    state
+    |> Map.put(:heartbeat_ping_payload, payload)
+    |> Map.put(:heartbeat_ping_sent_at, System.monotonic_time(:millisecond))
+    |> Map.put(:heartbeat_failures, failures)
   end
 
   def send_heartbeat(state) do
@@ -150,6 +168,37 @@ defmodule ZenWebsocket.HeartbeatManager do
   end
 
   # Private helpers
+
+  defp acknowledge_pong(payload, state) do
+    case {Map.get(state, :heartbeat_ping_payload), Map.get(state, :heartbeat_ping_sent_at)} do
+      {^payload, sent_at} when is_integer(sent_at) ->
+        now = System.monotonic_time(:millisecond)
+
+        :telemetry.execute(
+          [:zen_websocket, :heartbeat, :pong],
+          %{rtt_ms: now - sent_at},
+          %{type: :ping_pong}
+        )
+
+        state
+        |> Map.put(:active_heartbeats, MapSet.put(state.active_heartbeats, :ping_pong))
+        |> Map.put(:last_heartbeat_at, now)
+        |> Map.put(:heartbeat_failures, 0)
+        |> Map.put(:heartbeat_ping_payload, nil)
+        |> Map.put(:heartbeat_ping_sent_at, nil)
+
+      _other ->
+        state
+    end
+  end
+
+  defp missed_pong_count(state) do
+    if Map.get(state, :heartbeat_ping_payload) do
+      state.heartbeat_failures + 1
+    else
+      state.heartbeat_failures
+    end
+  end
 
   @spec handle_generic_heartbeat(map(), state()) :: state()
   defp handle_generic_heartbeat(%{"method" => "heartbeat", "params" => %{"type" => type}}, state) do

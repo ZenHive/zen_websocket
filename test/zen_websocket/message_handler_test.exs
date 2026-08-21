@@ -135,14 +135,10 @@ defmodule ZenWebsocket.MessageHandlerTest do
       stream_ref = make_ref()
       ping_data = "ping_data"
 
-      # Mock gun.ws_send to capture the pong response
-      original_gun = Process.put(:gun_mock, true)
-
       assert :handled =
                MessageHandler.handle_control_frame({:ping, ping_data}, conn_pid, stream_ref)
 
-      # Verify pong would be sent (in real implementation)
-      Process.put(:gun_mock, original_gun)
+      refute_received {:"$gen_cast", {:ws_send, _, _, {:pong, _}}}
     end
 
     test "handles pong frame" do

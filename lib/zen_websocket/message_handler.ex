@@ -121,8 +121,8 @@ defmodule ZenWebsocket.MessageHandler do
   Returns :handled for control frames, :not_control for data frames.
   """
   @spec handle_control_frame(term(), pid(), reference()) :: :handled | :not_control
-  def handle_control_frame({:ping, data}, conn_pid, stream_ref) do
-    :gun.ws_send(conn_pid, stream_ref, Frame.pong(data))
+  def handle_control_frame({:ping, _data}, _conn_pid, _stream_ref) do
+    # Gun sends the pong before forwarding the ping to its configured handler.
     :handled
   end
 
