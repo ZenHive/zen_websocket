@@ -683,7 +683,7 @@ shipped_in = "3296789a62501dc2ffaa1904a8207c3df0392ade"
 id = "14"
 phase = 1
 bundle = "code-quality"
-status = "pending"
+status = "in_progress"
 title = "Decompose Client into responsibility-scoped modules (1227 lines, 3.3x the next-largest module)"
 scores = { d = 6, b = 7, u = 6 }
 acceptance_criteria = ["lib/zen_websocket/client.ex drops below 600 lines and no newly created module exceeds 300; the split follows the responsibility seams named in the body, not an arbitrary line budget", "The public surface of ZenWebsocket.Client is byte-compatible: connect/2, send_message/2, close/1, subscribe/2, get_state/1, get_heartbeat_health/1, get_state_metrics/1, get_latency_stats/1, reconnect/1, start_link/2, child_spec/1 and build_client_struct/2 keep their names, arities, @spec and return shapes, and the five GenServer callbacks stay on Client", "mix reach.map --depth shows Client.handle_info/2 and Client.connect/2 both below depth 18 (both are 21 today) and Client contributing at most one function to the top 10; if a target is unreachable without a behaviour change, report the measured before/after number in the delivery notes instead of forcing it", "Every telemetry event name, error tuple and {:error, reason} shape emitted by a moved function is unchanged - grep the diff for [:zen_websocket, ...] event names and assert none were renamed", "No test is deleted, weakened, or converted to a pass-on-every-outcome shape to accommodate the split; tests may be re-pointed at new module names and new unit tests may be added for extracted pure functions", "mix precommit.full green, including ex_dna --max-clones 0 (the split must not duplicate code across the new modules) and reach.check --arch --smells (no new forbidden layer edge in .reach.exs); core coverage stays at or above the 90 floor"]
@@ -720,4 +720,5 @@ WHY D=6. This is the riskiest change in the repo: Client owns the Gun transport,
 WHY B=7 AND U=6, NOT HIGHER. The correctness defects that made this file frightening are fixed - the benefit here is future-change cost, not a live bug. Nothing depends on this task and no release is gated on it. It is the last remaining backlog item, so it is scored on its own merits rather than on unlock leverage.
 """
 created_at = "2026-08-21"
+started_at = "2026-08-21"
 scored_at = "2026-08-21"
