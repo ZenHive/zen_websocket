@@ -478,9 +478,10 @@ shipped_in = "307a2bcf63e9aaf0838c00128f3d39c776131ea9"
 id = "9"
 phase = 1
 bundle = "code-quality"
-status = "pending"
+status = "in_progress"
 title = "Extract three cross-module duplications that ex_dna does not catch"
 scores = { d = 3, b = 6, u = 6 }
+depends_on = ["2", "5"]
 acceptance_criteria = ["build_client_struct/2 exists once and both call sites use it", "reconnect_opts_from_state/1 is no longer public, or its continued export is justified in a comment naming the caller that needs it", "The duplicated heartbeat telemetry and state-update block exists once and both pong paths use it", "The safe-callback wrapper exists once and both modules use it", "A short written finding explains why mix ex_dna --max-clones 0 passes on these three duplications, so the gate's blind spot is known rather than assumed absent", "mix precommit.full green"]
 out_of_scope = ["Decomposing client.ex — that is a separate, larger refactor", "Collapsing the heartbeat_manager/subscription_manager descripex api() sites, which R055 already documents as a false positive"]
 files_to_modify = ["lib/zen_websocket/client.ex", "lib/zen_websocket/client_supervisor.ex", "lib/zen_websocket/heartbeat_manager.ex", "lib/zen_websocket/helpers/deribit.ex"]
@@ -496,5 +497,5 @@ Three duplications that survive a zero-clone budget. Sequenced after the reconne
 All three pass `mix ex_dna --max-clones 0`, which runs TWICE per `mix ci` — standalone at mix.exs:229 and again as a Credo plugin via .credo.exs:16. That is worth a paragraph of explanation as part of this task: a duplication gate that misses byte-identical cross-module functions is a gate the project is over-trusting. Record what its actual detection boundary is.
 """
 created_at = "2026-08-20"
+started_at = "2026-08-21"
 scored_at = "2026-08-20"
-depends_on = ["2", "5"]
