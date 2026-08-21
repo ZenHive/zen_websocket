@@ -151,7 +151,7 @@ DynamicSupervisor for connection pools:
 
 #### Pool Router (`pool_router.ex`)
 Health-based connection routing:
-- Health scoring (0-100) based on pending requests, latency, errors, pressure
+- Health scoring (0-100) based on pending requests, latency, and errors
 - Round-robin fallback for equal health
 - Error recording with 60s decay
 

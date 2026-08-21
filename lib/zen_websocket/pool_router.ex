@@ -6,17 +6,15 @@ defmodule ZenWebsocket.PoolRouter do
   - Pending request count (queue depth)
   - Response latency (p99)
   - Recent error count (with 60s decay)
-  - Optional `pressure_level` from client state metrics (`:none` when absent)
 
   ## Health Score Formula (0-100)
 
-      score = 100 - pending_penalty - latency_penalty - error_penalty - pressure_penalty
+      score = 100 - pending_penalty - latency_penalty - error_penalty
 
   Where:
   - `pending_penalty` = min(pending_requests × 10, 40) — 0-40 pts
   - `latency_penalty` = min(p99_ms ÷ 25, 30) — 0-30 pts
   - `error_penalty` = min(error_count × 15, 20) — 0-20 pts
-  - `pressure_penalty` = pressure_level_to_points — 0-10 pts
 
   ## ETS Storage
 
@@ -128,7 +126,7 @@ defmodule ZenWebsocket.PoolRouter do
     params: [
       pid: [kind: :value, description: "Client PID to score"]
     ],
-    returns: %{type: "health_score()", description: "Score 0-100 based on pending, latency, errors, pressure"}
+    returns: %{type: "health_score()", description: "Score 0-100 based on pending requests, latency, and errors"}
   )
 
   @doc """
@@ -151,10 +149,9 @@ defmodule ZenWebsocket.PoolRouter do
     pending_penalty = min(metrics.pending_requests * @pending_penalty_per_request, @max_pending_penalty)
     latency_penalty = min(div(metrics.p99_ms, @latency_divisor), @max_latency_penalty)
     error_penalty = min(error_count * @error_penalty_per_error, @max_error_penalty)
-    pressure_penalty = pressure_to_penalty(metrics.pressure_level)
 
     # Calculate final score (clamped to 0-100)
-    score = 100 - pending_penalty - latency_penalty - error_penalty - pressure_penalty
+    score = 100 - pending_penalty - latency_penalty - error_penalty
     max(0, round(score))
   end
 
@@ -267,7 +264,7 @@ defmodule ZenWebsocket.PoolRouter do
   @metrics_timeout_ms 100
 
   defp get_client_metrics(pid) do
-    default = %{pending_requests: 0, p99_ms: 0, pressure_level: :none}
+    default = %{pending_requests: 0, p99_ms: 0}
 
     if Process.alive?(pid) do
       # Use Task to enforce short timeout for non-client processes
@@ -281,9 +278,8 @@ defmodule ZenWebsocket.PoolRouter do
 
             pending = Map.get(state_metrics, :pending_requests_size, 0)
             p99 = extract_p99(latency_stats)
-            pressure_level = Map.get(state_metrics, :pressure_level, :none)
 
-            %{pending_requests: pending, p99_ms: p99, pressure_level: pressure_level}
+            %{pending_requests: pending, p99_ms: p99}
           catch
             :exit, _ -> default
           end
@@ -328,12 +324,6 @@ defmodule ZenWebsocket.PoolRouter do
         0
     end
   end
-
-  # Pressure level penalty mapping (0-10 points)
-  @pressure_penalties %{high: 10, medium: 6, low: 3, none: 0}
-
-  # Converts a pressure level atom to its penalty score (0-10 points).
-  defp pressure_to_penalty(level), do: Map.get(@pressure_penalties, level, 0)
 
   # Calculates the average health score across all connections in a pool.
   # Returns 0 for empty pools to avoid division by zero.

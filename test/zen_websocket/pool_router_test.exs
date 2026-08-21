@@ -1,7 +1,9 @@
 defmodule ZenWebsocket.PoolRouterTest do
   use ExUnit.Case, async: false
 
+  alias ZenWebsocket.Client
   alias ZenWebsocket.PoolRouter
+  alias ZenWebsocket.Testing
 
   # ETS table name used by PoolRouter
   @table_name :zen_websocket_pool
@@ -394,8 +396,8 @@ defmodule ZenWebsocket.PoolRouterTest do
 
       # pending_penalty = min(8 * 10, 40) = 40
       # latency_penalty = min(div(50, 25), 30) = 2
-      # error_penalty = 0, pressure_penalty = 0
-      # score = 100 - 40 - 2 - 0 - 0 = 58
+      # error_penalty = 0
+      # score = 100 - 40 - 2 - 0 = 58
       assert PoolRouter.calculate_health(pid) == 58
     end
 
@@ -413,17 +415,29 @@ defmodule ZenWebsocket.PoolRouterTest do
       assert PoolRouter.calculate_health(pid) == 60
     end
 
-    test "applies a non-zero pressure penalty when the client reports queue pressure" do
-      {:ok, pid} =
-        start_supervised(
-          {FakeMetricsClient,
-           %{
-             state_metrics: %{pending_requests_size: 0, pressure_level: :high},
-             latency_stats: nil
-           }}
-        )
+    @tag :integration
+    @tag :local_network
+    test "scores a real Client without a pressure component" do
+      {:ok, server} = Testing.start_mock_server()
+      {:ok, client} = Client.connect(server.url)
 
-      assert PoolRouter.calculate_health(pid) == 90
+      on_exit(fn ->
+        Client.close(client)
+        Testing.stop_server(server)
+      end)
+
+      metrics = Client.get_state_metrics(client)
+
+      refute Map.has_key?(metrics, :pressure_level)
+      assert PoolRouter.calculate_health(client.server_pid) == 100
+    end
+
+    test "documents only the live health signals" do
+      details = ZenWebsocket.describe(:pool_router, :calculate_health)
+      {:docs_v1, _, _, _, %{"en" => module_doc}, _, _} = Code.fetch_docs(PoolRouter)
+
+      assert details.returns.description == "Score 0-100 based on pending requests, latency, and errors"
+      refute module_doc =~ "pressure"
     end
 
     test "returns the optimistic default when the client process crashes answering a metrics call" do
