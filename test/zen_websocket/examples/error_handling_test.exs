@@ -7,8 +7,6 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
   alias ZenWebsocket.Examples.Docs.ErrorHandling
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
-  @moduletag :integration
-
   @invalid_url "wss://invalid.websocket.test"
 
   @doc false
@@ -37,6 +35,8 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
   end
 
   describe "connection error handling" do
+    @tag :integration
+    @tag :external_network
     test "handles initial connection failure and retries" do
       log =
         capture_log(fn ->
@@ -57,6 +57,8 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
       assert log =~ "Failed to connect"
     end
 
+    @tag :integration
+    @tag :local_network
     test "successfully connects on first attempt" do
       {:ok, server, port} = MockWebSockServer.start_link()
 
@@ -81,6 +83,8 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
       end
     end
 
+    @tag :integration
+    @tag :external_network
     test "handles send_message when not connected" do
       {:ok, pid} = ErrorHandling.start_link(@invalid_url)
 
@@ -95,6 +99,8 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
       GenServer.stop(pid)
     end
 
+    @tag :integration
+    @tag :local_network
     test "handles send_message when connected" do
       {:ok, server, port} = MockWebSockServer.start_link()
 
@@ -123,6 +129,9 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
   end
 
   describe "reconnection patterns" do
+    @describetag :integration
+    @describetag :external_network
+
     test "automatic reconnection after connection loss" do
       # Start with a connection that will fail
       log =
@@ -148,6 +157,9 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
   end
 
   describe "error message handling" do
+    @describetag :integration
+    @describetag :local_network
+
     test "handles websocket_error messages" do
       {:ok, server, port} = MockWebSockServer.start_link()
 
@@ -219,6 +231,9 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
   end
 
   describe "error resilience patterns" do
+    @describetag :integration
+    @describetag :external_network
+
     test "maintains state through multiple retry attempts" do
       capture_log(fn ->
         {:ok, pid} = ErrorHandling.start_link(@invalid_url)
@@ -254,6 +269,9 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
   end
 
   describe "connection state management" do
+    @describetag :integration
+    @describetag :local_network
+
     test "tracks connection state accurately" do
       {:ok, server, port} = MockWebSockServer.start_link()
 
@@ -312,6 +330,9 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
   end
 
   describe "graceful degradation" do
+    @describetag :integration
+    @describetag :external_network
+
     test "continues operation despite connection failures" do
       capture_log(fn ->
         {:ok, pid} = ErrorHandling.start_link(@invalid_url)

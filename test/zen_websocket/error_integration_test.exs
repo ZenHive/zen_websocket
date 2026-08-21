@@ -4,12 +4,13 @@ defmodule ZenWebsocket.ErrorIntegrationTest do
   alias ZenWebsocket.Client
   alias ZenWebsocket.ErrorHandler
 
-  @moduletag :integration
-
   @test_ws_url "wss://test.deribit.com/ws/api/v2"
   @invalid_url "wss://invalid-domain-that-does-not-exist.com/ws"
 
   describe "connection errors" do
+    @describetag :integration
+    @describetag :external_network
+
     test "handles invalid domain gracefully" do
       assert {:error, reason} = Client.connect(@invalid_url)
 
@@ -45,6 +46,9 @@ defmodule ZenWebsocket.ErrorIntegrationTest do
   end
 
   describe "authentication errors with Deribit" do
+    @describetag :integration
+    @describetag :external_network
+
     test "handles invalid credentials gracefully" do
       {:ok, client} = Client.connect(@test_ws_url)
 
@@ -72,6 +76,8 @@ defmodule ZenWebsocket.ErrorIntegrationTest do
   end
 
   describe "protocol errors" do
+    @tag :integration
+    @tag :external_network
     test "handles malformed JSON gracefully" do
       {:ok, client} = Client.connect(@test_ws_url)
 

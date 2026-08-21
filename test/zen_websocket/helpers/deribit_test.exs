@@ -55,6 +55,7 @@ defmodule ZenWebsocket.Helpers.DeribitTest do
   end
 
   @tag :integration
+  @tag :local_network
   test "sends public/test over a real WebSocket in response to test_request" do
     test_pid = self()
     {:ok, server, port} = MockWebSockServer.start_link()

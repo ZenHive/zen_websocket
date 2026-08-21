@@ -5,28 +5,17 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
   alias ZenWebsocket.Examples.SupervisedClient
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
-  @moduletag :integration
-
   setup do
-    # Start the ClientSupervisor
     {:ok, _sup_pid} = start_supervised({ClientSupervisor, []})
-
-    # Start a mock server for testing
-    {:ok, server, port} = MockWebSockServer.start_link()
-
-    MockWebSockServer.set_handler(server, fn
-      {:text, msg} -> {:reply, {:text, msg}}
-      {:binary, data} -> {:reply, {:binary, data}}
-    end)
-
-    mock_url = "ws://localhost:#{port}/ws"
-
-    on_exit(fn -> MockWebSockServer.stop(server) end)
-
-    {:ok, server: server, port: port, mock_url: mock_url}
+    :ok
   end
 
   describe "start_connection/2" do
+    @describetag :integration
+    @describetag :local_network
+
+    setup :start_mock_server
+
     test "starts a supervised WebSocket connection", %{mock_url: mock_url} do
       {:ok, client} = SupervisedClient.start_connection(mock_url)
 
@@ -47,6 +36,11 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
       # Clean up
       SupervisedClient.stop_connection(client.server_pid)
     end
+  end
+
+  describe "start_connection/2 to an invalid host" do
+    @describetag :integration
+    @describetag :external_network
 
     test "handles connection failures" do
       result = SupervisedClient.start_connection("ws://invalid.example.com:9999")
@@ -55,6 +49,11 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
   end
 
   describe "start_multiple/1" do
+    @describetag :integration
+    @describetag :local_network
+
+    setup :start_mock_server
+
     test "starts multiple supervised connections", %{mock_url: mock_url} do
       configs = [
         {mock_url, retry_count: 3},
@@ -113,6 +112,11 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
   end
 
   describe "list_connections/0" do
+    @describetag :integration
+    @describetag :local_network
+
+    setup :start_mock_server
+
     test "lists all supervised connections", %{mock_url: mock_url} do
       # Start with no connections
       assert SupervisedClient.list_connections() == []
@@ -137,6 +141,11 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
   end
 
   describe "stop_connection/1" do
+    @describetag :integration
+    @describetag :local_network
+
+    setup :start_mock_server
+
     test "stops a supervised connection", %{mock_url: mock_url} do
       {:ok, client} = SupervisedClient.start_connection(mock_url)
       pid = client.server_pid
@@ -150,7 +159,9 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
       refute Process.alive?(pid)
       refute pid in SupervisedClient.list_connections()
     end
+  end
 
+  describe "stop_connection/1 without a live socket" do
     test "handles stopping non-existent connection" do
       fake_pid = spawn(fn -> :ok end)
       Process.sleep(10)
@@ -162,6 +173,11 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
   end
 
   describe "integration patterns" do
+    @describetag :integration
+    @describetag :local_network
+
+    setup :start_mock_server
+
     test "supervised client survives crashes", %{mock_url: mock_url} do
       {:ok, client} = SupervisedClient.start_connection(mock_url)
       original_pid = client.server_pid
@@ -209,5 +225,17 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
         SupervisedClient.stop_connection(client.server_pid)
       end)
     end
+  end
+
+  defp start_mock_server(_context) do
+    {:ok, server, port} = MockWebSockServer.start_link()
+
+    MockWebSockServer.set_handler(server, fn
+      {:text, msg} -> {:reply, {:text, msg}}
+      {:binary, data} -> {:reply, {:binary, data}}
+    end)
+
+    on_exit(fn -> MockWebSockServer.stop(server) end)
+    %{mock_url: "ws://localhost:#{port}/ws"}
   end
 end

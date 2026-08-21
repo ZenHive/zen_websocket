@@ -7,7 +7,7 @@ alias Credo.Check.Refactor.Nesting
       name: "default",
       files: %{
         included: ["lib/", "test/"],
-        excluded: [~r"/_build/", ~r"/deps/"]
+        excluded: [~r"/_build/", ~r"/deps/", ~r"/test/fixtures/"]
       },
       strict: true,
       color: true,

@@ -9,6 +9,7 @@ defmodule ZenWebsocket.Examples.BasicUsageTest do
   @deribit_testnet "wss://test.deribit.com/ws/api/v2"
 
   describe "deribit_testnet_example/0" do
+    @describetag :integration
     @describetag :external_network
     @tag timeout: 10_000
     test "demonstrates basic Deribit testnet connection from docs" do
@@ -21,6 +22,7 @@ defmodule ZenWebsocket.Examples.BasicUsageTest do
   end
 
   describe "custom_headers_example/1" do
+    @describetag :integration
     @describetag :external_network
     @tag timeout: 10_000
     test "demonstrates connection with custom headers" do
@@ -148,6 +150,7 @@ defmodule ZenWebsocket.Examples.BasicUsageTest do
   end
 
   describe "Deribit testnet integration" do
+    @describetag :integration
     @describetag :external_network
     @tag timeout: 10_000
     test "connects to Deribit testnet and receives response" do

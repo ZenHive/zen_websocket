@@ -1,0 +1,47 @@
+# Deliberately mistagged suites for NetworkTagGuard. Not an ExUnit case
+# (filename is not *_test.exs), so it is never run — only parsed by the guard.
+
+defmodule ZenWebsocket.Fixtures.MissingExternalNetwork do
+  @moduledoc false
+  use ExUnit.Case
+
+  test "dials an internet host without :external_network" do
+    ZenWebsocket.Client.connect("wss://test.deribit.com/ws/api/v2")
+  end
+end
+
+defmodule ZenWebsocket.Fixtures.MissingLocalNetwork do
+  @moduledoc false
+  use ExUnit.Case
+
+  test "starts MockWebSockServer without :local_network" do
+    ZenWebsocket.Test.Support.MockWebSockServer.start_link()
+  end
+end
+
+defmodule ZenWebsocket.Fixtures.NetworkTagWithoutIntegration do
+  @moduledoc false
+  use ExUnit.Case
+
+  @tag :external_network
+  test "carries :external_network without :integration" do
+    :ok
+  end
+end
+
+defmodule ZenWebsocket.Fixtures.ModuleSetupMockWithExternal do
+  @moduledoc false
+  use ExUnit.Case
+
+  @moduletag :integration
+  @moduletag :external_network
+  @moduletag :local_network
+
+  setup do
+    ZenWebsocket.Test.Support.MockWebSockServer.start_link()
+  end
+
+  test "module setup would start the mock under --only external_network" do
+    :ok
+  end
+end

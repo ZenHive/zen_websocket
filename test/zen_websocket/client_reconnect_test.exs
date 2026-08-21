@@ -288,6 +288,8 @@ defmodule ZenWebsocket.ClientReconnectTest do
   end
 
   describe "upgrade timeout reconnect (TCP up, 101 never arrives)" do
+    @describetag :integration
+    @describetag :local_network
     @tag timeout: 20_000
     test "stops after retry_count with backoff instead of hammering at timeout cadence" do
       listener = start_upgrade_listener(handshake_once: true, close_after_ms: 1_000)
@@ -356,6 +358,8 @@ defmodule ZenWebsocket.ClientReconnectTest do
   end
 
   describe "connect error reasons and caller survival" do
+    @tag :integration
+    @tag :external_network
     test "unresolvable host returns nxdomain without waiting for timeout" do
       started_at = System.monotonic_time(:millisecond)
       result = Client.connect("wss://no-such-host.invalid/ws", timeout: 8_000, retry_count: 0)
@@ -365,6 +369,8 @@ defmodule ZenWebsocket.ClientReconnectTest do
       assert elapsed < 2_000, "blocked #{elapsed}ms for nxdomain; must not wait for timeout"
     end
 
+    @tag :integration
+    @tag :local_network
     @tag timeout: 10_000
     test "connect returns error instead of exiting the caller when retries are exhausted" do
       listener = start_upgrade_listener(handshake_once: false, close_after_ms: 0)
@@ -390,6 +396,8 @@ defmodule ZenWebsocket.ClientReconnectTest do
       assert_receive {:DOWN, ^caller_ref, :process, ^caller, :normal}
     end
 
+    @tag :integration
+    @tag :local_network
     @tag timeout: 10_000
     test "ClientSupervisor start_client returns error instead of exiting the caller" do
       start_supervised!({ClientSupervisor, []})
@@ -439,6 +447,7 @@ defmodule ZenWebsocket.ClientReconnectTest do
   end
 
   describe "reconnect_on_error configuration" do
+    @tag :integration
     @tag :external_network
     test "client stops cleanly when reconnect_on_error is false" do
       # Start a client with reconnect_on_error: false
@@ -460,6 +469,7 @@ defmodule ZenWebsocket.ClientReconnectTest do
       refute Process.alive?(client.server_pid)
     end
 
+    @tag :integration
     @tag :external_network
     test "client behavior with bad URL demonstrates reconnect_on_error difference" do
       # Test with reconnect_on_error: false - should stop immediately
@@ -486,6 +496,7 @@ defmodule ZenWebsocket.ClientReconnectTest do
       assert reason2 in [:connection_failed, :timeout]
     end
 
+    @tag :integration
     @tag :external_network
     test "adapter pattern with supervised client disables internal reconnection" do
       # This demonstrates the intended pattern where the adapter
