@@ -557,7 +557,7 @@
       "id": "8",
       "phase": 1,
       "bundle": "hygiene",
-      "status": "in_progress",
+      "status": "done",
       "title": "Resolve three places where stated policy and shipped code disagree",
       "scores": {
         "d": 3,
@@ -589,10 +589,17 @@
         "mix.exs",
         "docs/Architecture.md"
       ],
+      "shipped_in": "307a2bcf63e9aaf0838c00128f3d39c776131ea9",
       "body": "Three cases where a written rule and the shipped tree contradict each other. The right output is a decision plus whichever side moves — not a unilateral breaking change. Verified 2026-08-20.\n\n1. CONNECTIONREGISTRY IS ORPHANED BUT DOCUMENTED AS LIVE. 104 LOC plus a 145-line test, and zero callers anywhere in lib/ (grep confirms). It is absent from the Descripex discoverable list in zen_websocket.ex, yet docs/Architecture.md:189 draws it into the architecture as if wired in. It is public API, so removal is breaking. Recommend a path — deprecate for 0.7 and delete in 0.8, wire it up, or keep it and correct the diagram — and implement only the non-breaking part.\n\n2. THE EXAMPLE-CODE POLICY IS UNENFORCEABLE AS WRITTEN. CLAUDE.md caps small in-tree examples at 50 lines and directs anything larger to a separate mix project. The tree has 13 example files totalling 1488 lines — about 20% of lib/ — of which 12 exceed 50 lines, and all of them ship to consumers through `package.files: ~w(lib ...)`. The prescribed escape hatch is the approach R026 abandoned. Either the limit changes or examples and mix tasks leave package.files; note the consumer impact either way.\n\n3. THE ARCHITECTURE POLICY IS EVADED, NOT SATISFIED. `.reach.exs` forbids `{:core, :support}`. But `lib/zen_websocket/testing/server.ex:14` binds `@mock_server_module ZenWebsocket.Test.Support.MockWebSockServer` and reaches it through `apply/3` at :44, :47, :72, :90, :96 and :111, with a `credo:disable-for-this-file Credo.Check.Refactor.Apply` at :9. The dependency is real; only its static-analysis visibility was removed, so `mix reach.check --arch` passes on a dependency the policy forbids. Decide whether the dependency is legitimate — if so, encode the exemption in .reach.exs where it can be reviewed, rather than hiding it behind apply/3.\n",
       "created_at": "2026-08-20",
       "started_at": "2026-08-21",
+      "done_at": "2026-08-21",
       "scored_at": "2026-08-20",
+      "implemented": "Landed by codex via merge-train; reviewer-approved (run run-1787298079092-d72bb165, 307a2bcf63e9aaf0838c00128f3d39c776131ea9).",
+      "delivered_by": "codex",
+      "verified": true,
+      "verified_by": "cursor",
+      "verification_ref": "harness-run:run-1787298079092-d72bb165",
       "cross_repo": []
     },
     {
