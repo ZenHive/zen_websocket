@@ -42,7 +42,9 @@ matching pong as success. An unanswered ping increments
 Gun WebSocket upgrades set `silence_pings: false` so pong frames reach
 the client; `MessageHandler` no longer sends a second pong (Gun already
 did). The pool ETS table is owned by a dedicated process so health
-state survives the first caller exiting.
+state survives the first caller exiting. Pool health scores pending
+requests, latency, and errors only; the unused `pressure_level` penalty
+is gone because `Client.get_state_metrics/1` never reported that key.
 
 ### Fixed — connection lifecycle and state restoration
 
