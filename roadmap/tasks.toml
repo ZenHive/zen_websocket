@@ -390,7 +390,7 @@ shipped_in = "c4e28191d7d22f0c67c7869bf4d3dfeb6d597a98"
 id = "7"
 phase = 1
 bundle = "hygiene"
-status = "pending"
+status = "in_progress"
 title = "Make CLAUDE.md, README and the docs describe the library that actually ships"
 scores = { d = 3, b = 9, u = 8 }
 markers = ["docs"]
@@ -418,6 +418,7 @@ FALSE ELSEWHERE:
 SAME ROOT CAUSE, IN CODE: `lib/mix/tasks/zen_websocket.validate_usage.ex:37` pins `@allowed_functions ~w(connect send_message subscribe get_state close)a`, so the task flags this repo's own legitimate Client calls as :invalid_api errors — the five-function myth encoded as a gate. Its `--fix` path (:232-240) additionally does an unguarded `File.write!` over whole files driven by a global `WebsockexAdapter` regex; that rename completed before v0.1.3 and the only remaining mentions of the old name in the tree are inside this task itself. Fix the allowed-function list and remove the dead rename rewrite, or delete the task.
 """
 created_at = "2026-08-20"
+started_at = "2026-08-21"
 scored_at = "2026-08-20"
 
 [[task]]
