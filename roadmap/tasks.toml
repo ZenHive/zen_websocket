@@ -506,3 +506,33 @@ started_at = "2026-08-21"
 scored_at = "2026-08-20"
 done_at = "2026-08-21"
 shipped_in = "f3d58fb921a65de61f921c9987637b45548ea458"
+
+[[task]]
+id = "10"
+phase = 1
+bundle = "correctness"
+status = "pending"
+title = "Give pool health a real pressure signal or drop the dead penalty"
+scores = { d = 3, b = 6, u = 5 }
+markers = ["bug"]
+acceptance_criteria = ["A real Client process — not a test double that injects :pressure_level — either reports a live pressure_level that can be :low, :medium, or :high, or PoolRouter no longer scores or documents a pressure component", "A test asserts the chosen behaviour end to end: either pressure_penalty is non-zero under documented load on a real Client, or the health formula and its docs have no pressure term", "mix precommit.full green"]
+out_of_scope = ["Restoring the RateLimiter request queue that task 3 removed", "Changing pending, latency, or error penalties", "CHANGELOG / USAGE_RULES / performance_tuning docs already corrected in the a89f090 post-merge audit"]
+files_to_modify = ["lib/zen_websocket/pool_router.ex", "lib/zen_websocket/client.ex", "test/zen_websocket/pool_router_test.exs"]
+assignee = "codex"
+model = "gpt-5.6-sol"
+body = """
+Task 5 (shipped f34a2b8) was accepted on a test that stubs the pressure key. Production still always scores pressure as 0.
+
+EVIDENCE, read 2026-08-21 in the a89f090 audit worktree after tasks 3 and 5 landed:
+
+1. Client.handle_call(:get_state_metrics, ...) in lib/zen_websocket/client.ex builds a map of connection_state, sizes, memory, heartbeat fields, and process info. It does not put :pressure_level.
+2. PoolRouter.get_client_metrics/1 reads Map.get(state_metrics, :pressure_level, :none). On a real Client that is always :none, so pressure_to_penalty/1 is always 0.
+3. Task 5's regression "applies a non-zero pressure penalty when the client reports queue pressure" starts a FakeMetricsClient whose state_metrics already contains pressure_level: :high. That proves the formula when the key is present; it does not prove a Client ever supplies it.
+4. Task 3 deleted the RateLimiter queue that was the only producer of live :low/:medium/:high. RateLimiter.status/1 now hardcodes pressure_level: :none. Even wiring status into the client would still be a constant.
+
+Decide one of: (a) a real per-connection pressure source that PoolRouter can read from a live Client, or (b) remove the pressure term from the health formula, the @pressure_penalties map, and the docs that still describe it as a 0-10 component. Either is acceptable; a stub-only test that the production path cannot fail is not.
+
+Docs in USAGE_RULES.md, docs/guides/performance_tuning.md, docs/Architecture.md, and CHANGELOG Unreleased were corrected in the post-merge audit of a89f090 — they no longer describe a live RateLimiter queue. Do not treat those as still open.
+"""
+created_at = "2026-08-21"
+scored_at = "2026-08-21"
