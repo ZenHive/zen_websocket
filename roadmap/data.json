@@ -894,7 +894,7 @@
       "id": "14",
       "phase": 1,
       "bundle": "code-quality",
-      "status": "in_progress",
+      "status": "done",
       "title": "Decompose Client into responsibility-scoped modules (1227 lines, 3.3x the next-largest module)",
       "scores": {
         "d": 6,
@@ -938,10 +938,17 @@
         "test/zen_websocket/client_test.exs",
         ".reach.exs"
       ],
+      "shipped_in": "12c7a53ec09a6fe36f5ee76528b3d4baf7fadfaa",
       "body": "ZenWebsocket.Client is the maintainability bottleneck of this library and the only structural item left in the backlog. Measured 2026-08-21 on main @ 0754c76, after tasks 1-13 and R051/R054/R055/R056 all landed:\n\n- 1227 lines = 16.6% of lib/ (7393 lines). The next-largest module is recorder.ex at 369 - 3.3x smaller. It has grown, not shrunk, through the correctness wave (1154 lines on 2026-08-20).\n- 12 public non-callback functions, 5 GenServer callbacks, 53 private functions in one module.\n- `mix reach.map --depth` puts three Client functions in the codebase's top seven: handle_info/2 depth=21 branches=8 (client.ex:914), connect/2 depth=21 branches=4 (client.ex:248), handle_call/3 depth=19 branches=3 (client.ex:716).\n\nNote what the gate does NOT say: `reach.check --smells` reports no issues and `ex_dna --max-clones 0` is green. There is no mechanical finding to chase here - the problem is that ten unrelated responsibilities share one file and one 53-function private namespace, so every future change to reconnect, framing, or recording has to be reasoned about against all of it.\n\nFOUR SEAMS ARE ALREADY VISIBLE IN THE PRIVATE-FUNCTION LAYOUT. Read them from the source before committing to a design; they are a starting proposal, not a mandate, and a better seam found while reading wins.\n\n1. Client-side call facade (client.ex:472-560, ~90 lines): safe_server_call/3, process_down_exit?/1, await_connected/2, unwrap_call_exit/1, stop_client_process/1, reconnect_target/1, reconnect_with/2, reconnect_opts_from_state/1. This is the process-down-safe GenServer.call wrapper that every public accessor goes through. It touches no Gun state and is the cleanest extraction in the file.\n\n2. Connection lifecycle and retry (client.ex:948-1096, ~150 lines): handle_connection_error/2, start_gun_attempt/1, maybe_retry_open/2, begin_attempt/1, arm_connection_timer/1, cancel_connection_timer/1, close_gun/1, cleanup_failed_connection/1, retry_now?/1, schedule_retry/1, stop_with_error/2, reply_awaiting/2, normalize_error/1. Task 2 rewrote the state machine here (attempt-identity timers, retry_count accounting); preserve that logic exactly and move it as-is.\n\n3. Frame routing and correlation (client.ex:1099-1190, ~110 lines): route_data_frame/2, handle_rpc_response/2, handle_frame_error/2, track_subscription_outbound/2, handle_correlation_timeout/2, track_heartbeat_frame/2, maybe_restore_subscriptions/1. route_data_frame/2 alone is the longest private function in the file.\n\n4. Recorder lifecycle (client.ex:1192-1222, ~35 lines): maybe_start_recorder/1, maybe_record/2, maybe_stop_recorder/1, maybe_put_reconnect_opt/3. Small and self-contained - fold it into whichever neighbour it belongs with rather than creating a 35-line module, if that reads better.\n\nThe GenServer callbacks (init/1, handle_call/3, handle_continue/2, handle_info/2, terminate/2) stay on Client - moving them would change supervision and message routing. What should shrink is what those callbacks inline: handle_info/2's depth of 21 across 8 branches comes from the 47-line {:gun_ws, ...} clause and the 43-line upgrade clause doing their work inline instead of delegating.\n\nABSORBS R052 (superseded 2026-08-21), which asked to flatten connect/2 in isolation. Its own re-measurement notes concluded a client.ex decomposition would absorb most of it, and re-measurement on this tree confirms connect/2 is essentially unchanged (depth 21, branches 4) - flattening it alone buys little. R049 and R055 from the earlier reach backlog are already gone (done or dropped), so this task is not blocked on any of them.\n\nWHY D=6. This is the riskiest change in the repo: Client owns the Gun transport, the reconnect state machine that task 2 just rewrote, and the correlation path. A structural move that silently changes a message-routing order or a timer's ownership is exactly the class of bug the gate cannot see. Move code, do not rewrite it; if a function needs a real change to move cleanly, say so in the delivery notes rather than folding a behaviour change into a refactor commit.\n\nWHY B=7 AND U=6, NOT HIGHER. The correctness defects that made this file frightening are fixed - the benefit here is future-change cost, not a live bug. Nothing depends on this task and no release is gated on it. It is the last remaining backlog item, so it is scored on its own merits rather than on unlock leverage.\n",
       "created_at": "2026-08-21",
       "started_at": "2026-08-21",
+      "done_at": "2026-08-21",
       "scored_at": "2026-08-21",
+      "implemented": "Landed by cursor via merge-train; reviewer-approved (run run-1787310135760-b7915849, 12c7a53ec09a6fe36f5ee76528b3d4baf7fadfaa).",
+      "delivered_by": "cursor",
+      "verified": true,
+      "verified_by": "codex",
+      "verification_ref": "harness-run:run-1787310135760-b7915849",
       "cross_repo": []
     }
   ]
