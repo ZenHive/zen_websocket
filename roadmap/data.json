@@ -46,7 +46,7 @@
       "id": "R052",
       "phase": 1,
       "bundle": "code-quality",
-      "status": "pending",
+      "status": "superseded",
       "title": "Flatten Client.connect/2 control flow (dominator depth 22)",
       "scores": {
         "d": 4,
@@ -75,7 +75,7 @@
       "files_to_modify": [
         "lib/zen_websocket/client.ex"
       ],
-      "body": "mix reach.map --depth reports ZenWebsocket.Client.connect/2 at dominator depth 22, branches=5, at lib/zen_websocket/client.ex:237. It's the public entry point — high control-flow nesting here hurts both testability and the mental model for new adapter authors.\n\nDetermine whether the depth comes from legitimate branching (protocol negotiation, config validation, transport selection) or from accumulated conditionals that can be extracted into small helpers or a `with` pipeline. Match the style already used in the rest of the module. reach also lists this function as refactoring candidate R2-002 (isolate effects, mixed pure/effectful) — advisory, not a mandate.\n\nRE-MEASURED 2026-08-20 on reach 2.8.2 (originally seeded from reach 1.5 on 2026-04-20). Depth is unchanged at 22 but branches grew 4 -> 5 and the definition moved from :228 to :237, so the original line reference was stale. U dropped 5 -> 4: task 2 rewrites the surrounding connect/reconnect clauses first, and a future client.ex decomposition would absorb most of this — flattening connect/2 in isolation buys less than it did in April.\n\nRE-MEASURED 2026-08-21 on the post-wave tree (27fe787), after tasks 2, 4, 9 and 10 landed: connect/2 is depth 21 branches=4 at lib/zen_websocket/client.ex:248 — essentially unchanged. The reconnect rewrite did clear the old hotspot: handle_continue/2, previously depth 25, is no longer in the top 12. The two deepest Client functions are now handle_info/2 (depth 21, branches=8, client.ex:914) and connect/2; handle_info/2 is the branchier of the pair and is the better target if only one is done.\n",
+      "body": "mix reach.map --depth reports ZenWebsocket.Client.connect/2 at dominator depth 22, branches=5, at lib/zen_websocket/client.ex:237. It's the public entry point — high control-flow nesting here hurts both testability and the mental model for new adapter authors.\n\nDetermine whether the depth comes from legitimate branching (protocol negotiation, config validation, transport selection) or from accumulated conditionals that can be extracted into small helpers or a `with` pipeline. Match the style already used in the rest of the module. reach also lists this function as refactoring candidate R2-002 (isolate effects, mixed pure/effectful) — advisory, not a mandate.\n\nRE-MEASURED 2026-08-20 on reach 2.8.2 (originally seeded from reach 1.5 on 2026-04-20). Depth is unchanged at 22 but branches grew 4 -> 5 and the definition moved from :228 to :237, so the original line reference was stale. U dropped 5 -> 4: task 2 rewrites the surrounding connect/reconnect clauses first, and a future client.ex decomposition would absorb most of this — flattening connect/2 in isolation buys less than it did in April.\n\nRE-MEASURED 2026-08-21 on the post-wave tree (27fe787), after tasks 2, 4, 9 and 10 landed: connect/2 is depth 21 branches=4 at lib/zen_websocket/client.ex:248 — essentially unchanged. The reconnect rewrite did clear the old hotspot: handle_continue/2, previously depth 25, is no longer in the top 12. The two deepest Client functions are now handle_info/2 (depth 21, branches=8, client.ex:914) and connect/2; handle_info/2 is the branchier of the pair and is the better target if only one is done.\n\nSUPERSEDED 2026-08-21 by task 14 (Decompose Client into responsibility-scoped modules). Absorbed, not dropped: task 14 carries connect/2 as one of its named depth targets, alongside handle_info/2, which is the branchier of the pair. Flattening connect/2 as an isolated change buys little once the module is split.\n",
       "scored_at": "2026-08-20",
       "cross_repo": []
     },
@@ -888,6 +888,59 @@
       "verified": true,
       "verified_by": "cursor",
       "verification_ref": "harness-run:run-1787308300640-5729cb66",
+      "cross_repo": []
+    },
+    {
+      "id": "14",
+      "phase": 1,
+      "bundle": "code-quality",
+      "status": "pending",
+      "title": "Decompose Client into responsibility-scoped modules (1227 lines, 3.3x the next-largest module)",
+      "scores": {
+        "d": 6,
+        "b": 7,
+        "u": 6
+      },
+      "eff": 1.08,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "assignee": "cursor",
+      "model": "cursor-grok-4.6-xhigh",
+      "acceptance_criteria": [
+        "lib/zen_websocket/client.ex drops below 600 lines and no newly created module exceeds 300; the split follows the responsibility seams named in the body, not an arbitrary line budget",
+        "The public surface of ZenWebsocket.Client is byte-compatible: connect/2, send_message/2, close/1, subscribe/2, get_state/1, get_heartbeat_health/1, get_state_metrics/1, get_latency_stats/1, reconnect/1, start_link/2, child_spec/1 and build_client_struct/2 keep their names, arities, @spec and return shapes, and the five GenServer callbacks stay on Client",
+        "mix reach.map --depth shows Client.handle_info/2 and Client.connect/2 both below depth 18 (both are 21 today) and Client contributing at most one function to the top 10; if a target is unreachable without a behaviour change, report the measured before/after number in the delivery notes instead of forcing it",
+        "Every telemetry event name, error tuple and {:error, reason} shape emitted by a moved function is unchanged - grep the diff for [:zen_websocket, ...] event names and assert none were renamed",
+        "No test is deleted, weakened, or converted to a pass-on-every-outcome shape to accommodate the split; tests may be re-pointed at new module names and new unit tests may be added for extracted pure functions",
+        "mix precommit.full green, including ex_dna --max-clones 0 (the split must not duplicate code across the new modules) and reach.check --arch --smells (no new forbidden layer edge in .reach.exs); core coverage stays at or above the 90 floor"
+      ],
+      "out_of_scope": [
+        "Changing the public signature or return shapes of any ZenWebsocket.Client function",
+        "Changing reconnection, heartbeat, rate-limiting or subscription semantics - this is a pure structural move",
+        "Renaming or adding telemetry events",
+        "Deleting ConnectionRegistry or any other module whose fate is a separate decision",
+        "Touching lib/zen_websocket/examples/ or the mix tasks",
+        "Reducing depth in modules other than Client"
+      ],
+      "files_to_modify": [
+        "lib/zen_websocket/client.ex",
+        "lib/zen_websocket.ex"
+      ],
+      "touches": [
+        "lib/zen_websocket/client.ex",
+        "lib/zen_websocket.ex",
+        "lib/zen_websocket/client_supervisor.ex",
+        "lib/zen_websocket/reconnection.ex",
+        "lib/zen_websocket/recorder_server.ex",
+        "lib/zen_websocket/subscription_manager.ex",
+        "test/zen_websocket/client_test.exs",
+        ".reach.exs"
+      ],
+      "body": "ZenWebsocket.Client is the maintainability bottleneck of this library and the only structural item left in the backlog. Measured 2026-08-21 on main @ 0754c76, after tasks 1-13 and R051/R054/R055/R056 all landed:\n\n- 1227 lines = 16.6% of lib/ (7393 lines). The next-largest module is recorder.ex at 369 - 3.3x smaller. It has grown, not shrunk, through the correctness wave (1154 lines on 2026-08-20).\n- 12 public non-callback functions, 5 GenServer callbacks, 53 private functions in one module.\n- `mix reach.map --depth` puts three Client functions in the codebase's top seven: handle_info/2 depth=21 branches=8 (client.ex:914), connect/2 depth=21 branches=4 (client.ex:248), handle_call/3 depth=19 branches=3 (client.ex:716).\n\nNote what the gate does NOT say: `reach.check --smells` reports no issues and `ex_dna --max-clones 0` is green. There is no mechanical finding to chase here - the problem is that ten unrelated responsibilities share one file and one 53-function private namespace, so every future change to reconnect, framing, or recording has to be reasoned about against all of it.\n\nFOUR SEAMS ARE ALREADY VISIBLE IN THE PRIVATE-FUNCTION LAYOUT. Read them from the source before committing to a design; they are a starting proposal, not a mandate, and a better seam found while reading wins.\n\n1. Client-side call facade (client.ex:472-560, ~90 lines): safe_server_call/3, process_down_exit?/1, await_connected/2, unwrap_call_exit/1, stop_client_process/1, reconnect_target/1, reconnect_with/2, reconnect_opts_from_state/1. This is the process-down-safe GenServer.call wrapper that every public accessor goes through. It touches no Gun state and is the cleanest extraction in the file.\n\n2. Connection lifecycle and retry (client.ex:948-1096, ~150 lines): handle_connection_error/2, start_gun_attempt/1, maybe_retry_open/2, begin_attempt/1, arm_connection_timer/1, cancel_connection_timer/1, close_gun/1, cleanup_failed_connection/1, retry_now?/1, schedule_retry/1, stop_with_error/2, reply_awaiting/2, normalize_error/1. Task 2 rewrote the state machine here (attempt-identity timers, retry_count accounting); preserve that logic exactly and move it as-is.\n\n3. Frame routing and correlation (client.ex:1099-1190, ~110 lines): route_data_frame/2, handle_rpc_response/2, handle_frame_error/2, track_subscription_outbound/2, handle_correlation_timeout/2, track_heartbeat_frame/2, maybe_restore_subscriptions/1. route_data_frame/2 alone is the longest private function in the file.\n\n4. Recorder lifecycle (client.ex:1192-1222, ~35 lines): maybe_start_recorder/1, maybe_record/2, maybe_stop_recorder/1, maybe_put_reconnect_opt/3. Small and self-contained - fold it into whichever neighbour it belongs with rather than creating a 35-line module, if that reads better.\n\nThe GenServer callbacks (init/1, handle_call/3, handle_continue/2, handle_info/2, terminate/2) stay on Client - moving them would change supervision and message routing. What should shrink is what those callbacks inline: handle_info/2's depth of 21 across 8 branches comes from the 47-line {:gun_ws, ...} clause and the 43-line upgrade clause doing their work inline instead of delegating.\n\nABSORBS R052 (superseded 2026-08-21), which asked to flatten connect/2 in isolation. Its own re-measurement notes concluded a client.ex decomposition would absorb most of it, and re-measurement on this tree confirms connect/2 is essentially unchanged (depth 21, branches 4) - flattening it alone buys little. R049 and R055 from the earlier reach backlog are already gone (done or dropped), so this task is not blocked on any of them.\n\nWHY D=6. This is the riskiest change in the repo: Client owns the Gun transport, the reconnect state machine that task 2 just rewrote, and the correlation path. A structural move that silently changes a message-routing order or a timer's ownership is exactly the class of bug the gate cannot see. Move code, do not rewrite it; if a function needs a real change to move cleanly, say so in the delivery notes rather than folding a behaviour change into a refactor commit.\n\nWHY B=7 AND U=6, NOT HIGHER. The correctness defects that made this file frightening are fixed - the benefit here is future-change cost, not a live bug. Nothing depends on this task and no release is gated on it. It is the last remaining backlog item, so it is scored on its own merits rather than on unlock leverage.\n",
+      "created_at": "2026-08-21",
+      "scored_at": "2026-08-21",
       "cross_repo": []
     }
   ]
