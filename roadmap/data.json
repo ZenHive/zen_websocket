@@ -433,7 +433,7 @@
       "id": "6",
       "phase": 1,
       "bundle": "hygiene",
-      "status": "pending",
+      "status": "in_progress",
       "title": "Remove tests that pass on every outcome and tag the untagged network tests",
       "scores": {
         "d": 3,
@@ -470,6 +470,7 @@
       ],
       "body": "The project's own CLAUDE.md carries a NEVER HIDE TEST FAILURES rule; four tests violate it directly. Verified 2026-08-20.\n\n- `examples/supervised_connection_test.exs:209` — a 26-line test body with zero assertions, ending in a comment that it \"may or may not have clients depending on timing\".\n- `recording_integration_test.exs:73` — comments \"No recording file should be created\" and never asserts it.\n- `error_integration_test.exs:102` — the textbook `case Client.send_message(...) do :ok -> :ok; {:error, _reason} -> :ok end`. Both outcomes pass, so the test asserts nothing about malformed-frame handling.\n- `examples/rate_limiting_test.exs:200-210` — nested `case` in which every branch is `:ok`.\n\nReplace each with an assertion on the specific expected outcome, and `flunk/1` on anything else. If the expected error term is not known, determine it against the mock server or the live testnet first — do not paper over it with a permissive match.\n\nSECOND, SMALLER ITEM — test tagging. `examples/rate_limiting_test.exs` guards its three live-network describes with `@describetag :integration` (at :45, :159 and :245), so the CI coverage gate's `--exclude integration` does cover them; an earlier review claim that these ran unguarded in the default suite was WRONG and is retracted here so nobody re-derives it. The real gap is narrower: several mock-server tests (`client_reconnect_test.exs`, `reconnection_test.exs`, `heartbeat_manager_test.exs`, `examples/basic_usage_test.exs`) open real sockets while carrying no tag, which contradicts CLAUDE.md's stated policy that :integration marks tests using MockWebSockServer. Tag them, or amend the policy — but the tree and the policy must agree.\n\nAlso in scope: `client_supervisor_send_balanced_test.exs:27` defines a `FakeClient` GenServer stand-in, which sits outside CLAUDE.md's narrow four-Gun-tuple mock exception. Either widen the fence deliberately in CLAUDE.md or replace the stand-in.\n",
       "created_at": "2026-08-20",
+      "started_at": "2026-08-21",
       "scored_at": "2026-08-20",
       "cross_repo": []
     },
