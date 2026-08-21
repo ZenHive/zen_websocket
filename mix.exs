@@ -1,7 +1,7 @@
 defmodule ZenWebsocket.MixProject do
   use Mix.Project
 
-  @version "0.6.1"
+  @version "0.7.0"
 
   # Core-only coverage floor. Measured 2026-08-21 via
   # `mix test.json --cover --exclude integration --include local_network`
