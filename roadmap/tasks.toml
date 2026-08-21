@@ -343,7 +343,7 @@ shipped_in = "f34a2b83979649be5e0861e1189bcbb67d477fa6"
 id = "6"
 phase = 1
 bundle = "hygiene"
-status = "in_progress"
+status = "done"
 title = "Remove tests that pass on every outcome and tag the untagged network tests"
 scores = { d = 3, b = 8, u = 7 }
 markers = ["bug"]
@@ -366,9 +366,16 @@ SECOND, SMALLER ITEM — test tagging. `examples/rate_limiting_test.exs` guards 
 
 Also in scope: `client_supervisor_send_balanced_test.exs:27` defines a `FakeClient` GenServer stand-in, which sits outside CLAUDE.md's narrow four-Gun-tuple mock exception. Either widen the fence deliberately in CLAUDE.md or replace the stand-in.
 """
+implemented = "Landed by cursor via merge-train; reviewer-approved (run run-1787292965792-94defb72, c4e28191d7d22f0c67c7869bf4d3dfeb6d597a98)."
+delivered_by = "cursor"
+verified = true
+verified_by = "codex"
+verification_ref = "harness-run:run-1787292965792-94defb72"
 created_at = "2026-08-20"
 started_at = "2026-08-21"
 scored_at = "2026-08-20"
+done_at = "2026-08-21"
+shipped_in = "c4e28191d7d22f0c67c7869bf4d3dfeb6d597a98"
 
 [[task]]
 id = "7"
