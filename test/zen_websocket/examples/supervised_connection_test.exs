@@ -36,8 +36,7 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       assert Process.alive?(client.server_pid)
 
       # Verify connection works - can return :ok or {:ok, response}
-      result = Client.send_message(client, "test message")
-      assert result == :ok or match?({:ok, _}, result)
+      assert :ok = Client.send_message(client, "test message")
 
       :ok = Client.close(client)
     end
@@ -160,8 +159,7 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
 
       # Subscribe - mock server returns echo of subscription message, not a subscription confirmation
       # We just verify the call doesn't crash the client
-      result = Client.subscribe(client, ["test.channel"])
-      assert result == :ok or match?({:ok, _}, result)
+      assert :ok = Client.subscribe(client, ["test.channel"])
 
       # Get current connection state
       assert Client.get_state(client) == :connected
@@ -207,27 +205,26 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
     end
 
     test "respects max restart limits", %{mock_url: mock_url} do
-      {:ok, client} = ClientSupervisor.start_client(mock_url)
+      {:ok, _client} = ClientSupervisor.start_client(mock_url)
+      sup_pid = Process.whereis(ClientSupervisor)
+      assert is_pid(sup_pid)
+      ref = Process.monitor(sup_pid)
 
-      _original_pid = client.server_pid
+      # max_restarts: 10 — the 11th crash exceeds intensity and stops the supervisor
+      Enum.each(1..11, fn _ ->
+        pid = await_supervised_client()
+        monitor = Process.monitor(pid)
+        Process.exit(pid, :kill)
 
-      # Force multiple rapid crashes to exceed restart limit
-      # Default is max_restarts: 10 in max_seconds: 60
-      for _ <- 1..12 do
-        clients = ClientSupervisor.list_clients()
-
-        if clients != [] do
-          pid = hd(clients)
-          Process.exit(pid, :kill)
-          Process.sleep(10)
+        receive do
+          {:DOWN, ^monitor, :process, ^pid, _} -> :ok
+        after
+          1_000 -> flunk("Supervised client #{inspect(pid)} did not die")
         end
-      end
+      end)
 
-      # After exceeding limits, supervisor should stop restarting
-      Process.sleep(200)
-
-      # May or may not have clients depending on timing
-      # The important thing is it doesn't keep crashing
+      assert_receive {:DOWN, ^ref, :process, ^sup_pid, _reason}, 2_000
+      refute Process.alive?(sup_pid)
     end
   end
 
@@ -277,48 +274,67 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       assert client
 
       # Use the client - can return :ok or {:ok, response}
-      result = Client.send_message(client, "managed message")
-      assert result == :ok or match?({:ok, _}, result)
+      assert :ok = Client.send_message(client, "managed message")
     end
 
-    @tag :integration
+    @tag :external_network
     test "supervised Deribit connection" do
       client_id = System.get_env("DERIBIT_CLIENT_ID")
       client_secret = System.get_env("DERIBIT_CLIENT_SECRET")
 
-      if client_id && client_secret do
-        opts = [
-          heartbeat_interval: 30_000,
-          timeout: 10_000
-        ]
+      if is_nil(client_id) or is_nil(client_secret) do
+        flunk("""
+        Missing Deribit testnet credentials!
 
-        {:ok, client} = ClientSupervisor.start_client(@deribit_testnet, opts)
+        Set these environment variables:
+          export DERIBIT_CLIENT_ID="your_client_id"
+          export DERIBIT_CLIENT_SECRET="your_client_secret"
 
-        # Authenticate
-        auth_msg = %{
-          "jsonrpc" => "2.0",
-          "method" => "public/auth",
-          "params" => %{
-            "grant_type" => "client_credentials",
-            "client_id" => client_id,
-            "client_secret" => client_secret
-          },
-          "id" => 1
-        }
-
-        case Client.send_message(client, Jason.encode!(auth_msg)) do
-          :ok ->
-            assert_receive {:websocket_message, _auth_response}, 5_000
-
-          {:ok, auth_response} ->
-            assert auth_response["result"]
-        end
-
-        # Verify supervised connection stays alive
-        assert Process.alive?(client.server_pid)
-
-        :ok = Client.close(client)
+        Get credentials at: https://test.deribit.com
+        """)
       end
+
+      opts = [
+        heartbeat_interval: 30_000,
+        timeout: 10_000
+      ]
+
+      {:ok, client} = ClientSupervisor.start_client(@deribit_testnet, opts)
+
+      auth_msg = %{
+        "jsonrpc" => "2.0",
+        "method" => "public/auth",
+        "params" => %{
+          "grant_type" => "client_credentials",
+          "client_id" => client_id,
+          "client_secret" => client_secret
+        },
+        "id" => 1
+      }
+
+      assert {:ok, %{"result" => %{"access_token" => _}}} =
+               Client.send_message(client, Jason.encode!(auth_msg))
+
+      assert Process.alive?(client.server_pid)
+
+      :ok = Client.close(client)
+    end
+  end
+
+  defp await_supervised_client(remaining_ms \\ 2_000)
+
+  defp await_supervised_client(remaining_ms) when remaining_ms <= 0 do
+    flunk("No supervised client appeared before timeout")
+  end
+
+  defp await_supervised_client(remaining_ms) do
+    case ClientSupervisor.list_clients() do
+      [pid | _] ->
+        pid
+
+      [] ->
+        Process.sleep(20)
+        await_supervised_client(remaining_ms - 20)
     end
   end
 end

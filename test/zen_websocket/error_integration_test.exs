@@ -23,44 +23,24 @@ defmodule ZenWebsocket.ErrorIntegrationTest do
     end
 
     test "handles connection timeout" do
-      # Use a very short timeout to force timeout error
       config = ZenWebsocket.Config.new!(@test_ws_url, timeout: 1)
 
       assert {:error, reason} = Client.connect(config)
 
-      case reason do
-        {:error, :timeout} ->
-          assert ErrorHandler.recoverable?(reason)
-          assert ErrorHandler.handle_error(reason) == :reconnect
+      assert reason in [:timeout, :connection_failed, {:error, :timeout}],
+             "Expected timeout or connection_failed, got: #{inspect(reason)}"
 
-        :timeout ->
-          assert ErrorHandler.recoverable?(reason)
-          assert ErrorHandler.handle_error(reason) == :reconnect
-
-        _ ->
-          # Connection might succeed faster than 1ms, which is fine
-          :ok
-      end
+      assert ErrorHandler.recoverable?(reason)
+      assert ErrorHandler.handle_error(reason) == :reconnect
     end
 
     test "reconnect function handles errors properly" do
       {:ok, client} = Client.connect(@test_ws_url)
-
-      # Close the connection first
       :ok = Client.close(client)
 
-      # Now try to reconnect - this should work
-      case Client.reconnect(client) do
-        {:ok, _new_client} ->
-          :ok
-
-        {:error, {:recoverable, _reason}} ->
-          :ok
-
-        {:error, reason} ->
-          # Some errors might not be recoverable in test environment
-          refute ErrorHandler.recoverable?(reason)
-      end
+      assert {:ok, new_client} = Client.reconnect(client)
+      assert Client.get_state(new_client) == :connected
+      :ok = Client.close(new_client)
     end
   end
 
@@ -95,15 +75,11 @@ defmodule ZenWebsocket.ErrorIntegrationTest do
     test "handles malformed JSON gracefully" do
       {:ok, client} = Client.connect(@test_ws_url)
 
-      # Send invalid JSON - this will test protocol error handling
+      # Invalid JSON is still a valid WebSocket text frame. extract_id/1 returns
+      # :no_id, so send_message/2 is fire-and-forget and Gun returns :ok.
       invalid_json = "{ invalid json structure"
-
-      # Note: Gun might reject this at the protocol level before it reaches our handler
-      case Client.send_message(client, invalid_json) do
-        :ok -> :ok
-        # Expected for malformed data
-        {:error, _reason} -> :ok
-      end
+      assert :ok = Client.send_message(client, invalid_json)
+      assert Client.get_state(client) == :connected
 
       Client.close(client)
     end

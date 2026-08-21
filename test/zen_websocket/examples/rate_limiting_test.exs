@@ -43,6 +43,7 @@ defmodule ZenWebsocket.Examples.RateLimitingTest do
 
   describe "rate limited client integration" do
     @describetag :integration
+    @tag :external_network
     test "enforces rate limits on WebSocket messages" do
       limiter_name = :test_client_limiter
 
@@ -154,6 +155,7 @@ defmodule ZenWebsocket.Examples.RateLimitingTest do
 
   describe "real-world rate limiting patterns" do
     @describetag :integration
+    @tag :external_network
     test "handles high-frequency trading with rate limits" do
       trading_limiter = :test_trading_limiter
 
@@ -172,45 +174,22 @@ defmodule ZenWebsocket.Examples.RateLimitingTest do
       {:ok, ^trading_limiter} = RateLimiter.init(trading_limiter, config)
       {:ok, client} = Client.connect("wss://echo.websocket.org")
 
-      # Simulate trading session
-      _results =
-        Enum.reduce(1..5, [], fn i, acc ->
-          order = %{"type" => "order", "id" => i, "action" => "buy"}
-
-          case RateLimiter.consume(trading_limiter, order) do
-            :ok ->
-              case Client.send_message(client, Jason.encode!(order)) do
-                :ok -> acc ++ [{:sent, i}]
-                # echo response
-                {:ok, _} -> acc ++ [{:sent, i}]
-              end
-
-            {:error, reason} ->
-              acc ++ [{:limited, i, reason}]
-          end
-        end)
-
-      # Query positions
-      for i <- 1..10 do
-        query = %{"type" => "query", "id" => i}
-
-        case RateLimiter.consume(trading_limiter, query) do
-          :ok ->
-            case Client.send_message(client, Jason.encode!(query)) do
-              :ok -> :ok
-              # echo response
-              {:ok, _} -> :ok
-            end
-
-          _ ->
-            :ok
-        end
+      # 5 orders at cost 5 = 25 tokens from a 50-token bucket
+      for i <- 1..5 do
+        order = %{"type" => "order", "id" => i, "action" => "buy"}
+        assert :ok = RateLimiter.consume(trading_limiter, order)
+        assert {:ok, %{"id" => ^i}} = Client.send_message(client, Jason.encode!(order))
       end
 
-      # Status check
+      # 10 queries at cost 1 = 10 more; 35 < 50 so none are limited
+      for i <- 1..10 do
+        query = %{"type" => "query", "id" => i}
+        assert :ok = RateLimiter.consume(trading_limiter, query)
+        assert {:ok, %{"id" => ^i}} = Client.send_message(client, Jason.encode!(query))
+      end
+
       {:ok, status} = RateLimiter.status(trading_limiter)
-      assert status.tokens < 50
-      assert status.tokens >= 0
+      assert status.tokens == 15
 
       :ok = Client.close(client)
     end
@@ -240,6 +219,7 @@ defmodule ZenWebsocket.Examples.RateLimitingTest do
 
   describe "Deribit testnet rate limiting" do
     @describetag :integration
+    @describetag :external_network
     test "respects Deribit credit limits" do
       deribit_limiter = :test_deribit_real_limiter
 
@@ -283,37 +263,28 @@ defmodule ZenWebsocket.Examples.RateLimitingTest do
         "id" => 1
       }
 
-      # Check rate limit before sending
       assert :ok = RateLimiter.consume(deribit_limiter, auth_msg)
 
-      # send_message blocks for correlated JSON-RPC (has "id") and returns response
-      case Client.send_message(client, Jason.encode!(auth_msg)) do
-        :ok -> :ok
-        {:ok, _} -> :ok
-        error -> flunk("Unexpected error: #{inspect(error)}")
-      end
+      assert {:ok, %{"result" => %{"access_token" => _}}} =
+               Client.send_message(client, Jason.encode!(auth_msg))
 
-      # Multiple ticker requests
+      # 200-token bucket: auth costs 1, each ticker costs 1 — none are limited
       for i <- 1..5 do
+        ticker_id = i + 1
+
         ticker_msg = %{
           "jsonrpc" => "2.0",
-          "method" => "public/get_ticker",
+          "method" => "public/ticker",
           "params" => %{"instrument_name" => "BTC-PERPETUAL"},
-          "id" => i + 1
+          "id" => ticker_id
         }
 
-        case RateLimiter.consume(deribit_limiter, ticker_msg) do
-          :ok ->
-            case Client.send_message(client, Jason.encode!(ticker_msg)) do
-              :ok -> :ok
-              {:ok, _} -> :ok
-              error -> flunk("Unexpected error: #{inspect(error)}")
-            end
+        assert :ok = RateLimiter.consume(deribit_limiter, ticker_msg)
 
-          {:error, :rate_limited} ->
-            # Expected when we hit limits
-            :ok
-        end
+        assert {:ok, %{"id" => ^ticker_id, "result" => result}} =
+                 Client.send_message(client, Jason.encode!(ticker_msg))
+
+        assert is_map(result)
       end
 
       :ok = Client.close(client)

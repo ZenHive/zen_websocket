@@ -617,9 +617,9 @@ export DERIBIT_CLIENT_SECRET="your_client_secret"
 If either is missing, create them before completing the task.
 
 ### Test Tagging
-- `:integration` - Tests using MockWebSockServer or external services
-- `:external_network` - Tests requiring internet (Deribit testnet, etc.)
-- Default `mix test` excludes these for fast feedback
+- `:integration` - Opt-in suite excluded from default `mix test` **and** from the coverage gate (`mix test.json --exclude integration`). Use for MockWebSockServer / live-API tests that are not part of the coverage ratchet.
+- `:external_network` - Tests that open a socket (local `MockWebSockServer` or internet). Excluded from default `mix test`; still run by the coverage gate, which only excludes `:integration`.
+- Default `mix test` excludes both, so the fast suite performs no socket connections.
 
 ### Real API Testing Policy
 **NO MOCKS ALLOWED** - Only real API testing:
@@ -629,9 +629,13 @@ If either is missing, create them before completing the task.
 
 **Rationale**: Financial software requires testing against real conditions. Mocks hide edge cases that cause financial losses.
 
-#### Narrow exception: opaque transport message shapes
+#### Narrow exceptions
 
-Test doubles are permitted for **Gun transport message tuples only** — the four shapes `:gun_upgrade`, `:gun_ws`, `:gun_down`, `:gun_error`. This is a single, fenced carve-out; all other forms of mocking remain prohibited.
+Two fenced carve-outs. Everything else remains prohibited.
+
+##### 1. Opaque Gun transport message shapes
+
+Test doubles are permitted for **Gun transport message tuples only** — the four shapes `:gun_upgrade`, `:gun_ws`, `:gun_down`, `:gun_error`.
 
 **What is permitted:**
 - Constructing the four Gun tuple shapes for unit-level tests of pure functions that consume them (e.g., `MessageHandler.handle_message/2`)
@@ -639,14 +643,23 @@ Test doubles are permitted for **Gun transport message tuples only** — the fou
 
 **Why this is not a real mock:** Gun's `pid` and `stream_ref` are opaque BEAM primitives with no public contract. There is no behavior for a fixture to drift against — only a tuple shape. Shape-only fixtures enable property-based testing of routing totality without stubbing any behavior.
 
-**What is NOT newly allowed** (explicit, to prevent drift):
+##### 2. ClientSupervisor routing stand-in
+
+A test-only GenServer that answers **only** the three `Client` calls `send_balanced/2` uses (`:send_message`, `:get_state_metrics`, `:get_latency_stats`) is permitted in `client_supervisor_send_balanced_test.exs`. `send_balanced/2` reaches candidates solely through `GenServer.call/2` on `server_pid`; the stand-in has no Gun connection, no frame handling, and no exchange semantics. It exists to drive failover and load-balancing deterministically (injected `:ok` / `{:ok, map()}` / `{:error, reason}` replies) without a live socket.
+
+**What is permitted:**
+- A `start_supervised/1` GenServer that replies to those three calls
+- Injecting the exact reply `Client.send_message/2` would return
+
+**What is NOT allowed** (either exception):
 - API response fixtures (Deribit, Binance, any exchange)
 - Authentication flow simulation
 - Exchange behavior simulation (subscription acks, order responses, heartbeats)
-- Any fixture with semantic content beyond the raw transport-frame shape
-- Fixtures for anything that is not one of the four Gun tuple shapes
+- Stubbing Gun, cowboy, or WebSocket frames
+- Using the routing stand-in to test `Client` GenServer state, reconnection, or message handling
+- Any fixture with semantic content beyond the raw transport-frame shape or the three `send_balanced/2` call replies
 
-**Source of truth unchanged:** `MockWebSockServer` (real cowboy/websock stack) and real-API tests remain the source of truth for all business logic. Any test touching `Client` GenServer state, reconnection, subscription semantics, or exchange behavior continues to require `MockWebSockServer` or a real endpoint.
+**Source of truth unchanged:** `MockWebSockServer` (real cowboy/websock stack) and real-API tests remain the source of truth for all business logic. `client_supervisor_test.exs` covers `send_balanced/2` end-to-end against a real connection. Any test touching `Client` GenServer state, reconnection, subscription semantics, or exchange behavior continues to require `MockWebSockServer` or a real endpoint.
 
 ### Test Support Modules
 - `MockWebSockServer` - Controlled WebSocket server

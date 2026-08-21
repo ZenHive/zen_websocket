@@ -7,8 +7,9 @@ defmodule ZenWebsocket.ClientSupervisorSendBalancedTest do
   real Deribit testnet connection (tagged `:external_network`), but that
   leaves the failover/load-balancing logic itself - which only ever talks to
   its candidates through `GenServer.call/2` - entirely untested outside a
-  live network run. A fake local GenServer standing in for the `Client`
-  server process is enough to drive that logic deterministically.
+  live network run. A local GenServer standing in for those three calls is
+  the fenced exception in CLAUDE.md → Real API Testing Policy → Narrow
+  exceptions → ClientSupervisor routing stand-in.
   """
   # async: false: PoolRouter uses a shared ETS table and ClientSupervisor is
   # a globally named process, same as client_supervisor_test.exs.

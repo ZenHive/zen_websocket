@@ -70,20 +70,19 @@ defmodule ZenWebsocket.RecordingIntegrationTest do
       assert Enum.any?(inbound, fn e -> String.contains?(e.data, "notification") end)
     end
 
-    test "recording disabled by default" do
+    test "recording disabled by default", %{path: path} do
       {:ok, server} = Testing.start_mock_server()
 
-      # Connect without record_to option
       {:ok, client} = ZenWebsocket.Client.connect(server.url)
+      {:ok, internal} = GenServer.call(client.server_pid, :get_state_internal)
+      assert is_nil(internal.recorder_pid)
 
-      ZenWebsocket.Client.send_message(client, "test")
-      Process.sleep(50)
+      assert :ok = ZenWebsocket.Client.send_message(client, "test")
 
       ZenWebsocket.Client.close(client)
       Testing.stop_server(server)
 
-      # No recording file should be created
-      # (This test verifies no errors occur when recording is disabled)
+      refute File.exists?(path)
     end
 
     test "handles recording errors gracefully" do
