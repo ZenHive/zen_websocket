@@ -180,7 +180,7 @@ scored_at = "2026-07-13"
 id = "2"
 phase = 1
 bundle = "reconnect"
-status = "in_progress"
+status = "done"
 title = "Fix the reconnect state machine and its supervisor-side fallout"
 scores = { d = 5, b = 10, u = 9 }
 markers = ["bug"]
@@ -218,9 +218,16 @@ Read it left to right. t=1 is attempt 1, which arms timer A for t=4001. t=3003 T
 
 CONTEXT ON THE CLAUSE YOU ARE REWRITING: `mix reach.map --depth` (reach 2.8.2, measured 2026-08-20) puts `Client.handle_continue/2` at client.ex:625 at dominator depth 25 — the second-deepest function in the codebase, behind only `Reconnection.establish_connection/1` at 39. That is the same clause defects 1-3 live in. Do not treat "reduce the depth" as a goal of this task — correctness first, and decomposing client.ex is explicitly out of scope — but if the fix leaves that clause deeper than you found it, say so in the delivery notes so the follow-up refactor (R051/R052) is scoped against a real number rather than the April one.
 """
+implemented = "Landed by cursor via merge-train; reviewer-approved (run run-1787292955301-e96c4920, 9a41ce7e1d77136984f33252c9b9622e442c21fc)."
+delivered_by = "cursor"
+verified = true
+verified_by = "codex"
+verification_ref = "harness-run:run-1787292955301-e96c4920"
 created_at = "2026-08-20"
 started_at = "2026-08-21"
 scored_at = "2026-08-20"
+done_at = "2026-08-21"
+shipped_in = "9a41ce7e1d77136984f33252c9b9622e442c21fc"
 
 [[task]]
 id = "3"
