@@ -270,14 +270,14 @@ shipped_in = "3dfd9eb44d653791a9cef73579636e46d5fece1c"
 id = "4"
 phase = 1
 bundle = "correctness"
-status = "pending"
+status = "in_progress"
 title = "Fix always-true guard, silent auth pass-through, subscription re-add, and recorder data loss"
 scores = { d = 4, b = 7, u = 6 }
 markers = ["bug"]
+depends_on = ["2"]
 acceptance_criteria = ["authenticate/1 returns {:error, reason} when Deribit replies with a JSON-RPC error body, asserted by a test that feeds a realistic error response — {:ok, adapter} must not match a failed authentication", "The subscription-restore guard uses MapSet.size/1, and a test covers the empty-subscriptions case that the current map_size/1 guard admits", "Subscriptions survive a failed restore: a test asserts that when re-subscribe fails, the tracked set is not silently emptied and get_state does not report success", "SubscriptionManager.handle_message/2 only registers a channel on an actual subscription confirmation, not on every data frame carrying params.channel — covered by a test that feeds a data frame for an unsubscribed channel and asserts it is not added, and by a test that routes a realistic Deribit confirmation (an id/result frame) and asserts the channel IS tracked", "Either remove/2 has a caller in lib/ or it is removed; an unsubscribed channel is not restored on the next reconnect, asserted by a test", "RecorderServer buffered entries survive an abnormal exit of the client that started it, asserted by a test", "mix precommit.full green"]
 out_of_scope = ["Merging the two Deribit adapters — they demonstrate standalone vs GenServer-wrapped patterns on purpose", "The reconnect state machine, its timers, and the supervisor-side await/catch clauses — task 2 owns those and lands first", "Any change to client.ex beyond the minimal message-routing clause needed so subscription confirmations reach SubscriptionManager"]
 files_to_modify = ["lib/zen_websocket/examples/deribit_adapter.ex", "lib/zen_websocket/examples/deribit_genserver_adapter.ex", "lib/zen_websocket/subscription_manager.ex", "lib/zen_websocket/recorder_server.ex", "lib/zen_websocket/client.ex"]
-depends_on = ["2"]
 assignee = "grok"
 model = "grok-4.6"
 body = """
@@ -306,6 +306,7 @@ Defect 4 — RUNTIME-VERIFIED, total loss. Harness: an owner process `start_link
 Adjacent finding while verifying, worth folding into defect 4's fix rather than filing separately: `HeartbeatManager.handle_generic_heartbeat/2` only ever does `MapSet.put` on `active_heartbeats` and never removes, so that set grows monotonically for the process lifetime.
 """
 created_at = "2026-08-20"
+started_at = "2026-08-21"
 scored_at = "2026-08-20"
 
 [[task]]
