@@ -5,75 +5,104 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] - 2026-08-21
 
-### Changed — Client internals split into responsibility-scoped modules
+### Removed
 
-`ZenWebsocket.Client` remains the public GenServer and API. Call wrapping, Gun
-lifecycle, retry policy, frame routing, JSON-RPC correlation, recording, and
-callback bodies now live in `Client*` modules under `lib/zen_websocket/client/`.
-Public signatures and return shapes are unchanged.
+- **BREAKING — RateLimiter queue telemetry:**
+  `[:zen_websocket, :rate_limiter, :queue]`,
+  `[:zen_websocket, :rate_limiter, :queue_full]`, and
+  `[:zen_websocket, :rate_limiter, :pressure]` are no longer emitted. Remove
+  handlers attached to those events; instrument the caller's
+  `{:error, :rate_limited}` branch for rejection or pressure signals, while
+  retaining `:consume` and `:refill` handlers for successful token use and
+  refills.
+- **BREAKING — RateLimiter queue configuration:** `:max_queue_size` and
+  `@default_max_queue_size` were removed. Remove that key from limiter
+  configuration and bound any application-owned retry queue where requests are
+  actually retained.
+- **BREAKING — `ZenWebsocket.RateLimiter.state/0`:** the public type was
+  removed with the internal queue state. Replace references to it with an
+  application-owned status-map type (or `map()`); use
+  `ZenWebsocket.RateLimiter.config/0` for `init/2` input.
+- **BREAKING — `mix stability_test`:** the shipped
+  `Mix.Tasks.StabilityTest` task and its guide were removed. The task was part
+  of the package because the package definition ships the complete `lib` tree.
+  Replace scripts that invoke it with the relevant test command, such as
+  `mix test --only external_network`, or an application-owned soak test.
+- **BREAKING — `ZenWebsocket.Client.reconnect_opts_from_state/1`:** this
+  function was removed from the `ZenWebsocket.Client` surface; it was not made
+  private. Code that still needs this internal-state conversion can call the
+  public `ZenWebsocket.Client.Reconnect.reconnect_opts_from_state/1` function.
 
-### Changed — coverage gate measures core library only
+### Changed
 
-`test_coverage: ignore_modules` lists Mix regexes plus matching module atoms so
-`ex_unit_json 0.6.0` actually excludes Examples, Mix.Tasks, and Test.Support.
-The floor is 90 (measured 90.34% core-only on 2026-08-21, rounded down), not
-the previous 58 that measured the diluted suite.
+- **BREAKING — RateLimiter is an allow/deny gate, not a request queue.**
+  `consume/2` now returns only `:ok | {:error, :rate_limited}` and never retains
+  a rejected request; `{:error, :queue_full}` is gone. On `:rate_limited`, keep
+  and retry the request in caller-owned code. `status/1` retains
+  `queue_size`, `pressure_level`, and `suggested_delay_ms` only as neutral
+  compatibility fields (`0`, `:none`, and `0`). Token consumption and refill
+  now use compare-and-swap so concurrent refills cannot restore spent tokens.
+- **BREAKING — `Client.connect/2` failure term and latency.** In 0.6.1 a third
+  `:await_connection` clause immediately returned
+  `{:error, :connection_failed}` when the client was neither `:connected` nor
+  `:connecting`. The caller is now parked while the configured retry/backoff
+  ladder runs and receives its terminal normalized reason: for example
+  `{:error, :nxdomain}` when no retry applies, or
+  `{:error, :max_reconnection_attempts}` when configured retries are exhausted.
+  Match `{:error, reason}` instead of the single atom. `retry_count: 0` skips
+  the backoff ladder but still waits for the first attempt to fail.
+- **BREAKING — `ClientSupervisor.start_client/2` startup failures.** A client
+  process dying during startup now yields `{:error, reason}` instead of exiting
+  the caller. Replace `catch :exit` handling with an `{:error, reason}` match.
+- **BREAKING — Deribit adapter JSON-RPC errors.**
+  `DeribitAdapter.authenticate/1`, `subscribe/2`, and `unsubscribe/2`, plus
+  `DeribitGenServerAdapter.authenticate/1` and `subscribe/2`, now return
+  `{:error, reason}` for JSON-RPC error bodies instead of passing an
+  `{:ok, error_body}` through (or accepting a failed heartbeat acknowledgement).
+  Match the error tuple before treating authentication, subscribe, or
+  unsubscribe as successful.
+- **BREAKING — subscription tracking follows operations, not market-data
+  ticks.** `SubscriptionManager.handle_message/2` tracks Deribit-style
+  `public/subscribe` and `public/unsubscribe` requests, applies correlated
+  result frames, and clears failed operations. It no longer adds every
+  `"params.channel"` seen in inbound data. Non-Deribit integrations that relied
+  on that implicit behavior should call `SubscriptionManager.add/2` and
+  `remove/2` explicitly. The intended long-term dialect is tracked separately
+  in roadmap Task 17.
+- **BREAKING — generic heartbeat state reports the active type.** A generic
+  heartbeat replaces `active_heartbeats` instead of accumulating every type
+  ever observed. Treat `get_heartbeat_health/1`'s list as current state; retain
+  history in application state or from heartbeat telemetry if needed.
+- `JsonRpc.build_request/2` and the JSON-RPC client example now type positional
+  parameter lists as well as named maps. Runtime acceptance was already broad;
+  the corrected spec lets onchain remove its upstream Dialyzer suppression for
+  list parameters.
+- `ZenWebsocket.Client` remains the public GenServer. Call wrapping, Gun
+  lifecycle, retry policy, frame routing, correlation, recording, and callback
+  bodies were moved into responsibility-scoped submodules under
+  `lib/zen_websocket/client/`. Apart from the
+  `reconnect_opts_from_state/1` move documented above, supported Client
+  signatures and return shapes are unchanged; the new
+  `Client.build_client_struct/2` assembly helper is `@doc false` and used by
+  `ClientSupervisor`.
 
-### Changed — one Client struct constructor, shared heartbeat and callback helpers
+### Fixed
 
-`Client.build_client_struct/2` is the single constructor for the returned
-client struct (`@doc false`; used by `ClientSupervisor.start_client/2`).
-`reconnect_opts_from_state/1` is private. Application-heartbeat pongs go
-through `HeartbeatInterval.record_pong/3`; lifecycle callbacks go through
-`SafeCallback.invoke/2`.
-
-### Changed — RateLimiter is an allow/deny gate, not a queue
-
-`consume/2` no longer enqueues rate-limited requests. It returns
-`:ok | {:error, :rate_limited}` and leaves retry to the caller.
-`{:error, :queue_full}` is gone. Token refill and consume use
-compare-and-swap (`:ets.select_replace/2`) so a concurrent consume
-cannot resurrect tokens a refill just overwrote.
-
-`status/1` still returns `queue_size`, `pressure_level`, and
-`suggested_delay_ms` at their neutral values (`0` / `:none` / `0`) so
-existing callers keep compiling; those keys no longer describe a live
-queue.
-
-### Changed — JSON-RPC parameter typing reflects the protocol
-
-`JsonRpc.build_request/2` and the JSON-RPC client example accept positional
-parameter lists as well as named parameter maps. Runtime behavior is unchanged;
-the public specs and discovery metadata now describe both JSON-RPC forms.
-
-### Changed — Heartbeat and pool health measure the connection they report on
-
-`:ping_pong` heartbeats send a unique ping payload and only count a
-matching pong as success. An unanswered ping increments
-`heartbeat_failures` instead of assuming the connection is alive.
-Gun WebSocket upgrades set `silence_pings: false` so pong frames reach
-the client; `MessageHandler` no longer sends a second pong (Gun already
-did). The pool ETS table is owned by a dedicated process so health
-state survives the first caller exiting. Pool health scores pending
-requests, latency, and errors only; the unused `pressure_level` penalty
-is gone because `Client.get_state_metrics/1` never reported that key.
-
-### Fixed — connection lifecycle and state restoration
-
-- Client-owned Gun attempts now use one retry state machine, disable Gun's
-  independent retries, reject stale connection timers, and return connection
-  failures to callers without taking the caller process down.
-- Supervisor discovery ignores non-PID child states such as `:restarting`, and
-  supervised startup returns connection failures instead of exiting callers.
-- Deribit authentication and subscription helpers return JSON-RPC error bodies
-  as `{:error, reason}`. Subscription tracking follows confirmed subscribe and
-  unsubscribe operations, clears failed operations, and does not re-add channels
-  from later market-data ticks.
-- Recorder buffers flush when their linked owner terminates abnormally, and
-  generic heartbeat tracking replaces the active type instead of accumulating
-  stale types.
+- Client-owned Gun attempts use one retry state machine with Gun's independent
+  retry disabled and attempt-specific timers, preventing duplicate reconnects
+  and stale timeouts from terminating a later attempt.
+- Supervisor discovery ignores non-PID child states such as `:restarting`.
+- `:ping_pong` heartbeats use a unique payload and count only the matching pong;
+  a missed pong increments `heartbeat_failures`. Gun forwards pong frames to
+  the client, and `MessageHandler` no longer sends a duplicate pong for an
+  inbound ping.
+- Pool health state survives the first caller exiting. Scores use pending
+  requests, latency, and errors; the unreachable pressure penalty was removed.
+- Failed Deribit authentication or subscription restoration no longer reports
+  success or discards the subscriptions still needing restoration.
+- Recorder buffers flush when their linked owner terminates abnormally.
 
 ## [0.6.1] - 2026-08-17
 
@@ -478,7 +507,9 @@ Additive release — no public-API or behavior change. Consumers upgrading from
 - Real-world tested against live WebSocket endpoints
 - Strict code quality standards (max 5 functions per module, 15 lines per function)
 
-[Unreleased]: https://github.com/ZenHive/zen_websocket/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/ZenHive/zen_websocket/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/ZenHive/zen_websocket/compare/v0.6.1...v0.7.0
+[0.6.1]: https://github.com/ZenHive/zen_websocket/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/ZenHive/zen_websocket/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/ZenHive/zen_websocket/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/ZenHive/zen_websocket/compare/v0.4.2...v0.4.3
