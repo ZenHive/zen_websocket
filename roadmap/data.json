@@ -950,6 +950,59 @@
       "verified_by": "codex",
       "verification_ref": "harness-run:run-1787310135760-b7915849",
       "cross_repo": []
+    },
+    {
+      "id": "15",
+      "phase": 1,
+      "bundle": "code-quality",
+      "status": "pending",
+      "title": "Un-break Client module namespacing by fixing the validate_usage regex that forced flat names",
+      "scores": {
+        "d": 3,
+        "b": 6,
+        "u": 5
+      },
+      "eff": 1.83,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "assignee": "grok",
+      "model": "grok-4.6",
+      "acceptance_criteria": [
+        "validate_api_usage/3 no longer treats a nested module segment as a function name: a reference to ZenWebsocket.Client.CallFacade must not be reported as :invalid_api, while a genuine unknown call such as ZenWebsocket.Client.bogus_thing/1 must still be reported - both pinned by tests",
+        "@allowed_functions matches the Client surface that actually ships (12 non-callback public functions as of 0.6.1), not the retired 5-function API; a test asserts the list and the module's real exports agree, so the next Client API change fails the test instead of silently drifting",
+        "The ten modules under lib/zen_websocket/client/ are renamed from ZenWebsocket.Client<Thing> to ZenWebsocket.Client.<Thing> so module name and file path agree, and every reference is updated (lib, test, lib/zen_websocket.ex discoverable list, docs/Architecture.md, CLAUDE.md module tree)",
+        "mix zen_websocket.validate_usage exits clean against this repo's own lib/ and test/ after the rename",
+        "AGENTS.md regenerated from CLAUDE.md (bash ~/_DATA/code/claude-marketplace/scripts/sync-agents-md.sh) and the mix ci freshness check passes",
+        "mix precommit.full green; no behaviour change - this is a rename plus a tool fix, so no test assertions change meaning"
+      ],
+      "out_of_scope": [
+        "The --fix path of the mix task and its unguarded File.write! - that is a separate decision about whether the task should rewrite files at all",
+        "Changing any Client function's behaviour, signature, or return shape",
+        "Re-splitting or merging the modules task 14 extracted - only their names change",
+        "Adding new antipattern regexes to common_antipatterns/0"
+      ],
+      "files_to_modify": [
+        "lib/mix/tasks/zen_websocket.validate_usage.ex",
+        "test/zen_websocket/validate_usage_test.exs",
+        "CLAUDE.md"
+      ],
+      "touches": [
+        "lib/mix/tasks/zen_websocket.validate_usage.ex",
+        "test/zen_websocket/validate_usage_test.exs",
+        "lib/zen_websocket/client.ex",
+        "lib/zen_websocket/client/",
+        "lib/zen_websocket.ex",
+        "test/zen_websocket/client/",
+        "CLAUDE.md",
+        "AGENTS.md",
+        "docs/Architecture.md"
+      ],
+      "body": "DISCOVERED 2026-08-21 by the orchestrator's whole-surface pass over the landed task-14 decomposition (run run-1787310135760-b7915849, shipped 12c7a53ec09a). Not a reviewer proposal - the run's verdict carried proposed_tasks: [].\n\nTHE OBSERVABLE DEFECT. Task 14 extracted ten modules into lib/zen_websocket/client/, but they are named flat: `defmodule ZenWebsocket.ClientCallFacade` lives at lib/zen_websocket/client/call_facade.ex, `ZenWebsocket.ClientRetryPolicy` at client/retry_policy.ex, and so on for all ten. Elixir's convention is that a module's name mirrors its path - ZenWebsocket.ClientCallFacade belongs at lib/zen_websocket/client_call_facade.ex, and a file under client/ implies ZenWebsocket.Client.CallFacade. Every one of the ten is mismatched, so `mix reach`, grep-by-path, and a reader's expectation all disagree with the module namespace.\n\nTHE CAUSE, READ FROM SOURCE - THIS IS THE PART THAT MATTERS. lib/mix/tasks/zen_websocket.validate_usage.ex:135 scans with `~r/ZenWebsocket\\.Client\\.(\\w+)/` and treats capture group 1 as a FUNCTION NAME, then errors with :invalid_api when it is not in @allowed_functions (:37). The regex cannot distinguish `ZenWebsocket.Client.connect(...)` from the module reference `ZenWebsocket.Client.CallFacade` - the latter yields function == \"CallFacade\", which is not in the allowlist, so a correctly-named nested module is a hard error. The task-14 implementer hit this and edited the mix task; the reviewer judged that edit out of scope for a decomposition task, reverted it, and instead renamed the modules flat to route around the regex. That was a defensible call inside a per-task review, but the outcome is that a stale lint tool is now dictating the library's module namespace.\n\n@allowed_functions is stale on a second axis: it pins `connect send_message subscribe get_state close get_heartbeat_health get_state_metrics get_latency_stats reconnect build_client_struct t`, which is the surface as of an earlier release. Client currently exports 12 non-callback public functions including child_spec/1 and start_link/2. The allowlist is hand-maintained with nothing tying it to reality, which is why it drifts.\n\nTHE FIX IS THE CLASS, NOT THE INSTANCE. Do not just rename the ten modules - that would leave the regex in place to distort the next extraction the same way. Fix the tool so nested Client.* modules are representable, then rename. Two things the tool must learn to tell apart:\n  - a module reference: the segment after Client. starts with an uppercase letter (and may itself be dotted)\n  - a function call: the segment is lowercase and is followed by ( or | or is used as a capture\n\nand the allowlist must be derived from or checked against the real exports rather than hand-copied, so it fails loudly on the next API change instead of silently flagging legitimate calls.\n\nSEQUENCING. Fix and test the mix task FIRST, confirm `mix zen_websocket.validate_usage` accepts a nested name, and only then rename. Renaming first leaves the repo in a state where its own usage validator reports ten false errors.\n\nSCOPE NOTE. The plan that seeded this backlog also flagged this task's `--fix` path (an unguarded File.write! driven by a regex for a module name that no longer exists anywhere but inside the task itself). That is deliberately out of scope here: it is a decision about whether the task should rewrite files at all, not a blocker for the namespacing fix. File it separately if you want it addressed.\n\nWHY D=3 / B=6 / U=5. Mechanically it is a bounded regex fix plus a wide but mechanical rename, which is why D is 3 rather than higher; the breadth is in reference-chasing, not in reasoning. There is no live bug and nothing is gated on it, so B and U stay moderate. U is not lower only because the flat names are one day old - undoing the distortion now costs a rename, whereas every future module that adopts the flat convention makes it more permanent.\n",
+      "created_at": "2026-08-21",
+      "scored_at": "2026-08-21",
+      "cross_repo": []
     }
   ]
 }
