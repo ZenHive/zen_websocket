@@ -766,6 +766,50 @@
       "verified_by": "codex",
       "verification_ref": "harness-run:run-1787300568049-746710d6",
       "cross_repo": []
+    },
+    {
+      "id": "12",
+      "phase": 1,
+      "bundle": "hygiene",
+      "status": "pending",
+      "title": "Finish dual-tagging the suites task 11 left mixed or :integration-only",
+      "scores": {
+        "d": 2,
+        "b": 5,
+        "u": 5
+      },
+      "eff": 2.5,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "assignee": "cursor",
+      "model": "cursor-grok-4.6-high",
+      "acceptance_criteria": [
+        "error_integration_test.exs Deribit/internet tests carry :integration and :external_network; its ErrorHandler unit tests carry neither network tag",
+        "examples/error_handling_test.exs mock-server tests carry :integration and :local_network; tests that only dial an invalid host carry :integration and :external_network",
+        "examples/supervised_client_test.exs mock-server tests carry :integration and :local_network; tests that only dial an invalid host carry :integration and :external_network",
+        "client_supervisor_test.exs carries both :integration and :external_network (it is internet-only today)",
+        "mix test (default excludes) still opens no sockets",
+        "mix test --only external_network does not start MockWebSockServer",
+        "A repo-wide guard closes the class instead of leaving a third round of this task: a test (or mix check) walks every file under test/ and fails when a suite references an internet URL without :external_network, references MockWebSockServer without :local_network, or carries a network tag without :integration — asserted by adding a deliberately mistagged fixture and confirming the guard reds",
+        "mix precommit.full green"
+      ],
+      "out_of_scope": [
+        "Raising the mix.exs coverage threshold",
+        "Rewriting assertions or adding new scenarios",
+        "Files already split by task 11 (client_test, correlation_test, subscription_management_test, supervised_connection_test, recording_integration_test, heartbeat_manager_test, reconnection_test)"
+      ],
+      "files_to_modify": [
+        "test/zen_websocket/error_integration_test.exs",
+        "test/zen_websocket/examples/error_handling_test.exs",
+        "test/zen_websocket/examples/supervised_client_test.exs",
+        "test/zen_websocket/client_supervisor_test.exs"
+      ],
+      "body": "Task 11 (shipped 6943c95) split the mixed suites in its write-set. Three other suites still use a single @moduletag :integration over mock-server, internet, and unit tests, so --only external_network and --include local_network still cannot select the right subset. Task 11's out_of_scope listed error_integration_test and client_supervisor_test as already dual-tagged from the 6c7dfbc audit; they are not.\n\nEVIDENCE, read 2026-08-21 in the e6ab330 post-merge audit worktree:\n\n1. test/zen_websocket/error_integration_test.exs has only @moduletag :integration. It connects to wss://test.deribit.com/ws/api/v2 (connect, reconnect, invalid credentials, malformed JSON), dials wss://invalid-domain-that-does-not-exist.com/ws, and also contains pure ErrorHandler.categorize_error/1 tests that open no socket. Those unit tests are trapped outside the coverage ratchet.\n\n2. test/zen_websocket/examples/error_handling_test.exs has only @moduletag :integration. The same \"connection error handling\" describe mixes MockWebSockServer.start_link (successful connect / send) with wss://invalid.websocket.test (DNS/connect-fail retries).\n\n3. test/zen_websocket/examples/supervised_client_test.exs has only @moduletag :integration and starts MockWebSockServer in module setup, so every test including \"handles connection failures\" against ws://invalid.example.com:9999 inherits a local socket. --only external_network would still start the mock server.\n\n4. test/zen_websocket/client_supervisor_test.exs has only @moduletag :external_network (no :integration) against Deribit testnet. Policy is the pair.\n\nSame split as task 11: per-describe (or per-test) tags that match the socket; unit tests untagged. Do not raise the coverage floor.\n",
+      "created_at": "2026-08-21",
+      "scored_at": "2026-08-21",
+      "cross_repo": []
     }
   ]
 }
