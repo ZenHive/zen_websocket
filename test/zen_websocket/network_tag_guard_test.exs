@@ -3,7 +3,7 @@ defmodule ZenWebsocket.NetworkTagGuardTest do
 
   alias ZenWebsocket.Test.Support.NetworkTagGuard
 
-  @fixture Path.expand("../fixtures/mistagged_network_suite.exs", __DIR__)
+  @fixture Path.expand("../fixtures/mistagged_network_suite.fixture", __DIR__)
 
   test "every suite under test/ carries tags that match the sockets it opens" do
     assert NetworkTagGuard.scan(Path.expand("..", __DIR__)) == []
@@ -15,6 +15,16 @@ defmodule ZenWebsocket.NetworkTagGuardTest do
     assert Enum.any?(messages, &(&1 =~ "internet URL without :external_network"))
     assert Enum.any?(messages, &(&1 =~ "MockWebSockServer without :local_network"))
     assert Enum.any?(messages, &(&1 =~ "network tag without :integration"))
-    assert Enum.any?(messages, &(&1 =~ "module setup starts MockWebSockServer"))
+    assert Enum.any?(messages, &(&1 =~ "MockWebSockServer selected by :external_network"))
+
+    assert Enum.any?(messages, fn message ->
+             message =~ "mistagged internet sibling" and
+               message =~ "internet URL without :external_network"
+           end)
+
+    assert Enum.any?(messages, fn message ->
+             message =~ "mistagged mock sibling" and
+               message =~ "MockWebSockServer without :local_network"
+           end)
   end
 end

@@ -481,7 +481,7 @@ defmodule ZenWebsocket.ClientReconnectTest do
         )
 
       assert {:error, reason1} = result1
-      assert reason1 in [:connection_failed, :timeout]
+      assert reason1 in [:connection_failed, :nxdomain, :timeout]
 
       # Test with reconnect_on_error: true (default) - will retry
       result2 =
@@ -493,7 +493,7 @@ defmodule ZenWebsocket.ClientReconnectTest do
         )
 
       assert {:error, reason2} = result2
-      assert reason2 in [:connection_failed, :timeout]
+      assert reason2 == :max_reconnection_attempts
     end
 
     @tag :integration

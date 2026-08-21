@@ -45,3 +45,31 @@ defmodule ZenWebsocket.Fixtures.ModuleSetupMockWithExternal do
     :ok
   end
 end
+
+defmodule ZenWebsocket.Fixtures.SiblingTagsDoNotMaskResources do
+  @moduledoc false
+  use ExUnit.Case
+
+  alias ZenWebsocket.Test.Support.MockWebSockServer
+
+  @tag :integration
+  @tag :external_network
+  test "properly tagged internet sibling" do
+    ZenWebsocket.Client.connect("wss://test.deribit.com/ws/api/v2")
+  end
+
+  test "mistagged internet sibling" do
+    url = "wss://test.deribit.com/ws/api/v2"
+    ZenWebsocket.Client.connect(url)
+  end
+
+  @tag :integration
+  @tag :local_network
+  test "properly tagged mock sibling" do
+    MockWebSockServer.start_link()
+  end
+
+  test "mistagged mock sibling" do
+    MockWebSockServer.start_link()
+  end
+end

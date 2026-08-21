@@ -86,9 +86,11 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
     end
 
     test "handles mixed success and failure", %{mock_url: mock_url} do
+      invalid_url = "invalid-url"
+
       configs = [
         {mock_url, []},
-        {"ws://invalid.example.com:9999", []}
+        {invalid_url, []}
       ]
 
       results = SupervisedClient.start_multiple(configs)
@@ -103,7 +105,7 @@ defmodule ZenWebsocket.Examples.SupervisedClientTest do
 
       # Check second failed
       {url2, result2} = Enum.at(results, 1)
-      assert url2 == "ws://invalid.example.com:9999"
+      assert url2 == invalid_url
       assert {:error, _} = result2
 
       # Clean up

@@ -1,21 +1,17 @@
 defmodule ZenWebsocket.Test.Support.NetworkTagGuard do
   @moduledoc """
-  Static checks that each ExUnit suite's network tags match the sockets it opens.
+  Checks that each ExUnit test's network tags match the sockets it opens.
 
-  A suite (one `defmodule`) fails when it:
-
-  * dials a non-local `ws://` / `wss://` URL without `:external_network`
-  * starts `MockWebSockServer` / `Testing.start_mock_server` without `:local_network`
-  * carries `:external_network` or `:local_network` without `:integration`
-  * starts a mock server in module `setup` while also tagging `:external_network`
-    (`mix test --only external_network` would still boot the mock)
+  The guard follows module, describe, and test tag scope. It rejects internet
+  URLs without `:external_network`, mock servers without `:local_network`,
+  network tags without `:integration`, and mock-backed tests selected by
+  `--only external_network`.
   """
 
+  alias ZenWebsocket.Test.Support.NetworkTagGuard.Ast
+  alias ZenWebsocket.Test.Support.NetworkTagGuard.Scope
+
   @test_glob "**/*_test.exs"
-  @socket_funs [:connect, :start_client, :start_connection, :start_link, :start_multiple]
-  @network_tags [:external_network, :local_network]
-  @tag_kinds [:tag, :moduletag, :describetag]
-  @examples [:test, :property]
 
   @spec scan(Path.t()) :: [{Path.t(), String.t()}]
   def scan(root) do
@@ -29,178 +25,214 @@ defmodule ZenWebsocket.Test.Support.NetworkTagGuard do
   @spec check_source(Path.t(), String.t()) :: [String.t()]
   def check_source(path, source) do
     case Code.string_to_quoted(source) do
-      {:ok, ast} -> Enum.flat_map(modules(ast), &module_violations(&1, path))
+      {:ok, ast} -> Enum.flat_map(Ast.modules(ast), &module_violations(&1, path))
       {:error, {_line, error, token}} -> ["#{path}: cannot parse (#{error}#{token})"]
     end
   end
 
-  defp file_violations(path), do: Enum.map(check_source(path, File.read!(path)), &{path, &1})
-
-  defp modules({:defmodule, _, _} = ast), do: [ast]
-  defp modules({:__block__, _, stmts}), do: Enum.flat_map(stmts, &modules/1)
-  defp modules(_), do: []
+  defp file_violations(path) do
+    Enum.map(check_source(path, File.read!(path)), &{path, &1})
+  end
 
   defp module_violations({:defmodule, _, [alias_ast, [do: body]]}, _path) do
-    name = Macro.to_string(alias_ast)
-    stmts = block(body)
-    attrs = internet_attrs(stmts)
-    tags = collect_tags(stmts)
-    mod_tags = module_tags(stmts)
-    mock? = mock_ref?(body)
-    internet? = internet_connect?(body, attrs)
-    module_mock_setup? = module_setup_starts_mock?(stmts)
-
-    internet_msg = "#{name}: internet URL without :external_network"
-    mock_msg = "#{name}: MockWebSockServer without :local_network"
-    setup_msg = "#{name}: module setup starts MockWebSockServer while :external_network is set"
-
-    []
-    |> maybe_add(internet? and :external_network not in tags, internet_msg)
-    |> maybe_add(mock? and :local_network not in tags, mock_msg)
-    |> Enum.concat(pairing_violations(name, mod_tags, [], stmts))
-    |> maybe_add(module_mock_setup? and :external_network in tags, setup_msg)
+    statements = Ast.block(body)
+    Scope.violations(Macro.to_string(alias_ast), statements, Ast.context(statements))
   end
+end
 
-  defp maybe_add(viols, true, msg), do: viols ++ [msg]
-  defp maybe_add(viols, false, _msg), do: viols
+defmodule ZenWebsocket.Test.Support.NetworkTagGuard.Ast do
+  @moduledoc false
 
-  defp block({:__block__, _, stmts}), do: stmts
-  defp block(stmt), do: [stmt]
+  @type context :: %{attrs: %{atom() => term()}, callbacks: %{atom() => Macro.t()}}
 
-  defp internet_attrs(stmts) do
-    for {:@, _, [{name, _, [url]}]} <- stmts,
-        is_atom(name) and is_binary(url) and internet_url?(url),
-        into: MapSet.new(),
-        do: name
-  end
+  @spec block(Macro.t()) :: [Macro.t()]
+  def block({:__block__, _, statements}), do: statements
+  def block(statement), do: [statement]
 
-  defp collect_tags(stmts) do
-    {_, tags} =
-      Macro.prewalk(stmts, [], fn
-        {:@, _, [{kind, _, args}]} = node, acc when kind in @tag_kinds ->
-          {node, tag_names(args) ++ acc}
+  @spec modules(Macro.t()) :: [Macro.t()]
+  def modules({:defmodule, _, _} = ast), do: [ast]
+  def modules({:__block__, _, statements}), do: Enum.flat_map(statements, &modules/1)
+  def modules(_ast), do: []
 
-        node, acc ->
-          {node, acc}
-      end)
+  @spec tag_names(list()) :: [atom()]
+  def tag_names([tag]) when is_atom(tag), do: [tag]
+  def tag_names([{:__block__, _, [tag]}]) when is_atom(tag), do: [tag]
+  def tag_names([keyword]) when is_list(keyword), do: Keyword.keys(keyword)
+  def tag_names(_args), do: []
 
-    Enum.uniq(tags)
-  end
+  @spec context([Macro.t()]) :: context()
+  def context(statements) do
+    Enum.reduce(statements, %{attrs: %{}, callbacks: %{}}, fn
+      {:@, _, [{name, _, [value]}]}, context when is_atom(name) ->
+        put_in(context, [:attrs, name], value)
 
-  defp tag_names([tag]) when is_atom(tag), do: [tag]
-  defp tag_names([{:__block__, _, [tag]}]) when is_atom(tag), do: [tag]
-  defp tag_names([kw]) when is_list(kw), do: Keyword.keys(kw)
-  defp tag_names(_), do: []
+      {kind, _, [{name, _, _args}, [do: body]]}, context when kind in [:def, :defp] ->
+        put_in(context, [:callbacks, name], body)
 
-  defp module_tags(stmts) do
-    Enum.flat_map(stmts, fn
-      {:@, _, [{:moduletag, _, args}]} -> tag_names(args)
-      _ -> []
+      _statement, context ->
+        context
     end)
   end
+end
 
-  defp example_tags({:@, _, [{:tag, _, args}]}), do: tag_names(args)
-  defp example_tags(_), do: []
+defmodule ZenWebsocket.Test.Support.NetworkTagGuard.Resources do
+  @moduledoc false
 
-  defp mock_ref?(ast) do
-    {_, found} =
-      Macro.prewalk(ast, false, fn
-        {:__aliases__, _, parts} = node, acc ->
-          {node, acc or List.last(parts) == :MockWebSockServer}
+  alias ZenWebsocket.Test.Support.NetworkTagGuard.Ast
 
-        {{:., _, [{:__aliases__, _, parts}, :start_mock_server]}, _, _} = node, acc ->
-          {node, acc or List.last(parts) == :Testing}
+  @external :external_network
+  @internet_reference :internet_reference
+  @local :local_network
+  @socket_functions [:connect, :start_client, :start_connection, :start_link, :start_multiple]
+  @socket_reference :socket_reference
 
-        :start_mock_server, _acc ->
-          {:start_mock_server, true}
+  @spec flags(Macro.t(), Ast.context()) :: MapSet.t(atom())
+  def flags(ast, context) do
+    {_, resources} = Macro.prewalk(ast, MapSet.new(), &classify(&1, &2, context))
 
-        node, acc ->
-          {node, acc}
-      end)
+    resources =
+      if MapSet.member?(resources, @internet_reference) and MapSet.member?(resources, @socket_reference) do
+        MapSet.put(resources, @external)
+      else
+        resources
+      end
 
-    found
+    MapSet.difference(resources, MapSet.new([@internet_reference, @socket_reference]))
   end
 
-  defp module_setup_starts_mock?(stmts) do
-    Enum.any?(stmts, fn
-      {:setup, _, args} -> mock_ref?(args)
-      _ -> false
-    end)
+  defp classify(url, resources, _context) when is_binary(url) do
+    updated = if external_url?(url), do: MapSet.put(resources, @internet_reference), else: resources
+    {url, updated}
   end
 
-  defp internet_connect?(ast, attrs) do
-    {_, found} =
-      Macro.prewalk(ast, false, fn
-        {{:., _, [_, fun]}, _, args} = node, acc when fun in @socket_funs ->
-          {node, acc or internet_args?(args, attrs)}
-
-        {fun, _, args} = node, acc when fun in @socket_funs and is_list(args) ->
-          {node, acc or internet_args?(args, attrs)}
-
-        node, acc ->
-          {node, acc}
-      end)
-
-    found
+  defp classify({:@, _, [{name, _, _}]} = node, resources, context) do
+    updated = if external_url?(context.attrs[name]), do: MapSet.put(resources, @internet_reference), else: resources
+    {node, updated}
   end
 
-  defp internet_args?(args, attrs) do
-    {_, found} =
+  defp classify({:setup, _, [callback]} = node, resources, context) when is_atom(callback) do
+    body = Map.get(context.callbacks, callback)
+    callback_resources = if body, do: flags(body, %{context | callbacks: %{}}), else: MapSet.new()
+    {node, MapSet.union(resources, callback_resources)}
+  end
+
+  defp classify({{:., _, [{:__aliases__, _, parts}, :start_mock_server]}, _, _} = node, resources, _context) do
+    {node, if(List.last(parts) == :Testing, do: MapSet.put(resources, @local), else: resources)}
+  end
+
+  defp classify({:__aliases__, _, parts} = node, resources, _context) do
+    {node, if(List.last(parts) == :MockWebSockServer, do: MapSet.put(resources, @local), else: resources)}
+  end
+
+  defp classify({:start_mock_server, _, _} = node, resources, _context) do
+    {node, MapSet.put(resources, @local)}
+  end
+
+  defp classify({{:., _, [_module, function]}, _, args} = node, resources, context) when function in @socket_functions do
+    updated = MapSet.put(resources, @socket_reference)
+    updated = if internet_args?(args, context), do: MapSet.put(updated, @external), else: updated
+    {node, updated}
+  end
+
+  defp classify({function, _, args} = node, resources, context) when function in @socket_functions and is_list(args) do
+    updated = MapSet.put(resources, @socket_reference)
+    updated = if internet_args?(args, context), do: MapSet.put(updated, @external), else: updated
+    {node, updated}
+  end
+
+  defp classify(node, resources, _context), do: {node, resources}
+
+  defp internet_args?(args, context) do
+    {_, found?} =
       Macro.prewalk(args, false, fn
-        bin, acc when is_binary(bin) -> {bin, acc or internet_url?(bin)}
-        {:@, _, [{name, _, _}]} = node, acc -> {node, acc or MapSet.member?(attrs, name)}
-        node, acc -> {node, acc}
+        url, found? when is_binary(url) -> {url, found? or external_url?(url)}
+        {:@, _, [{name, _, _}]} = node, found? -> {node, found? or external_url?(context.attrs[name])}
+        node, found? -> {node, found?}
       end)
 
-    found
+    found?
   end
 
-  defp internet_url?(url) do
+  defp external_url?(url) when is_binary(url) do
     case URI.parse(url) do
       %URI{scheme: scheme, host: host} when scheme in ["ws", "wss"] ->
-        is_binary(host) and host not in ["localhost", "127.0.0.1", "::1"]
+        is_binary(host) and host not in ["localhost", "127.0.0.1", "::1", "0.0.0.0"]
 
-      _ ->
+      _other ->
         false
     end
   end
 
-  defp pairing_violations(name, mod_tags, desc_tags, stmts) do
-    {_, viols} =
-      Enum.reduce(stmts, {[], []}, fn stmt, {pending, viols} ->
-        pair_stmt(name, mod_tags, desc_tags, stmt, pending, viols)
-      end)
+  defp external_url?(_value), do: false
+end
 
-    viols
+defmodule ZenWebsocket.Test.Support.NetworkTagGuard.Scope do
+  @moduledoc false
+
+  alias ZenWebsocket.Test.Support.NetworkTagGuard.Ast
+  alias ZenWebsocket.Test.Support.NetworkTagGuard.Resources
+
+  @network_tags [:external_network, :local_network]
+  @test_macros [:property, :test]
+
+  @spec violations(String.t(), [Macro.t()], Ast.context()) :: [String.t()]
+  def violations(module_name, statements, context) do
+    walk(statements, module_name, context, [], MapSet.new())
   end
 
-  defp pair_stmt(name, mod_tags, desc_tags, {:describe, _, [_, [do: body]]}, pending, viols) do
-    inner = block(body)
-    nested = pairing_violations(name, mod_tags, desc_tags ++ describe_tags(inner), inner)
-    {pending, viols ++ nested}
+  defp walk(statements, module_name, context, inherited_tags, inherited_resources) do
+    initial = {inherited_tags, [], inherited_resources, []}
+
+    statements
+    |> Enum.reduce(initial, &step(&1, &2, {module_name, context}))
+    |> elem(3)
   end
 
-  defp pair_stmt(name, mod_tags, desc_tags, {kind, _, _}, pending, viols) when kind in @examples do
-    {[], viols ++ missing_integration(name, mod_tags ++ desc_tags ++ pending)}
+  defp step({:@, _, [{kind, _, args}]}, {tags, pending, resources, violations}, _context)
+       when kind in [:describetag, :moduletag] do
+    {tags ++ Ast.tag_names(args), pending, resources, violations}
   end
 
-  defp pair_stmt(_name, _mod_tags, _desc_tags, stmt, pending, viols) do
-    {pending ++ example_tags(stmt), viols}
+  defp step({:@, _, [{:tag, _, args}]}, {tags, pending, resources, violations}, _context) do
+    {tags, pending ++ Ast.tag_names(args), resources, violations}
   end
 
-  defp describe_tags(stmts) do
-    Enum.flat_map(stmts, fn
-      {:@, _, [{:describetag, _, args}]} -> tag_names(args)
-      {:@, _, [{:moduletag, _, args}]} -> tag_names(args)
-      _ -> []
-    end)
+  defp step({:setup, _, _} = setup, {tags, pending, resources, violations}, {_name, context}) do
+    {tags, pending, MapSet.union(resources, Resources.flags(setup, context)), violations}
   end
 
-  defp missing_integration(name, tags) do
-    if Enum.any?(@network_tags, &(&1 in tags)) and :integration not in tags do
-      ["#{name}: network tag without :integration"]
-    else
-      []
-    end
+  defp step({:describe, _, [_label, [do: body]]}, state, {module_name, context}) do
+    {tags, pending, resources, violations} = state
+    nested = walk(Ast.block(body), module_name, context, tags, resources)
+    {tags, pending, resources, violations ++ nested}
   end
+
+  defp step({kind, _, args} = test, state, {module_name, context}) when kind in @test_macros do
+    {tags, pending, resources, violations} = state
+    effective_tags = Enum.uniq(tags ++ pending)
+    effective_resources = MapSet.union(resources, Resources.flags(test, context))
+    found = findings(module_name, label(args), effective_tags, effective_resources)
+    {tags, [], resources, violations ++ found}
+  end
+
+  defp step(_statement, state, _context), do: state
+
+  defp findings(module_name, test_name, tags, resources) do
+    prefix = "#{module_name} #{inspect(test_name)}"
+
+    for {true, message} <- [
+          {MapSet.member?(resources, :external_network) and :external_network not in tags,
+           "#{prefix}: internet URL without :external_network"},
+          {MapSet.member?(resources, :local_network) and :local_network not in tags,
+           "#{prefix}: MockWebSockServer without :local_network"},
+          {Enum.any?(@network_tags, &(&1 in tags)) and :integration not in tags,
+           "#{prefix}: network tag without :integration"},
+          {MapSet.member?(resources, :local_network) and :external_network in tags,
+           "#{prefix}: MockWebSockServer selected by :external_network"}
+        ],
+        do: message
+  end
+
+  defp label([name | _args]) when is_binary(name), do: name
+  defp label(_args), do: "unnamed test"
 end

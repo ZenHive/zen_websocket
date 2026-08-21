@@ -12,15 +12,16 @@ defmodule ZenWebsocket.ErrorIntegrationTest do
     @describetag :external_network
 
     test "handles invalid domain gracefully" do
-      assert {:error, reason} = Client.connect(@invalid_url)
+      assert {:error, reason} = Client.connect(@invalid_url, retry_count: 0)
+      error = {:error, reason}
 
-      {category, _} = ErrorHandler.categorize_error(reason)
+      {category, _} = ErrorHandler.categorize_error(error)
       assert category == :recoverable
 
       # Test that we can at least handle the error properly
-      result = ErrorHandler.handle_error(reason)
+      result = ErrorHandler.handle_error(error)
       assert result == :reconnect
-      assert ErrorHandler.recoverable?(reason)
+      assert ErrorHandler.recoverable?(error)
     end
 
     test "handles connection timeout" do

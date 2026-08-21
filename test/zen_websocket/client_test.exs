@@ -67,7 +67,7 @@ defmodule ZenWebsocket.ClientTest do
   end
 
   test "connect with invalid config options returns error" do
-    {:error, "Timeout must be positive"} = Client.connect(@deribit_test_url, timeout: 0)
+    {:error, "Timeout must be positive"} = Client.connect("ws://localhost", timeout: 0)
   end
 
   describe "default message handler" do
