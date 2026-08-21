@@ -226,7 +226,7 @@ scored_at = "2026-08-20"
 id = "3"
 phase = 1
 bundle = "correctness"
-status = "in_progress"
+status = "done"
 title = "Fix RateLimiter token race and the queue that discards requests"
 scores = { d = 4, b = 8, u = 7 }
 markers = ["bug"]
@@ -248,9 +248,16 @@ Defect 1 magnitude: `RateLimiter.init(name, %{tokens: 10_000_000, refill_rate: 1
 
 Defect 2 repro: `init` with `tokens: 2, refill_rate: 5, max_queue_size: 100`, drain the two tokens, then `consume(name, %{"id" => i})` for i in 1..3. All three return `{:error, :rate_limited}` and `status/1` reports `queue_size: 3, tokens: 0`. Call `refill/1` once: `status/1` then reports `queue_size: 1, tokens: 0` — two queued requests were dequeued and their tokens spent — while the test process's mailbox received nothing at all. There is no delivery channel of any kind: the requests are charged and dropped, and the callers who were told `:rate_limited` will pay again on retry.
 """
+implemented = "Landed by codex via merge-train; reviewer-approved (run run-1787292957863-fa5d900f, 3dfd9eb44d653791a9cef73579636e46d5fece1c)."
+delivered_by = "codex"
+verified = true
+verified_by = "cursor"
+verification_ref = "harness-run:run-1787292957863-fa5d900f"
 created_at = "2026-08-20"
 started_at = "2026-08-21"
 scored_at = "2026-08-20"
+done_at = "2026-08-21"
+shipped_in = "3dfd9eb44d653791a9cef73579636e46d5fece1c"
 
 [[task]]
 id = "4"

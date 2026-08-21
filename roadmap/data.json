@@ -295,7 +295,7 @@
       "id": "3",
       "phase": 1,
       "bundle": "correctness",
-      "status": "in_progress",
+      "status": "done",
       "title": "Fix RateLimiter token race and the queue that discards requests",
       "scores": {
         "d": 4,
@@ -326,10 +326,17 @@
         "lib/zen_websocket/rate_limiter.ex",
         "test/zen_websocket/rate_limiter_test.exs"
       ],
+      "shipped_in": "3dfd9eb44d653791a9cef73579636e46d5fece1c",
       "body": "Two verified defects in lib/zen_websocket/rate_limiter.ex, both read from source on 2026-08-20.\n\n1. NON-ATOMIC REFILL AGAINST A :public TABLE. The ETS table is created `[:named_table, :public, :set]` (:67) and `consume/2` mutates tokens with `:ets.update_counter` (:105, :117) from arbitrary caller processes. But `refill/1` (:136) does a read-modify-write — `:ets.lookup(name, :tokens)` then `min(current + refill_rate, capacity)` then `:ets.insert` — so any `consume/2` that lands between the lookup and the insert is silently overwritten and its spent tokens are resurrected. Under sustained concurrent load the bucket drifts upward and the limiter stops limiting, which on a venue with hard rate limits means bans rather than backpressure.\n\n2. THE QUEUE IS A TOKEN SINK. When tokens are exhausted, `consume/2` restores the cost, calls `handle_rate_limit/5`, and the caller receives `{:error, :rate_limited}` — so the caller is expected to retry. The request is ALSO enqueued. Later, `process_queue_with_tokens/4` (:296) pops `{{:value, {_request, cost}}, new_queue}` — it binds the request to `_request`, charges `cost` via `update_counter`, emits the pressure event, and recurses. The request is never sent anywhere. So every rate-limited request burns its token cost a second time, stealing capacity from the caller's real retry, and the queue's only observable effect is `queue_size` in `status/1`. Decide deliberately: wire the queue to a delivery callback, or delete it and keep consume/2 a pure allow/deny gate. Either is acceptable; silently spending tokens on discarded requests is not.\n\nRUNTIME-VERIFIED 2026-08-20 (Tidewave project_eval against the running dev BEAM). Both defects reproduce, and defect 1 is larger than the static reading suggested.\n\nDefect 1 magnitude: `RateLimiter.init(name, %{tokens: 10_000_000, refill_rate: 10, refill_interval: 60_000, request_cost: &RateLimiter.simple_cost/1})`, park the bucket at 5_000_000, then run ONE serial refiller doing 400 sequential `refill/1` calls concurrently with 4000 `Task.async` `consume/2` calls — the serial refiller is deliberately the production shape, since `schedule_refill/2` sends to a single timer owner. Expected final tokens are `start + 400*10 - 4000`. Over 15 rounds the actual count exceeded expected every time but one, by 71, 6, 0, 197, 327, 204, 393, 471, 657, 14, 294, 15, 86, 297 and 411 tokens. That is up to 657 of 4000 consumed tokens — 16% — silently refunded in a single round, mean ~230. The drift is strictly positive, i.e. `consume/2` decrements are lost to `refill/1`'s stale-read insert, which is the under-limiting direction: the limiter hands out more capacity than configured, which is the ban case, not the backpressure case. (A separate control run with 400 CONCURRENT refillers showed the opposite sign — drift in exact multiples of `refill_rate`, i.e. refill-vs-refill increments lost. Both are the same missing atomicity; only the serial-refiller run reflects production.) Use this harness as the concurrency regression test; note that a small round count will pass by luck — two of fifteen rounds drifted by 0 and 6.\n\nDefect 2 repro: `init` with `tokens: 2, refill_rate: 5, max_queue_size: 100`, drain the two tokens, then `consume(name, %{\"id\" => i})` for i in 1..3. All three return `{:error, :rate_limited}` and `status/1` reports `queue_size: 3, tokens: 0`. Call `refill/1` once: `status/1` then reports `queue_size: 1, tokens: 0` — two queued requests were dequeued and their tokens spent — while the test process's mailbox received nothing at all. There is no delivery channel of any kind: the requests are charged and dropped, and the callers who were told `:rate_limited` will pay again on retry.\n",
       "created_at": "2026-08-20",
       "started_at": "2026-08-21",
+      "done_at": "2026-08-21",
       "scored_at": "2026-08-20",
+      "implemented": "Landed by codex via merge-train; reviewer-approved (run run-1787292957863-fa5d900f, 3dfd9eb44d653791a9cef73579636e46d5fece1c).",
+      "delivered_by": "codex",
+      "verified": true,
+      "verified_by": "cursor",
+      "verification_ref": "harness-run:run-1787292957863-fa5d900f",
       "cross_repo": []
     },
     {
