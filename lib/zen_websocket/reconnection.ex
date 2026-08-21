@@ -31,6 +31,8 @@ defmodule ZenWebsocket.Reconnection do
   @default_max_backoff_ms 30_000
   @websocket_opts %{silence_pings: false}
 
+  @typep phase_result(value) :: {:ok, value} | {:error, term()}
+
   api(:establish_connection, "Establish a Gun WebSocket connection from the given config.",
     params: [config: [kind: :value, description: "Client configuration struct"]],
     returns: %{
@@ -49,56 +51,82 @@ defmodule ZenWebsocket.Reconnection do
           {:ok, gun_pid :: pid(), stream_ref :: reference(), monitor_ref :: reference()}
           | {:error, term()}
   def establish_connection(%Config{} = config) do
+    {uri, port, upgrade_path} = prepare_target(config)
+
+    with {:ok, gun_pid} <- open_transport(config, uri, port),
+         {:ok, monitor_ref} <- await_transport(config, gun_pid),
+         {:ok, stream_ref} <- upgrade_websocket(config, gun_pid, upgrade_path) do
+      {:ok, gun_pid, stream_ref, monitor_ref}
+    end
+  end
+
+  @spec prepare_target(Config.t()) :: {URI.t(), non_neg_integer(), String.t()}
+  defp prepare_target(config) do
     uri = URI.parse(config.url)
     port = uri.port || if uri.scheme == "wss", do: 443, else: 80
+    upgrade_path = build_upgrade_path(uri)
 
     Debug.log(config, "🔫 [GUN OPEN] #{DateTime.to_string(DateTime.utc_now())}")
     Debug.log(config, "   🌐 Host: #{uri.host}")
     Debug.log(config, "   🔌 Port: #{port}")
     Debug.log(config, "   📋 Scheme: #{uri.scheme}")
-    upgrade_path = build_upgrade_path(uri)
     Debug.log(config, "   📍 Path: #{upgrade_path}")
     Debug.log(config, "   🔄 Opening Gun connection...")
 
-    # Gun sends messages to the calling process (Client GenServer)
+    {uri, port, upgrade_path}
+  end
+
+  @spec open_transport(Config.t(), URI.t(), non_neg_integer()) :: phase_result(pid())
+  defp open_transport(config, uri, port) do
     gun_opts = build_gun_opts(uri)
 
     case :gun.open(to_charlist(uri.host), port, gun_opts) do
       {:ok, gun_pid} ->
         Debug.log(config, "   ✅ Gun connection opened successfully")
         Debug.log(config, "   🔧 Gun PID: #{inspect(gun_pid)}")
-        Debug.log(config, "   👁️  Setting up process monitor...")
-
-        monitor_ref = Process.monitor(gun_pid)
-        Debug.log(config, "   📍 Monitor Ref: #{inspect(monitor_ref)}")
-        Debug.log(config, "   ⏳ Awaiting Gun up (timeout: #{config.timeout}ms)...")
-
-        case await_gun_up(gun_pid, config.timeout) do
-          {:ok, protocol} ->
-            Debug.log(config, "   ✅ Gun connection up")
-            Debug.log(config, "   🌐 Protocol: #{inspect(protocol)}")
-            Debug.log(config, "   🔄 Upgrading to WebSocket...")
-
-            stream_ref = :gun.ws_upgrade(gun_pid, upgrade_path, config.headers, @websocket_opts)
-            Debug.log(config, "   📡 WebSocket upgrade initiated")
-            Debug.log(config, "   📡 Stream Ref: #{inspect(stream_ref)}")
-            Debug.log(config, "   ✅ Connection establishment complete")
-
-            {:ok, gun_pid, stream_ref, monitor_ref}
-
-          {:error, reason} ->
-            Debug.log(config, "   ❌ Gun await_up failed: #{inspect(reason)}")
-            Debug.log(config, "   🧹 Cleaning up monitor and closing Gun...")
-
-            Process.demonitor(monitor_ref, [:flush])
-            :gun.close(gun_pid)
-            {:error, reason}
-        end
+        {:ok, gun_pid}
 
       {:error, reason} ->
         Debug.log(config, "   ❌ Gun open failed: #{inspect(reason)}")
         {:error, reason}
     end
+  end
+
+  @spec await_transport(Config.t(), pid()) :: phase_result(reference())
+  defp await_transport(config, gun_pid) do
+    Debug.log(config, "   👁️  Setting up process monitor...")
+    monitor_ref = Process.monitor(gun_pid)
+    Debug.log(config, "   📍 Monitor Ref: #{inspect(monitor_ref)}")
+    Debug.log(config, "   ⏳ Awaiting Gun up (timeout: #{config.timeout}ms)...")
+
+    case await_gun_up(gun_pid, config.timeout) do
+      {:ok, protocol} ->
+        Debug.log(config, "   ✅ Gun connection up")
+        Debug.log(config, "   🌐 Protocol: #{inspect(protocol)}")
+        {:ok, monitor_ref}
+
+      {:error, reason} ->
+        cleanup_failed_transport(config, gun_pid, monitor_ref, reason)
+    end
+  end
+
+  @spec cleanup_failed_transport(Config.t(), pid(), reference(), term()) :: {:error, term()}
+  defp cleanup_failed_transport(config, gun_pid, monitor_ref, reason) do
+    Debug.log(config, "   ❌ Gun await_up failed: #{inspect(reason)}")
+    Debug.log(config, "   🧹 Cleaning up monitor and closing Gun...")
+    Process.demonitor(monitor_ref, [:flush])
+    :gun.close(gun_pid)
+    {:error, reason}
+  end
+
+  @spec upgrade_websocket(Config.t(), pid(), String.t()) :: {:ok, reference()}
+  defp upgrade_websocket(config, gun_pid, upgrade_path) do
+    Debug.log(config, "   🔄 Upgrading to WebSocket...")
+    stream_ref = :gun.ws_upgrade(gun_pid, upgrade_path, config.headers, @websocket_opts)
+    Debug.log(config, "   📡 WebSocket upgrade initiated")
+    Debug.log(config, "   📡 Stream Ref: #{inspect(stream_ref)}")
+    Debug.log(config, "   ✅ Connection establishment complete")
+    {:ok, stream_ref}
   end
 
   api(:build_gun_opts, "Build Gun connection options for a URI scheme.",
