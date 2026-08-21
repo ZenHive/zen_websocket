@@ -11,7 +11,11 @@ defmodule ZenWebsocket.JsonRpc do
   api(:build_request, "Build a JSON-RPC 2.0 request with unique ID.",
     params: [
       method: [kind: :value, description: "RPC method name string"],
-      params: [kind: :value, description: "Optional params map for the request", default: nil]
+      params: [
+        kind: :value,
+        description: "Optional positional list or named map for the request",
+        default: nil
+      ]
     ],
     returns: %{
       type: "{:ok, map()}",
@@ -26,8 +30,12 @@ defmodule ZenWebsocket.JsonRpc do
       iex> {:ok, request} = JsonRpc.build_request("public/auth", %{grant_type: "client_credentials"})
       iex> request["method"]
       "public/auth"
+
+      iex> {:ok, request} = JsonRpc.build_request("eth_subscribe", ["newHeads"])
+      iex> request["params"]
+      ["newHeads"]
   """
-  @spec build_request(String.t(), map() | nil) :: {:ok, map()}
+  @spec build_request(String.t(), list() | map() | nil) :: {:ok, map()}
   def build_request(method, params \\ nil) do
     request = %{
       "jsonrpc" => "2.0",

@@ -4,7 +4,7 @@ defmodule ZenWebsocket.JsonRpcTest do
   alias ZenWebsocket.JsonRpc
 
   describe "build_request/2" do
-    test "builds request with method and params" do
+    test "builds request with named map params" do
       {:ok, request} = JsonRpc.build_request("public/auth", %{grant_type: "client_credentials"})
 
       assert request["jsonrpc"] == "2.0"
@@ -12,6 +12,13 @@ defmodule ZenWebsocket.JsonRpcTest do
       assert request["params"] == %{grant_type: "client_credentials"}
       assert is_integer(request["id"])
       assert request["id"] > 0
+    end
+
+    test "builds request with positional list params" do
+      params = ["logs", %{"address" => "0x1234"}]
+
+      assert {:ok, %{"method" => "eth_subscribe", "params" => ^params}} =
+               JsonRpc.build_request("eth_subscribe", params)
     end
 
     test "builds request with method only" do
