@@ -1016,7 +1016,7 @@
       "id": "16",
       "phase": 1,
       "bundle": "hygiene",
-      "status": "in_progress",
+      "status": "done",
       "title": "Make the 0.7.0 release record correct: four undocumented removals, one false claim, six breaks filed under Fixed",
       "scores": {
         "d": 4,
@@ -1065,10 +1065,17 @@
         "lib/zen_websocket/pool_router.ex",
         "lib/mix/tasks/zen_websocket.validate_usage.ex"
       ],
+      "shipped_in": "b41e0b0435f38f2ad7f286388fe07489d6dfd51c",
       "body": "DISCOVERED 2026-08-21 during release preparation, by an audit of CHANGELOG [Unreleased] against git diff v0.6.1..HEAD (78 commits, 31 files under lib/, +1545/-1215). Five findings were re-verified by hand against the diff before this task was filed.\n\nWHY THIS IS THE RELEASE GATE. The changelog is the only artifact that tells a consumer what breaks. Right now it is wrong in three distinguishable ways: it omits four consumer-visible removals entirely, it states one thing the code contradicts, and it files six genuine breaking changes under a heading nobody reads for migration work. Publishing 0.7.0 with this record ships a false migration contract.\n\nVERIFIED FINDINGS (each checked against the diff, with the v0.6.1 side quoted):\n\n1. Three telemetry events deleted. v0.6.1 emitted [:zen_websocket, :rate_limiter, :pressure] at rate_limiter.ex:254 along with the queue and queue_full events; HEAD emits only :consume and :refill. A consumer's attached handler does not error - it silently never fires, so a dashboard just goes flat. Nothing in the changelog.\n\n2. :max_queue_size removed from the config type (v0.6.1 rate_limiter.ex:34) together with @default_max_queue_size (:41). Passing it is now silently ignored rather than honoured. Nothing in the changelog.\n\n3. @type RateLimiter.state/0 deleted. Any consumer @spec referencing it stops passing Dialyzer. Nothing in the changelog.\n\n4. mix stability_test deleted. Mix.Tasks.StabilityTest existed in v0.6.1 and package files ships lib wholesale, so it was a real consumer-invocable task. docs/stability_testing.md went with it. Nothing in the changelog.\n\n5. The changelog says reconnect_opts_from_state/1 \"is private\". It is a public def at client/reconnect.ex:50. In v0.6.1 it was a public def on ZenWebsocket.Client (client.ex:518). The real change is a move that removed it from the Client surface - a public-surface removal described as a privatisation that did not happen.\n\n6. Client.connect/2's error contract changed. v0.6.1 had three :await_connection clauses, the third replying {:error, :connection_failed} (client.ex:678). HEAD has two (client/callbacks.ex:23,27); the second parks the caller. The caller now receives the underlying Gun reason after the retry ladder exhausts instead of a generic atom immediately. This is the most silent break in the release: no compile error, no log line, just a case clause that stops matching.\n\nBLAST RADIUS - MEASURED, NOT ASSUMED. The two live consumers are bourse and onchain (ccxt_client was renamed to bourse; zen_cex is being retired). Between them they call exactly two functions: Client.connect/2 twice and Client.send_message/2 five times. A grep across both for every breaking pattern above returned zero hits, and bourse's connect site (lib/bourse/ws.ex:183) is a with clause without an else, so it passes any {:error, reason} through unchanged. Both also pin below 0.7.0 - onchain's mix.exs:58-60 caps deliberately, citing exactly this risk. So nothing is on fire; this task is about the correctness of the public record, not a rescue. Scope it accordingly and do not invent urgency the measurement does not support.\n\nONE THING TO ADD IN THE OTHER DIRECTION. onchain/lib/onchain/subscription.ex:83-87 carries an UPSTREAM(zen_websocket) comment and a @dialyzer suppression for the JsonRpc.build_request/2 spec that this release widens to accept list params. That is a concrete consumer benefit - say so in the entry rather than describing it only as a widened spec.\n\nWHY D=4 / B=7 / U=6. The work is one file plus a version bump, but the judgment is real: every entry has to be re-derived from a 78-commit diff rather than edited in place, and the failure mode of getting it wrong is a false migration contract. B is high because this gates the release and is the artifact both consumer repos will read when they lift their version cap. U is 6 because the release is queued behind it, not because anything is broken in production.\n",
       "created_at": "2026-08-21",
       "started_at": "2026-08-21",
+      "done_at": "2026-08-21",
       "scored_at": "2026-08-21",
+      "implemented": "Landed by codex via merge-train; reviewer-approved (run run-1787319878790-4f79f558, b41e0b0435f38f2ad7f286388fe07489d6dfd51c).",
+      "delivered_by": "codex",
+      "verified": true,
+      "verified_by": "cursor",
+      "verification_ref": "harness-run:run-1787319878790-4f79f558",
       "cross_repo": []
     },
     {

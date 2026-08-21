@@ -779,7 +779,7 @@ shipped_in = "c29b1016558895edeb01e0aefd6efafe6a57b9dd"
 id = "16"
 phase = 1
 bundle = "hygiene"
-status = "in_progress"
+status = "done"
 title = "Make the 0.7.0 release record correct: four undocumented removals, one false claim, six breaks filed under Fixed"
 scores = { d = 4, b = 7, u = 6 }
 acceptance_criteria = ["@version in mix.exs is 0.7.0, the README installation pin reads ~> 0.7, and the CHANGELOG [Unreleased] heading becomes a dated [0.7.0] section", "The four consumer-visible removals absent from the changelog are documented, each verified against the v0.6.1 diff before writing: the three deleted telemetry events [:zen_websocket, :rate_limiter, :queue | :queue_full | :pressure]; the :max_queue_size config key and @default_max_queue_size; the @type RateLimiter.state/0; and the deleted mix stability_test task, which shipped because package files ships the whole lib tree", "The claim 'reconnect_opts_from_state/1 is private' is corrected - the function is a public def at lib/zen_websocket/client/reconnect.ex:50; what actually happened is removal from the ZenWebsocket.Client surface, where v0.6.1 exposed it as a public def", "Client.connect/2's changed failure contract is documented as a breaking change: v0.6.1 replied {:error, :connection_failed} immediately from a third :await_connection clause that no longer exists; HEAD returns the underlying transport reason after the retry ladder exhausts. State both the changed error term and the changed latency", "Every entry classified BREAKING carries migration guidance that names what a consumer should write instead, not only what was removed. Entries that are internal-only (the coverage-gate change, the SafeCallback/HeartbeatInterval extraction) are cut or demoted rather than presented as consumer-facing", "Breaking changes are not filed under ### Fixed. Six currently are; move them to a ### Changed or ### Removed section a consumer reading for migration work would actually find", "The Client-split entry is worded so it survives task 15's rename - describe submodules under lib/zen_websocket/client/ rather than globbing Client*, and check lib/zen_websocket.ex's moduledoc for the same stale wording since it renders on hexdocs", "Every claim added or kept is verified against git diff v0.6.1..HEAD, not against existing changelog prose. Report any entry you could not substantiate rather than restating it", "mix precommit.full green"]
@@ -813,9 +813,16 @@ ONE THING TO ADD IN THE OTHER DIRECTION. onchain/lib/onchain/subscription.ex:83-
 
 WHY D=4 / B=7 / U=6. The work is one file plus a version bump, but the judgment is real: every entry has to be re-derived from a 78-commit diff rather than edited in place, and the failure mode of getting it wrong is a false migration contract. B is high because this gates the release and is the artifact both consumer repos will read when they lift their version cap. U is 6 because the release is queued behind it, not because anything is broken in production.
 """
+implemented = "Landed by codex via merge-train; reviewer-approved (run run-1787319878790-4f79f558, b41e0b0435f38f2ad7f286388fe07489d6dfd51c)."
+delivered_by = "codex"
+verified = true
+verified_by = "cursor"
+verification_ref = "harness-run:run-1787319878790-4f79f558"
 created_at = "2026-08-21"
 started_at = "2026-08-21"
 scored_at = "2026-08-21"
+done_at = "2026-08-21"
+shipped_in = "b41e0b0435f38f2ad7f286388fe07489d6dfd51c"
 
 [[task]]
 id = "17"
