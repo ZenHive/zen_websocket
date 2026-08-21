@@ -21,7 +21,6 @@ defmodule ZenWebsocket.RateLimiter do
 
   Each rate limiter creates one named ETS table containing:
   - Configuration map (~200 bytes)
-  - State with queue (grows with queued requests)
   - Token counter (8 bytes)
 
   **Cleanup:** Call `shutdown/1` when done to delete the ETS table.
@@ -31,23 +30,13 @@ defmodule ZenWebsocket.RateLimiter do
   use Descripex, namespace: "/rate_limiting"
 
   @type config :: %{
-          optional(:max_queue_size) => pos_integer(),
           tokens: pos_integer(),
           refill_rate: pos_integer(),
           refill_interval: pos_integer(),
           request_cost: (term() -> pos_integer())
         }
 
-  @default_max_queue_size 100
-
   @type pressure_level :: :none | :low | :medium | :high
-
-  @type state :: %{
-          tokens: non_neg_integer(),
-          last_refill: integer(),
-          queue: :queue.queue(),
-          pressure_level: pressure_level()
-        }
 
   api(:init, "Initialize a token bucket rate limiter with ETS storage.",
     params: [
@@ -66,13 +55,6 @@ defmodule ZenWebsocket.RateLimiter do
   def init(name, config) do
     table = :ets.new(name, [:named_table, :public, :set])
 
-    state = %{
-      last_refill: System.monotonic_time(:millisecond),
-      queue: :queue.new(),
-      pressure_level: :none
-    }
-
-    :ets.insert(table, {:state, state})
     :ets.insert(table, {:config, config})
     :ets.insert(table, {:tokens, config.tokens})
     schedule_refill(name, config.refill_interval)
@@ -86,24 +68,24 @@ defmodule ZenWebsocket.RateLimiter do
       request: [kind: :value, description: "Request term passed to the cost function"]
     ],
     returns: %{
-      type: ":ok | {:error, :rate_limited | :queue_full}",
-      description: "Ok if tokens available, error if rate limited or queue full"
+      type: ":ok | {:error, :rate_limited}",
+      description: "Ok if tokens are available, otherwise rate limited"
     }
   )
 
   @doc """
   Attempts to consume tokens for a request.
 
-  Returns :ok if tokens available, queues request if not.
+  Returns `:ok` if tokens are available. Rate-limited requests remain the
+  caller's responsibility and are not retained by the limiter.
   """
-  @spec consume(atom(), term()) :: :ok | {:error, :rate_limited | :queue_full}
+  @spec consume(atom(), term()) :: :ok | {:error, :rate_limited}
   def consume(name, request) do
     [{:config, config}] = :ets.lookup(name, :config)
     cost = config.request_cost.(request)
 
-    # Use ETS atomic update for thread-safe token consumption
-    case :ets.update_counter(name, :tokens, {2, -cost}, {:tokens, cost}) do
-      tokens when tokens >= 0 ->
+    case take_tokens(name, cost) do
+      {:ok, tokens} ->
         :telemetry.execute(
           [:zen_websocket, :rate_limiter, :consume],
           %{tokens_remaining: tokens, cost: cost},
@@ -112,11 +94,8 @@ defmodule ZenWebsocket.RateLimiter do
 
         :ok
 
-      _ ->
-        # Restore tokens and handle rate limit
-        :ets.update_counter(name, :tokens, {2, cost})
-        [{:state, state}] = :ets.lookup(name, :state)
-        handle_rate_limit(name, state, request, cost, config)
+      :error ->
+        {:error, :rate_limited}
     end
   end
 
@@ -135,11 +114,7 @@ defmodule ZenWebsocket.RateLimiter do
   @spec refill(atom()) :: :ok
   def refill(name) do
     [{:config, config}] = :ets.lookup(name, :config)
-    [{:tokens, current_tokens}] = :ets.lookup(name, :tokens)
-
-    # Cap tokens at bucket capacity (config.tokens) to prevent unbounded accumulation
-    new_tokens = min(current_tokens + config.refill_rate, config.tokens)
-    :ets.insert(name, {:tokens, new_tokens})
+    {current_tokens, new_tokens} = refill_tokens(name, config.refill_rate, config.tokens)
 
     :telemetry.execute(
       [:zen_websocket, :rate_limiter, :refill],
@@ -147,31 +122,24 @@ defmodule ZenWebsocket.RateLimiter do
       %{name: name}
     )
 
-    [{:state, state}] = :ets.lookup(name, :state)
-    process_queue_with_tokens(name, state, new_tokens, config)
     schedule_refill(name, config.refill_interval)
 
     :ok
   end
 
-  api(:status, "Get current rate limiter status with backpressure guidance.",
+  api(:status, "Get current rate limiter status.",
     params: [
       name: [kind: :value, description: "Rate limiter name"]
     ],
     returns: %{
       type: "{:ok, map()}",
-      description: "Map with tokens, queue_size, pressure_level, and suggested_delay_ms"
+      description: "Map with tokens and compatibility status fields"
     }
   )
 
   @doc """
-  Returns current token count, queue size, pressure level, and suggested delay.
-
-  The `suggested_delay_ms` provides backpressure guidance:
-  - `:high` pressure (75%+) → `refill_interval * 4`
-  - `:medium` pressure (50%+) → `refill_interval * 2`
-  - `:low` pressure (25%+) → `refill_interval`
-  - `:none` → `0`
+  Returns the current token count. Queue-related fields remain at their neutral
+  values for response compatibility; this limiter does not retain requests.
   """
   @spec status(atom()) ::
           {:ok,
@@ -183,18 +151,13 @@ defmodule ZenWebsocket.RateLimiter do
            }}
   def status(name) do
     [{:tokens, tokens}] = :ets.lookup(name, :tokens)
-    [{:state, state}] = :ets.lookup(name, :state)
-    [{:config, config}] = :ets.lookup(name, :config)
-
-    pressure_level = Map.get(state, :pressure_level, :none)
-    suggested_delay = calculate_suggested_delay(pressure_level, config.refill_interval)
 
     {:ok,
      %{
        tokens: tokens,
-       queue_size: :queue.len(state.queue),
-       pressure_level: pressure_level,
-       suggested_delay_ms: suggested_delay
+       queue_size: 0,
+       pressure_level: :none,
+       suggested_delay_ms: 0
      }}
   end
 
@@ -216,102 +179,38 @@ defmodule ZenWebsocket.RateLimiter do
     :ok
   end
 
-  # Pressure thresholds as percentage of max_queue_size
-  @pressure_threshold_low 0.25
-  @pressure_threshold_medium 0.50
-  @pressure_threshold_high 0.75
-
   # Private functions
 
-  defp calculate_suggested_delay(:high, refill_interval), do: refill_interval * 4
-  defp calculate_suggested_delay(:medium, refill_interval), do: refill_interval * 2
-  defp calculate_suggested_delay(:low, refill_interval), do: refill_interval
-  defp calculate_suggested_delay(:none, _refill_interval), do: 0
-
-  defp calculate_pressure_level(queue_len, max_queue_size) do
-    ratio = queue_len / max_queue_size
-
-    cond do
-      ratio >= @pressure_threshold_high -> :high
-      ratio >= @pressure_threshold_medium -> :medium
-      ratio >= @pressure_threshold_low -> :low
-      true -> :none
-    end
-  end
-
-  defp check_and_emit_pressure(name, state, config) do
-    max_queue = Map.get(config, :max_queue_size, @default_max_queue_size)
-    queue_len = :queue.len(state.queue)
-    new_level = calculate_pressure_level(queue_len, max_queue)
-    old_level = Map.get(state, :pressure_level, :none)
-
-    if new_level == old_level do
-      state
-    else
-      ratio = queue_len / max_queue
-
-      :telemetry.execute(
-        [:zen_websocket, :rate_limiter, :pressure],
-        %{queue_size: queue_len, ratio: ratio},
-        %{name: name, level: new_level, previous_level: old_level}
-      )
-
-      new_state = %{state | pressure_level: new_level}
-      :ets.insert(name, {:state, new_state})
-      new_state
-    end
-  end
-
-  defp handle_rate_limit(name, state, request, cost, config) do
-    max_queue = Map.get(config, :max_queue_size, @default_max_queue_size)
-    queue = state.queue
-    queue_len = :queue.len(queue)
-
-    if queue_len >= max_queue do
-      :telemetry.execute(
-        [:zen_websocket, :rate_limiter, :queue_full],
-        %{queue_size: queue_len},
-        %{name: name}
-      )
-
-      {:error, :queue_full}
-    else
-      :telemetry.execute(
-        [:zen_websocket, :rate_limiter, :queue],
-        %{queue_size: queue_len + 1, cost: cost},
-        %{name: name}
-      )
-
-      new_queue = :queue.in({request, cost}, queue)
-      new_state = %{state | queue: new_queue}
-      :ets.insert(name, {:state, new_state})
-
-      # Check and emit pressure event after queuing
-      check_and_emit_pressure(name, new_state, config)
-
-      {:error, :rate_limited}
-    end
-  end
-
-  defp process_queue_with_tokens(name, _state, _tokens, _config) do
+  defp take_tokens(name, cost) do
     [{:tokens, current_tokens}] = :ets.lookup(name, :tokens)
-    [{:state, state}] = :ets.lookup(name, :state)
-    [{:config, config}] = :ets.lookup(name, :config)
 
-    case :queue.out(state.queue) do
-      {{:value, {_request, cost}}, new_queue} when current_tokens >= cost ->
-        :ets.update_counter(name, :tokens, {2, -cost})
-        new_state = %{state | queue: new_queue}
-        :ets.insert(name, {:state, new_state})
+    if current_tokens < cost do
+      :error
+    else
+      remaining_tokens = current_tokens - cost
 
-        # Check and emit pressure event after dequeue
-        check_and_emit_pressure(name, new_state, config)
-
-        process_queue_with_tokens(name, new_state, current_tokens - cost, nil)
-
-      _ ->
-        :ok
+      if replace_tokens(name, current_tokens, remaining_tokens) do
+        {:ok, remaining_tokens}
+      else
+        take_tokens(name, cost)
+      end
     end
+  end
+
+  defp refill_tokens(name, refill_rate, capacity) do
+    [{:tokens, current_tokens}] = :ets.lookup(name, :tokens)
+    new_tokens = min(current_tokens + refill_rate, capacity)
+
+    if replace_tokens(name, current_tokens, new_tokens) do
+      {current_tokens, new_tokens}
+    else
+      refill_tokens(name, refill_rate, capacity)
+    end
+  end
+
+  defp replace_tokens(name, current_tokens, new_tokens) do
+    match_spec = [{{:tokens, current_tokens}, [], [{{:tokens, new_tokens}}]}]
+    :ets.select_replace(name, match_spec) == 1
   end
 
   defp schedule_refill(name, interval) do

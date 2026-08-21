@@ -105,8 +105,8 @@ defmodule ZenWebsocket.Examples.RateLimitingTest do
     end
   end
 
-  describe "queue management" do
-    test "queues requests when rate limited" do
+  describe "rate-limited requests" do
+    test "does not retain requests when rate limited" do
       queue_limiter = :test_queue_limiter
 
       config = %{
@@ -122,15 +122,14 @@ defmodule ZenWebsocket.Examples.RateLimitingTest do
       assert :ok = RateLimiter.consume(queue_limiter, %{"id" => 1})
       assert :ok = RateLimiter.consume(queue_limiter, %{"id" => 2})
 
-      # Next requests are queued
       assert {:error, :rate_limited} = RateLimiter.consume(queue_limiter, %{"id" => 3})
-      assert {:ok, %{tokens: 0, queue_size: 1}} = RateLimiter.status(queue_limiter)
+      assert {:ok, %{tokens: 0, queue_size: 0}} = RateLimiter.status(queue_limiter)
 
       assert {:error, :rate_limited} = RateLimiter.consume(queue_limiter, %{"id" => 4})
-      assert {:ok, %{tokens: 0, queue_size: 2}} = RateLimiter.status(queue_limiter)
+      assert {:ok, %{tokens: 0, queue_size: 0}} = RateLimiter.status(queue_limiter)
     end
 
-    test "prevents queue overflow" do
+    test "keeps returning rate_limited without accumulating requests" do
       overflow_limiter = :test_overflow_limiter
 
       config = %{
@@ -145,13 +144,11 @@ defmodule ZenWebsocket.Examples.RateLimitingTest do
       # Consume token
       assert :ok = RateLimiter.consume(overflow_limiter, %{"id" => 0})
 
-      # Fill queue to max (100 items)
-      for i <- 1..100 do
+      for i <- 1..101 do
         assert {:error, :rate_limited} = RateLimiter.consume(overflow_limiter, %{"id" => i})
       end
 
-      # Queue is full
-      assert {:error, :queue_full} = RateLimiter.consume(overflow_limiter, %{"id" => 101})
+      assert {:ok, %{tokens: 0, queue_size: 0}} = RateLimiter.status(overflow_limiter)
     end
   end
 
