@@ -128,7 +128,7 @@ Crash-safe lifecycle callback invocation:
 #### Subscription Manager (`subscription_manager.ex`)
 Deribit-dialect JSON-RPC subscription tracking and restoration:
 - Auto-tracks `public/subscribe` and `public/unsubscribe` (`params.channels`) plus id-keyed confirmations/rejections
-- Does not auto-track other venues; those callers use `add/2`/`remove/2`
+- Does not auto-track or automatically restore other venues; their adapters manage subscription state and reconnect replay
 - `Client.subscribe/2` has no request id, so tracking is optimistic (a rejection stays in the restore set)
 - Restore payloads are Deribit `public/subscribe`
 - Telemetry events for add/remove/restore

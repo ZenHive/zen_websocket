@@ -4,8 +4,8 @@ defmodule ZenWebsocket.SubscriptionManager do
 
   Only `public/subscribe` and `public/unsubscribe` with `params.channels` are
   auto-tracked (plus their id-keyed confirmations and rejections). Other
-  venues' subscribe shapes are ignored — call `add/2`/`remove/2` yourself if
-  you want restore; `build_restore_message/1` still emits Deribit's payload.
+  venues' subscribe shapes are ignored and are not automatically restored;
+  `build_restore_message/1` always emits Deribit's payload.
 
   `Client.subscribe/2` sends no JSON-RPC id, so channels are recorded at send
   time. A server-side rejection leaves them in the restore set. Id-carrying

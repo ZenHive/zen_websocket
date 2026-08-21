@@ -80,9 +80,9 @@ ZenWebsocket tracks Deribit-dialect JSON-RPC subscriptions and restores them aft
 - Building restore messages as Deribit `public/subscribe`
 
 **What your client needs to handle:**
-- Non-Deribit subscribe dialects (call `SubscriptionManager.add/2` and `remove/2` if you want restore)
+- Subscription state and reconnect replay for non-Deribit dialects
 - Processing subscription data messages (sent to your handler callback)
-- Unsubscription logic (call your API's unsubscribe method, then the library removes from tracking)
+- Deribit unsubscription requests (`public/unsubscribe` updates tracking)
 - Authentication before subscribing to private channels
 
 **Configuration:**
@@ -248,7 +248,7 @@ See the full [HexDocs documentation](https://hexdocs.pm/zen_websocket) for API r
 | `retry_delay` | Initial retry delay in milliseconds | `1000` |
 | `heartbeat_interval` | Ping interval in milliseconds | `30000` |
 | `reconnect_on_error` | Enable automatic reconnection | `true` |
-| `restore_subscriptions` | Restore subscriptions after reconnect | `true` |
+| `restore_subscriptions` | Restore tracked Deribit subscriptions after reconnect | `true` |
 | `record_to` | Path to JSONL file for session recording | `nil` |
 | `debug` | Enable verbose debug logging | `false` |
 

@@ -161,6 +161,7 @@ defmodule ZenWebsocket.ClientTest do
       assert_receive {:server_received, raw}, 5_000
       msg = Jason.decode!(raw)
 
+      refute Map.has_key?(msg, "id")
       assert msg["method"] == "public/subscribe"
       assert msg["params"]["channels"] == channels
 

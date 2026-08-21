@@ -209,7 +209,7 @@ defmodule ZenWebsocket.SubscriptionManagerTest do
       assert SubscriptionManager.build_restore_message(result) == nil
     end
 
-    test "id-less public/subscribe stays tracked after an unrelated error frame" do
+    test "id-less public/subscribe stays tracked after a server rejection" do
       state = build_state()
 
       state =
@@ -223,7 +223,7 @@ defmodule ZenWebsocket.SubscriptionManagerTest do
 
       result =
         SubscriptionManager.handle_message(
-          %{"id" => 99, "error" => %{"code" => 13_009, "message" => "unauthorized"}},
+          %{"id" => nil, "error" => %{"code" => 13_009, "message" => "unauthorized"}},
           state
         )
 

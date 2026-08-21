@@ -98,7 +98,7 @@ opts = [
   retry_count: 3,             # Max reconnection attempts
   retry_delay: 1000,          # Initial retry delay (exponential backoff)
   reconnect_on_error: true,   # Auto-reconnect on errors
-  restore_subscriptions: true, # Restore subscriptions after reconnect
+  restore_subscriptions: true, # Restore tracked Deribit subscriptions after reconnect
 
   # Heartbeat
   heartbeat_config: %{
@@ -295,8 +295,9 @@ retried — the library does not replay it.
 `SubscriptionManager` auto-tracks Deribit-dialect JSON-RPC only:
 `public/subscribe` and `public/unsubscribe` with `params.channels`, plus
 id-keyed confirmations and rejections. Other venues' subscribe shapes are
-not inferred — call `SubscriptionManager.add/2` and `remove/2` if you want
-restore. Restore payloads are still Deribit `public/subscribe`.
+not inferred or automatically restored; adapters for those venues must manage
+their own subscription state and reconnect replay. Restore payloads from
+`SubscriptionManager` are always Deribit `public/subscribe`.
 
 `Client.subscribe/2` sends no JSON-RPC `id`, so channels are recorded at
 send time. A server-side rejection is not observed and those channels stay
