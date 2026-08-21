@@ -99,8 +99,18 @@ Token bucket rate limiting:
 #### Heartbeat Manager (`heartbeat_manager.ex`)
 Heartbeat lifecycle management:
 - Platform-specific heartbeat types (`:deribit`, `:ping_pong`, `:binance`)
-- RTT tracking via telemetry
 - Timer management
+- Delegates application-heartbeat pong recording to `HeartbeatInterval`
+
+#### Heartbeat Interval (`heartbeat_interval.ex`)
+Shared pong recording for generic and Deribit heartbeats:
+- `record_pong/3` - update `active_heartbeats`, reset failures, emit interval telemetry
+- The `rtt_ms` measurement is time between responses, not true RTT
+
+#### Safe Callback (`safe_callback.ex`)
+Crash-safe lifecycle callback invocation:
+- `invoke/2` - call a 1-arity callback, swallowing raise/throw/exit
+- Used by `Client.terminate/2` (`on_disconnect`) and `ClientSupervisor.start_client/2` (`on_connect`)
 
 #### Subscription Manager (`subscription_manager.ex`)
 Subscription tracking and restoration:

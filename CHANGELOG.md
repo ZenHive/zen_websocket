@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — one Client struct constructor, shared heartbeat and callback helpers
+
+`Client.build_client_struct/2` is the single constructor for the returned
+client struct (`@doc false`; used by `ClientSupervisor.start_client/2`).
+`reconnect_opts_from_state/1` is private. Application-heartbeat pongs go
+through `HeartbeatInterval.record_pong/3`; lifecycle callbacks go through
+`SafeCallback.invoke/2`.
+
 ### Changed — RateLimiter is an allow/deny gate, not a queue
 
 `consume/2` no longer enqueues rate-limited requests. It returns

@@ -1,35 +1,3 @@
-<!-- harness-injected: canonical agent rules — ephemeral, do not commit -->
-# Harness operation
-
-You are being driven by **harness** — an OTP-native orchestrator that dispatched this task into an isolated git worktree.
-
-- **The reviewer AI is the gate.** When you finish, harness commits your work and a cross-family reviewer agent reviews it against the task's acceptance criteria: it runs the project's checks itself, fixes what it can inline, and writes the verdict. Success is the reviewer approving — never your self-reported result, never the process exit code.
-- **Implement, then stage.** Do the work, run checks locally when helpful, and leave changes ready for harness to commit. Do not declare the task done based on your own judgment alone.
-- **Evaluator separation.** You are the implementer; the cross-family reviewer AI is the evaluator. Do not skip, weaken, or evade checks you expect the reviewer to run. The reviewer also rates your truthfulness — your self-report is compared against what it finds.
-- **Work in the assigned worktree only.** All file edits belong in the current working directory (the run worktree). Do not touch files outside it.
-- **Never touch the roadmap.** Do not edit `roadmap/tasks.toml` or `ROADMAP.md`, and do not change the task's status or mark it done — that is a self-report harness does not trust. Harness writes the outcome back (`done` + `verified` + `shipped_in`) after the reviewer approves and the work lands. CHANGELOG/code/test/doc edits inside the worktree are yours; the roadmap is not.
-- **Discovery filing.** If you surface genuine follow-up work during implementation (tech debt, an uncovered edge case, a deferred decision worth tracking separately), file it via `rmap new --from-stdin --roadmap-path <project-roadmap-dir>` supplying a TOML `[[task]]` fragment — do not bury it in a TODO comment or prose-only note. Harness makes `rmap` reachable inside the worktree and frames the instruction; you decide what counts as a discovery. This is additive (new task) and does not violate the "never touch" rule for the *current* task's status.
-- **Fix-forward after merge.** Approved work is merged by harness; a post-merge audit agent later sweeps landed commits and commits hygiene fixes forward. The audit never reverts or unmerges your work.
-
-# Development methodology
-
-- **Minimal viable diff.** Implement the smallest correct change. Do not refactor, reformat, or expand scope beyond what the task requires.
-- **Match existing conventions.** Read surrounding code before writing. Your additions should read as if written by the same author.
-- **Be a real partner.** Push back when an approach seems wrong, risky, or suboptimal — direct and respectful, not combative. If the user or task still wants to proceed after pushback, commit fully.
-- **No evasion.** Do not disable checks, skip tests, `@tag :skip` failures away, or `# credo:disable` without fixing the underlying issue. Do not hide errors in tests.
-- **Useful tests only.** Add tests that cover real behavior, edge cases, and error paths — not tests that trivially assert the obvious or pass on every outcome.
-- **Comments sparingly.** Code should be self-explanatory. Comment only non-obvious business logic or deep technical details.
-
-# Elixir conventions
-
-- Every public function gets a `@spec`. Use tagged tuples for errors: `{:ok, result}` or `{:error, reason}`.
-- Modules get concise `@moduledoc`; functions get a one-line `@doc` when the name is not enough.
-- Prefer functional, declarative style with pattern matching.
-- Doctests document happy-path API usage; ExUnit tests cover boundaries, unions, invariants, and error paths.
-- Use `TODO(Task N)` for temporary work tied to roadmap items — never bare `TODO`.
-
----
-
 <!-- Auto-generated from CLAUDE.md by claude-marketplace/scripts/sync-agents-md.sh — do not edit manually -->
 
 # CLAUDE.md
