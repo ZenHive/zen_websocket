@@ -1011,6 +1011,109 @@
       "verified_by": "cursor",
       "verification_ref": "harness-run:run-1787317620732-64a328fe",
       "cross_repo": []
+    },
+    {
+      "id": "16",
+      "phase": 1,
+      "bundle": "hygiene",
+      "status": "pending",
+      "title": "Make the 0.7.0 release record correct: four undocumented removals, one false claim, six breaks filed under Fixed",
+      "scores": {
+        "d": 4,
+        "b": 7,
+        "u": 6
+      },
+      "eff": 1.63,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "assignee": "codex",
+      "model": "gpt-5.6-sol",
+      "acceptance_criteria": [
+        "@version in mix.exs is 0.7.0, the README installation pin reads ~> 0.7, and the CHANGELOG [Unreleased] heading becomes a dated [0.7.0] section",
+        "The four consumer-visible removals absent from the changelog are documented, each verified against the v0.6.1 diff before writing: the three deleted telemetry events [:zen_websocket, :rate_limiter, :queue | :queue_full | :pressure]; the :max_queue_size config key and @default_max_queue_size; the @type RateLimiter.state/0; and the deleted mix stability_test task, which shipped because package files ships the whole lib tree",
+        "The claim 'reconnect_opts_from_state/1 is private' is corrected - the function is a public def at lib/zen_websocket/client/reconnect.ex:50; what actually happened is removal from the ZenWebsocket.Client surface, where v0.6.1 exposed it as a public def",
+        "Client.connect/2's changed failure contract is documented as a breaking change: v0.6.1 replied {:error, :connection_failed} immediately from a third :await_connection clause that no longer exists; HEAD returns the underlying transport reason after the retry ladder exhausts. State both the changed error term and the changed latency",
+        "Every entry classified BREAKING carries migration guidance that names what a consumer should write instead, not only what was removed. Entries that are internal-only (the coverage-gate change, the SafeCallback/HeartbeatInterval extraction) are cut or demoted rather than presented as consumer-facing",
+        "Breaking changes are not filed under ### Fixed. Six currently are; move them to a ### Changed or ### Removed section a consumer reading for migration work would actually find",
+        "The Client-split entry is worded so it survives task 15's rename - describe submodules under lib/zen_websocket/client/ rather than globbing Client*, and check lib/zen_websocket.ex's moduledoc for the same stale wording since it renders on hexdocs",
+        "Every claim added or kept is verified against git diff v0.6.1..HEAD, not against existing changelog prose. Report any entry you could not substantiate rather than restating it",
+        "mix precommit.full green"
+      ],
+      "out_of_scope": [
+        "Changing any library behaviour - this task edits the release record, not the code",
+        "Deciding whether SubscriptionManager's Deribit-dialect narrowing should be reverted - that is a separate task; document the observable change here and cross-reference it",
+        "Running mix hex.publish - the release is cut in a later step once the docs punch-list is also closed",
+        "Rewriting entries for releases at or below 0.6.1"
+      ],
+      "files_to_modify": [
+        "CHANGELOG.md",
+        "mix.exs",
+        "README.md"
+      ],
+      "touches": [
+        "CHANGELOG.md",
+        "mix.exs",
+        "README.md",
+        "lib/zen_websocket/rate_limiter.ex",
+        "lib/zen_websocket/client.ex",
+        "lib/zen_websocket/client/callbacks.ex",
+        "lib/zen_websocket/client/reconnect.ex",
+        "lib/zen_websocket/subscription_manager.ex",
+        "lib/zen_websocket/heartbeat_manager.ex",
+        "lib/zen_websocket/pool_router.ex",
+        "lib/mix/tasks/zen_websocket.validate_usage.ex"
+      ],
+      "body": "DISCOVERED 2026-08-21 during release preparation, by an audit of CHANGELOG [Unreleased] against git diff v0.6.1..HEAD (78 commits, 31 files under lib/, +1545/-1215). Five findings were re-verified by hand against the diff before this task was filed.\n\nWHY THIS IS THE RELEASE GATE. The changelog is the only artifact that tells a consumer what breaks. Right now it is wrong in three distinguishable ways: it omits four consumer-visible removals entirely, it states one thing the code contradicts, and it files six genuine breaking changes under a heading nobody reads for migration work. Publishing 0.7.0 with this record ships a false migration contract.\n\nVERIFIED FINDINGS (each checked against the diff, with the v0.6.1 side quoted):\n\n1. Three telemetry events deleted. v0.6.1 emitted [:zen_websocket, :rate_limiter, :pressure] at rate_limiter.ex:254 along with the queue and queue_full events; HEAD emits only :consume and :refill. A consumer's attached handler does not error - it silently never fires, so a dashboard just goes flat. Nothing in the changelog.\n\n2. :max_queue_size removed from the config type (v0.6.1 rate_limiter.ex:34) together with @default_max_queue_size (:41). Passing it is now silently ignored rather than honoured. Nothing in the changelog.\n\n3. @type RateLimiter.state/0 deleted. Any consumer @spec referencing it stops passing Dialyzer. Nothing in the changelog.\n\n4. mix stability_test deleted. Mix.Tasks.StabilityTest existed in v0.6.1 and package files ships lib wholesale, so it was a real consumer-invocable task. docs/stability_testing.md went with it. Nothing in the changelog.\n\n5. The changelog says reconnect_opts_from_state/1 \"is private\". It is a public def at client/reconnect.ex:50. In v0.6.1 it was a public def on ZenWebsocket.Client (client.ex:518). The real change is a move that removed it from the Client surface - a public-surface removal described as a privatisation that did not happen.\n\n6. Client.connect/2's error contract changed. v0.6.1 had three :await_connection clauses, the third replying {:error, :connection_failed} (client.ex:678). HEAD has two (client/callbacks.ex:23,27); the second parks the caller. The caller now receives the underlying Gun reason after the retry ladder exhausts instead of a generic atom immediately. This is the most silent break in the release: no compile error, no log line, just a case clause that stops matching.\n\nBLAST RADIUS - MEASURED, NOT ASSUMED. The two live consumers are bourse and onchain (ccxt_client was renamed to bourse; zen_cex is being retired). Between them they call exactly two functions: Client.connect/2 twice and Client.send_message/2 five times. A grep across both for every breaking pattern above returned zero hits, and bourse's connect site (lib/bourse/ws.ex:183) is a with clause without an else, so it passes any {:error, reason} through unchanged. Both also pin below 0.7.0 - onchain's mix.exs:58-60 caps deliberately, citing exactly this risk. So nothing is on fire; this task is about the correctness of the public record, not a rescue. Scope it accordingly and do not invent urgency the measurement does not support.\n\nONE THING TO ADD IN THE OTHER DIRECTION. onchain/lib/onchain/subscription.ex:83-87 carries an UPSTREAM(zen_websocket) comment and a @dialyzer suppression for the JsonRpc.build_request/2 spec that this release widens to accept list params. That is a concrete consumer benefit - say so in the entry rather than describing it only as a widened spec.\n\nWHY D=4 / B=7 / U=6. The work is one file plus a version bump, but the judgment is real: every entry has to be re-derived from a 78-commit diff rather than edited in place, and the failure mode of getting it wrong is a false migration contract. B is high because this gates the release and is the artifact both consumer repos will read when they lift their version cap. U is 6 because the release is queued behind it, not because anything is broken in production.\n",
+      "created_at": "2026-08-21",
+      "scored_at": "2026-08-21",
+      "cross_repo": []
+    },
+    {
+      "id": "17",
+      "phase": 1,
+      "bundle": "correctness",
+      "status": "pending",
+      "title": "Decide whether SubscriptionManager's narrowing to Deribit's JSON-RPC dialect is intended, and make the result explicit",
+      "scores": {
+        "d": 4,
+        "b": 6,
+        "u": 4
+      },
+      "eff": 1.25,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "assignee": "cursor",
+      "model": "cursor-grok-4.6-high",
+      "acceptance_criteria": [
+        "The decision is recorded in the module's @moduledoc: either SubscriptionManager tracks Deribit-dialect JSON-RPC only (and says so in one sentence, so a non-Deribit user is not misled into expecting reconnect restoration), or generic inbound-channel tracking is restored alongside the request/confirmation path",
+        "Whichever way it goes, a test pins it: a non-Deribit subscription shape either provably does not auto-track (documented limitation) or provably does (restored capability). No test may pass on both outcomes",
+        "The optimistic-tracking gap is addressed explicitly: Client.subscribe/2 sends no id, so track_outbound/4 applies channels immediately with no confirmation, which means a server-side rejection leaves the channel in the restore set. Either give Client.subscribe/2 an id so it uses the confirmation path, or document that its tracking is optimistic - do not leave it undescribed",
+        "USAGE_RULES.md and docs/Architecture.md agree with whatever is decided; neither may keep claiming confirmation-gated tracking if the primary path is optimistic",
+        "mix precommit.full green, core coverage at or above the 90 floor"
+      ],
+      "out_of_scope": [
+        "Adding support for a third venue's subscription dialect - this task decides between generic and Deribit-only, it does not build a dialect registry",
+        "Changing reconnection or restoration mechanics beyond what the decision requires",
+        "The CHANGELOG wording for this change - that belongs to the release-record task, which cross-references this one"
+      ],
+      "files_to_modify": [
+        "lib/zen_websocket/subscription_manager.ex"
+      ],
+      "touches": [
+        "lib/zen_websocket/subscription_manager.ex",
+        "lib/zen_websocket/client.ex",
+        "test/zen_websocket/subscription_manager_test.exs",
+        "USAGE_RULES.md",
+        "docs/Architecture.md"
+      ],
+      "body": "DISCOVERED 2026-08-21 during release preparation for 0.7.0, by an audit of CHANGELOG [Unreleased] against git diff v0.6.1..HEAD. Filed as a decision because the answer is a product call, not a defect fix.\n\nWHAT CHANGED. v0.6.1's SubscriptionManager.handle_message/2 tracked subscriptions from any inbound message shaped %{\"params\" => %{\"channel\" => ch}}. That clause is deleted. HEAD matches outbound requests whose method is literally \"public/subscribe\" or \"public/unsubscribe\" with params.channels - Deribit's dialect - plus their id-keyed confirmations and rejections.\n\nTHE TWO CONSEQUENCES, BOTH UNDOCUMENTED.\n\nFirst, a capability regression. For a server that does not speak Deribit's public/subscribe dialect, subscription tracking and therefore reconnect restoration silently stop working where they previously worked. The changelog presents this purely as a fix. It is also a narrowing, and nothing in the module or the docs tells a non-Deribit user that automatic restoration no longer applies to them. This library is documented as a general WebSocket client with Deribit as one example adapter, so the narrowing is at odds with the stated positioning - which is exactly why this needs a decision rather than a patch.\n\nSecond, the confirmation gate does not cover the library's own primary path. track_outbound/4 applies channels immediately when a request carries no id (subscription_manager.ex:175), and Client.subscribe/2 encodes a public/subscribe request with no id (client.ex:315). So ZenWebsocket's own subscribe call is tracked optimistically at send time, and a server-side rejection leaves the channel sitting in the restore set to be replayed on the next reconnect. The changelog entry claims tracking \"follows confirmed subscribe and unsubscribe operations\", which holds only for hand-built id-carrying requests.\n\nWHAT THIS TASK IS NOT. It is not a request to revert. Either answer is defensible: Deribit-only is honest if that is what the library actually supports and it is written down, and generic tracking is better if the general-client positioning is real. What is not defensible is the current state, where the narrowing is undocumented and the module's own contract is described in terms that its primary caller does not satisfy. Pick one, write it down, pin it with a test.\n\nCONTEXT ON URGENCY. The two live consumers are bourse and onchain. Neither calls SubscriptionManager - a grep across both found zero references - and both pin below 0.7.0, so nothing is currently broken by this. U is 4 for that reason: it should be settled before the general-client positioning gets quoted at someone, not this week.\n\nWHY D=4. The code change either way is small; the cost is in deciding and in making the docs and tests agree with the decision across four files.\n",
+      "created_at": "2026-08-21",
+      "scored_at": "2026-08-21",
+      "cross_repo": []
     }
   ]
 }
