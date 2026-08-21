@@ -99,8 +99,8 @@ ZenWebsocket.Client.get_state(client)
 
 ### Example Code Policy
 **Non-negotiable:** All examples must be written and tested in `lib/` and `test/` first, with full validation (compile, Dialyzer, Credo, tests). After validation:
-- **Small patterns** (< 50 lines): Stay in `lib/zen_websocket/examples/`
-- **Large applications**: Move to `examples/<name>/` as separate mix project
+- **Executable examples**: Live in `lib/zen_websocket/examples/` without a per-file line limit
+- **Packaging**: Examples and `Mix.Tasks.ZenWebsocket.*` ship in the Hex package; removing them would make existing example modules and tasks unavailable to consumers
 
 See AGENTS.md for full policy details.
 

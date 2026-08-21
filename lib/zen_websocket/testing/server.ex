@@ -3,12 +3,13 @@ defmodule ZenWebsocket.Testing.Server do
   # Internal implementation for Testing module.
   # Wraps MockWebSockServer and adds message capture for assertions.
   #
-  # Uses dynamic function calls to avoid compile-time warnings since
-  # MockWebSockServer is only available in test environment.
+  # MockWebSockServer and its dependencies are only compiled in the test
+  # environment. Dynamic calls keep this module compilable in dev and prod;
+  # .reach.exs records this exact core-to-support seam as an exception.
 
   # credo:disable-for-this-file Credo.Check.Refactor.Apply
-  # ^ Intentional: MockWebSockServer is only compiled in test env,
-  #   so we use apply/3 to avoid compile-time module not found warnings.
+  # ^ Intentional: every apply/3 targets the fixed module and literal functions
+  #   below, avoiding compile-time undefined-module warnings outside tests.
 
   @default_path "/ws"
   @mock_server_module ZenWebsocket.Test.Support.MockWebSockServer
@@ -38,7 +39,7 @@ defmodule ZenWebsocket.Testing.Server do
     # Create a handler that captures all received messages
     capture_handler = build_capture_handler(message_agent, Keyword.get(opts, :handler))
 
-    # Start the mock server (dynamic call to avoid compile warnings)
+    # Start the test-only mock server.
     server_opts = Keyword.put(opts, :handler, nil)
 
     case apply(@mock_server_module, :start_link, [server_opts]) do
@@ -67,7 +68,7 @@ defmodule ZenWebsocket.Testing.Server do
   @doc false
   @spec stop(map()) :: :ok
   def stop(%{pid: pid, message_agent: message_agent}) do
-    # Stop the mock server (dynamic call)
+    # Stop the test-only mock server.
     if Process.alive?(pid) do
       apply(@mock_server_module, :stop, [pid])
     end

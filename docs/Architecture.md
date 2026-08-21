@@ -79,11 +79,16 @@ Request/response correlation tracking:
 
 ### 4. Infrastructure Modules
 
-#### Connection Registry (`connection_registry.ex`)
-ETS-based connection tracking:
+#### Standalone Connection Registry (`connection_registry.ex`)
+Opt-in ETS-based connection tracking:
 - Fast connection lookups via `get/1`
 - Process monitoring with `register/2`
-- Automatic cleanup via `cleanup_dead/1`
+- Explicit cleanup via `cleanup_dead/1`
+
+**Decision:** Keep `ConnectionRegistry` as a supported standalone public utility.
+`ClientSupervisor` discovers children through `DynamicSupervisor`, so wiring the
+registry into it would create a second lifecycle data source. Consumers that opt
+in own registry initialization, dead-process cleanup, and shutdown.
 
 #### Rate Limiter (`rate_limiter.ex`)
 Token bucket rate limiting:
@@ -158,6 +163,11 @@ Reference implementation for exchange integration:
 - Subscription handling
 - Cancel-on-disconnect protection
 
+The executable examples and `Mix.Tasks.ZenWebsocket.*` commands remain in the
+Hex package. This preserves the modules and tasks already available to consumers;
+removing either directory from `package.files` would remove that consumer-facing
+content.
+
 ## Data Flow
 
 ```
@@ -186,7 +196,6 @@ Gun Transport <---> WebSocket Server
 Error Handler --> Reconnection
 
 ClientSupervisor ---> PoolRouter (health scoring, failover)
-                 ---> ConnectionRegistry (ETS lookup)
 ```
 
 ## State Management
@@ -197,9 +206,9 @@ ClientSupervisor ---> PoolRouter (health scoring, failover)
 - Preserved across reconnections
 
 ### Registry State
-- ETS table for O(1) lookups
+- Standalone ETS table for O(1) lookups
 - Stores: PID to connection mappings
-- Automatic cleanup on process termination
+- Initialized, cleaned, and shut down explicitly by opt-in consumers
 
 ### Rate Limiter State
 - Token bucket per connection

@@ -29,6 +29,7 @@ defmodule ZenWebsocket.DiscoverableTest do
       assert ZenWebsocket.RequestCorrelator in module_names
       assert ZenWebsocket.RateLimiter in module_names
       assert ZenWebsocket.PoolRouter in module_names
+      assert ZenWebsocket.ConnectionRegistry in module_names
 
       # Observability modules
       assert ZenWebsocket.ErrorHandler in module_names
@@ -59,6 +60,14 @@ defmodule ZenWebsocket.DiscoverableTest do
       result = ZenWebsocket.describe(:reconnection)
       assert is_list(result)
       assert result != []
+    end
+
+    test "returns the standalone connection registry API" do
+      result = ZenWebsocket.describe(:connection_registry)
+      function_names = Enum.map(result, & &1.name)
+
+      assert :register in function_names
+      assert :get in function_names
     end
 
     test "raises on unknown module shortname" do

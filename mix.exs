@@ -292,6 +292,8 @@ defmodule ZenWebsocket.MixProject do
   defp package do
     [
       name: "zen_websocket",
+      # `lib` intentionally ships the documented example modules and
+      # Mix.Tasks.ZenWebsocket.* commands as consumer-visible package content.
       files: ~w(lib .formatter.exs mix.exs README* LICENSE* CHANGELOG* USAGE_RULES*),
       licenses: ["MIT"],
       links: %{

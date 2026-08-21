@@ -4,6 +4,7 @@ defmodule ZenWebsocket.TestingTest do
   alias ZenWebsocket.Testing
 
   @moduletag :integration
+  @moduletag :local_network
 
   describe "start_mock_server/1" do
     test "starts a mock server with default options" do

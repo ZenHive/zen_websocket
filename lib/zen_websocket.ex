@@ -52,6 +52,7 @@ defmodule ZenWebsocket do
   * `ZenWebsocket.RequestCorrelator` — JSON-RPC request/response correlation
   * `ZenWebsocket.RateLimiter` — token bucket rate limiting
   * `ZenWebsocket.PoolRouter` — health-based connection routing
+  * `ZenWebsocket.ConnectionRegistry` — opt-in ETS connection lookup utility
 
   ### Observability
   * `ZenWebsocket.ErrorHandler` — error categorization with `explain/1`
@@ -91,6 +92,7 @@ defmodule ZenWebsocket do
       ZenWebsocket.RequestCorrelator,
       ZenWebsocket.RateLimiter,
       ZenWebsocket.PoolRouter,
+      ZenWebsocket.ConnectionRegistry,
       # Observability
       ZenWebsocket.ErrorHandler,
       ZenWebsocket.LatencyStats,

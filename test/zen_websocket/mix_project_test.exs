@@ -11,6 +11,13 @@ defmodule ZenWebsocket.MixProjectTest do
     assert Keyword.fetch!(aliases, :security) == ["sobelow --exit --skip --config"]
   end
 
+  test "package retains example modules and consumer mix tasks" do
+    package = Keyword.fetch!(ZenWebsocket.MixProject.project(), :package)
+
+    assert "lib" in Keyword.fetch!(package, :files)
+    refute Keyword.has_key?(package, :exclude_patterns)
+  end
+
   test "usage task exports only requested sections" do
     output =
       capture_io(fn ->
