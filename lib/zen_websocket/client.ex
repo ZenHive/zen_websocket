@@ -49,7 +49,7 @@ defmodule ZenWebsocket.Client do
   - close/1 - Close connection
   - reconnect/1 - Close and re-establish the connection
   - get_heartbeat_health/1, get_state_metrics/1, get_latency_stats/1 - Monitoring
-  - reconnect_opts_from_state/1 - Internal reconnect option capture (`@doc false`)
+  - build_client_struct/2 - Internal client struct assembly (`@doc false`; ClientSupervisor)
 
   ## Configuration Options
 
@@ -79,6 +79,7 @@ defmodule ZenWebsocket.Client do
   alias ZenWebsocket.LatencyStats
   alias ZenWebsocket.Reconnection
   alias ZenWebsocket.RequestCorrelator
+  alias ZenWebsocket.SafeCallback
   alias ZenWebsocket.SubscriptionManager
 
   require Logger
@@ -540,9 +541,8 @@ defmodule ZenWebsocket.Client do
     end
   end
 
-  @doc false
   @spec reconnect_opts_from_state(map()) :: keyword()
-  def reconnect_opts_from_state(state) do
+  defp reconnect_opts_from_state(state) do
     []
     |> maybe_put_reconnect_opt(:handler, state.handler)
     |> maybe_put_reconnect_opt(:heartbeat_config, state.heartbeat_config)
@@ -918,22 +918,8 @@ defmodule ZenWebsocket.Client do
   @impl true
   def terminate(_reason, state) do
     maybe_stop_recorder(state.recorder_pid)
-    maybe_invoke_on_disconnect(state.on_disconnect)
+    SafeCallback.invoke(state.on_disconnect, self())
     :ok
-  end
-
-  # Safely invokes the on_disconnect callback, catching and logging any errors.
-  @spec maybe_invoke_on_disconnect((pid() -> any()) | nil) :: :ok
-  defp maybe_invoke_on_disconnect(nil), do: :ok
-
-  # User-provided callbacks may raise, throw, or exit; none should crash terminate/2.
-  defp maybe_invoke_on_disconnect(callback) when is_function(callback, 1) do
-    callback.(self())
-    :ok
-  catch
-    _kind, error ->
-      Logger.warning("on_disconnect callback error: #{inspect(error)}")
-      :ok
   end
 
   @spec handle_correlation_timeout(state(), term()) :: {:noreply, state()}
@@ -1089,8 +1075,12 @@ defmodule ZenWebsocket.Client do
   defp normalize_error({:gun_error, _pid, reason}), do: reason
   defp normalize_error(reason), do: reason
 
+  # Public because ClientSupervisor.start_client/2 builds the same returned
+  # struct after await_connection/3. Keeping this as the single constructor
+  # lets reconnect_opts_from_state/1 stay private.
+  @doc false
   @spec build_client_struct(state(), pid()) :: t()
-  defp build_client_struct(state, server_pid) do
+  def build_client_struct(state, server_pid) do
     %__MODULE__{
       gun_pid: state.gun_pid,
       stream_ref: state.stream_ref,

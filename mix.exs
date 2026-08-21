@@ -227,6 +227,15 @@ defmodule ZenWebsocket.MixProject do
         "format --check-formatted",
         "credo --strict --ignore TagTODO,TagFIXME",
         "doctor --raise",
+        # Zero-clone budget. This is Type I + Type II with literal_mode: :keep,
+        # min_mass 30, Type III off. It is not a byte-identical-function
+        # detector: comments add no mass; fragments under 30 AST nodes are
+        # invisible (callback wrapper mass 22–26; heartbeat if-block mass 22);
+        # larger functions still miss when the AST differs after Type-II keep
+        # (__MODULE__ vs alias, local vs remote call, reversed args —
+        # build_client_struct/2 was mass 35–36 and silent). The same defaults
+        # apply to ExDNA.Credo in .credo.exs, so mix ci runs this filter twice
+        # without broadening it. Green means nothing crossed that boundary.
         "ex_dna --max-clones 0",
         "reach.check --arch --smells",
         "sobelow --skip --exit low",

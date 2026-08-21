@@ -46,6 +46,7 @@ Self-contained so it survives into `AGENTS.md` on regen — cross-family reviewe
 
 - **Canonical gate:** `mix precommit.full` (alias `mix ci`) — the comprehensive pass the harness reviewer's `check_command` runs and what GitHub CI (`.github/workflows/harness.yml`) invokes directly. Fast local loop: `mix precommit` (skips the cold-PLT dialyzer + deps audit).
 - `mix precommit.full` runs, in order: `compile --warnings-as-errors`, `format --check-formatted`, `credo --strict` (ignoring TODO/FIXME tags), `doctor --raise`, `ex_dna --max-clones 0` (zero-clone budget), `reach.check --arch --smells` (policy in `.reach.exs`), `sobelow --skip`, `deps.audit.gated`, `test.json --cover --cover-threshold 58 --exclude integration --include local_network` (`MIX_ENV=test`), `dialyzer` (forced `MIX_ENV=dev` — see below), `agents.check`.
+- **`mix ex_dna --max-clones 0` is not a byte-identical-function detector.** The gate (and the same defaults on `ExDNA.Credo` during `mix credo`) is Type I + Type II with `literal_mode: :keep`, `min_mass: 30`, Type III off (`min_similarity: 1.0`). Comments add no mass. Cross-module comparison works; what it misses are fragments below 30 AST nodes (the shared callback wrapper was mass 22–26; the shared heartbeat `if` was mass 22) and above-threshold functions whose ASTs still differ after Type-II keep — `__MODULE__` vs a qualified alias, local vs remote call, reversed argument order (`build_client_struct/2` was mass 35–36 and still silent). Type II `--literal-mode abstract` also missed those three; Type III at 0.85 flagged unrelated descripex `api()` wrappers, not them. A green zero-clone run means nothing crossed *that* boundary, not that duplication is absent. See the comment on `"ex_dna --max-clones 0"` in `mix.exs`.
 - **The coverage floor is a measured ratchet, not an aspiration.** 58 is the non-integration coverage measured 2026-08-01, rounded down; the previous 80 had never been met by any run and so gated nothing. Raise it in lockstep with real coverage; never pad it.
 - **`mix test.json` (`ex_unit_json`) and `mix dialyzer.json` (`dialyzer_json`) emit JSON by design — this is NOT a build failure.** Parse the JSON for real failures; never flag the envelope itself. Plain `mix dialyzer` is the authoritative dialyzer check when the JSON encoder can't serialize a warning shape.
 - **The gate's dialyzer step forces `MIX_ENV=dev`, not `:test`.** Under `:test`, the test-only mock-server stack (`cowboy`, `plug_cowboy`, `websock`, `x509`, `temp`, `stream_data`) joins this repo's `plt_add_deps: :apps_direct` analyzed set and produces false `unknown_function` warnings against the OOM-tuned PLT (see `defp dialyzer` in `mix.exs`). `preferred_envs` in `def cli` is ignored inside alias steps, so the dev override is an explicit `cmd env MIX_ENV=dev mix dialyzer`.
@@ -80,12 +81,14 @@ lib/zen_websocket/
 ├── request_correlator.ex   # Request/response correlation
 ├── rate_limiter.ex         # API rate limit management
 ├── heartbeat_manager.ex    # Heartbeat lifecycle
+├── heartbeat_interval.ex   # Shared interval-pong telemetry + state update
 ├── subscription_manager.ex # Subscription tracking and restoration
 ├── latency_stats.ex        # Latency percentile tracking
 ├── pool_router.ex          # Health-based pool routing
 ├── recorder.ex             # Session recording (pure functions)
 ├── recorder_server.ex      # Async file I/O for recording
 ├── debug.ex                # Conditional debug logging
+├── safe_callback.ex        # Crash-safe lifecycle callback wrapper
 ├── testing.ex              # Consumer-facing test utilities
 ├── testing/
 │   └── server.ex           # Mock WebSocket server used by Testing
@@ -110,8 +113,8 @@ ZenWebsocket.Client.get_heartbeat_health(client)
 ZenWebsocket.Client.get_state_metrics(client)
 ZenWebsocket.Client.get_latency_stats(client)
 
-# Public but @doc false — used internally (e.g. ClientSupervisor)
-ZenWebsocket.Client.reconnect_opts_from_state(state)
+# Public but @doc false — used internally by ClientSupervisor.start_client/2
+ZenWebsocket.Client.build_client_struct(state, pid)
 ```
 
 ### Project Constraints

@@ -15,7 +15,7 @@ defmodule ZenWebsocket.ValidateUsageTest do
   ZenWebsocket.Client.get_state_metrics(client)
   ZenWebsocket.Client.get_latency_stats(client)
   ZenWebsocket.Client.reconnect(client)
-  ZenWebsocket.Client.reconnect_opts_from_state(state)
+  ZenWebsocket.Client.build_client_struct(state, pid)
   """
 
   test "allows every public Client function" do

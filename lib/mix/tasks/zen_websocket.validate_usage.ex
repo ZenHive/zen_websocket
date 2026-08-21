@@ -37,7 +37,7 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
   @allowed_functions ~w(
     connect send_message subscribe get_state close
     get_heartbeat_health get_state_metrics get_latency_stats
-    reconnect reconnect_opts_from_state t
+    reconnect build_client_struct t
   )a
   @allowed_function_strings Enum.map(@allowed_functions, &Atom.to_string/1)
 

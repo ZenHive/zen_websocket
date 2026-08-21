@@ -1,3 +1,35 @@
+<!-- harness-injected: canonical agent rules — ephemeral, do not commit -->
+# Harness operation
+
+You are being driven by **harness** — an OTP-native orchestrator that dispatched this task into an isolated git worktree.
+
+- **The reviewer AI is the gate.** When you finish, harness commits your work and a cross-family reviewer agent reviews it against the task's acceptance criteria: it runs the project's checks itself, fixes what it can inline, and writes the verdict. Success is the reviewer approving — never your self-reported result, never the process exit code.
+- **Implement, then stage.** Do the work, run checks locally when helpful, and leave changes ready for harness to commit. Do not declare the task done based on your own judgment alone.
+- **Evaluator separation.** You are the implementer; the cross-family reviewer AI is the evaluator. Do not skip, weaken, or evade checks you expect the reviewer to run. The reviewer also rates your truthfulness — your self-report is compared against what it finds.
+- **Work in the assigned worktree only.** All file edits belong in the current working directory (the run worktree). Do not touch files outside it.
+- **Never touch the roadmap.** Do not edit `roadmap/tasks.toml` or `ROADMAP.md`, and do not change the task's status or mark it done — that is a self-report harness does not trust. Harness writes the outcome back (`done` + `verified` + `shipped_in`) after the reviewer approves and the work lands. CHANGELOG/code/test/doc edits inside the worktree are yours; the roadmap is not.
+- **Discovery filing.** If you surface genuine follow-up work during implementation (tech debt, an uncovered edge case, a deferred decision worth tracking separately), file it via `rmap new --from-stdin --roadmap-path <project-roadmap-dir>` supplying a TOML `[[task]]` fragment — do not bury it in a TODO comment or prose-only note. Harness makes `rmap` reachable inside the worktree and frames the instruction; you decide what counts as a discovery. This is additive (new task) and does not violate the "never touch" rule for the *current* task's status.
+- **Fix-forward after merge.** Approved work is merged by harness; a post-merge audit agent later sweeps landed commits and commits hygiene fixes forward. The audit never reverts or unmerges your work.
+
+# Development methodology
+
+- **Minimal viable diff.** Implement the smallest correct change. Do not refactor, reformat, or expand scope beyond what the task requires.
+- **Match existing conventions.** Read surrounding code before writing. Your additions should read as if written by the same author.
+- **Be a real partner.** Push back when an approach seems wrong, risky, or suboptimal — direct and respectful, not combative. If the user or task still wants to proceed after pushback, commit fully.
+- **No evasion.** Do not disable checks, skip tests, `@tag :skip` failures away, or `# credo:disable` without fixing the underlying issue. Do not hide errors in tests.
+- **Useful tests only.** Add tests that cover real behavior, edge cases, and error paths — not tests that trivially assert the obvious or pass on every outcome.
+- **Comments sparingly.** Code should be self-explanatory. Comment only non-obvious business logic or deep technical details.
+
+# Elixir conventions
+
+- Every public function gets a `@spec`. Use tagged tuples for errors: `{:ok, result}` or `{:error, reason}`.
+- Modules get concise `@moduledoc`; functions get a one-line `@doc` when the name is not enough.
+- Prefer functional, declarative style with pattern matching.
+- Doctests document happy-path API usage; ExUnit tests cover boundaries, unions, invariants, and error paths.
+- Use `TODO(Task N)` for temporary work tied to roadmap items — never bare `TODO`.
+
+---
+
 <!-- Auto-generated from CLAUDE.md by claude-marketplace/scripts/sync-agents-md.sh — do not edit manually -->
 
 # CLAUDE.md
@@ -533,6 +565,7 @@ Self-contained so it survives into `AGENTS.md` on regen — cross-family reviewe
 
 - **Canonical gate:** `mix precommit.full` (alias `mix ci`) — the comprehensive pass the harness reviewer's `check_command` runs and what GitHub CI (`.github/workflows/harness.yml`) invokes directly. Fast local loop: `mix precommit` (skips the cold-PLT dialyzer + deps audit).
 - `mix precommit.full` runs, in order: `compile --warnings-as-errors`, `format --check-formatted`, `credo --strict` (ignoring TODO/FIXME tags), `doctor --raise`, `ex_dna --max-clones 0` (zero-clone budget), `reach.check --arch --smells` (policy in `.reach.exs`), `sobelow --skip`, `deps.audit.gated`, `test.json --cover --cover-threshold 58 --exclude integration --include local_network` (`MIX_ENV=test`), `dialyzer` (forced `MIX_ENV=dev` — see below), `agents.check`.
+- **`mix ex_dna --max-clones 0` is not a byte-identical-function detector.** The gate (and the same defaults on `ExDNA.Credo` during `mix credo`) is Type I + Type II with `literal_mode: :keep`, `min_mass: 30`, Type III off (`min_similarity: 1.0`). Comments add no mass. Cross-module comparison works; what it misses are fragments below 30 AST nodes (the shared callback wrapper was mass 22–26; the shared heartbeat `if` was mass 22) and above-threshold functions whose ASTs still differ after Type-II keep — `__MODULE__` vs a qualified alias, local vs remote call, reversed argument order (`build_client_struct/2` was mass 35–36 and still silent). Type II `--literal-mode abstract` also missed those three; Type III at 0.85 flagged unrelated descripex `api()` wrappers, not them. A green zero-clone run means nothing crossed *that* boundary, not that duplication is absent. See the comment on `"ex_dna --max-clones 0"` in `mix.exs`.
 - **The coverage floor is a measured ratchet, not an aspiration.** 58 is the non-integration coverage measured 2026-08-01, rounded down; the previous 80 had never been met by any run and so gated nothing. Raise it in lockstep with real coverage; never pad it.
 - **`mix test.json` (`ex_unit_json`) and `mix dialyzer.json` (`dialyzer_json`) emit JSON by design — this is NOT a build failure.** Parse the JSON for real failures; never flag the envelope itself. Plain `mix dialyzer` is the authoritative dialyzer check when the JSON encoder can't serialize a warning shape.
 - **The gate's dialyzer step forces `MIX_ENV=dev`, not `:test`.** Under `:test`, the test-only mock-server stack (`cowboy`, `plug_cowboy`, `websock`, `x509`, `temp`, `stream_data`) joins this repo's `plt_add_deps: :apps_direct` analyzed set and produces false `unknown_function` warnings against the OOM-tuned PLT (see `defp dialyzer` in `mix.exs`). `preferred_envs` in `def cli` is ignored inside alias steps, so the dev override is an explicit `cmd env MIX_ENV=dev mix dialyzer`.
@@ -567,12 +600,14 @@ lib/zen_websocket/
 ├── request_correlator.ex   # Request/response correlation
 ├── rate_limiter.ex         # API rate limit management
 ├── heartbeat_manager.ex    # Heartbeat lifecycle
+├── heartbeat_interval.ex   # Shared interval-pong telemetry + state update
 ├── subscription_manager.ex # Subscription tracking and restoration
 ├── latency_stats.ex        # Latency percentile tracking
 ├── pool_router.ex          # Health-based pool routing
 ├── recorder.ex             # Session recording (pure functions)
 ├── recorder_server.ex      # Async file I/O for recording
 ├── debug.ex                # Conditional debug logging
+├── safe_callback.ex        # Crash-safe lifecycle callback wrapper
 ├── testing.ex              # Consumer-facing test utilities
 ├── testing/
 │   └── server.ex           # Mock WebSocket server used by Testing
@@ -597,8 +632,8 @@ ZenWebsocket.Client.get_heartbeat_health(client)
 ZenWebsocket.Client.get_state_metrics(client)
 ZenWebsocket.Client.get_latency_stats(client)
 
-# Public but @doc false — used internally (e.g. ClientSupervisor)
-ZenWebsocket.Client.reconnect_opts_from_state(state)
+# Public but @doc false — used internally by ClientSupervisor.start_client/2
+ZenWebsocket.Client.build_client_struct(state, pid)
 ```
 
 ### Project Constraints

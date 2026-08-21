@@ -5,7 +5,7 @@
 ## Core Principles
 
 1. **Start Simple**: Use direct connection for development, add supervision for production
-2. **Public Client API**: connection lifecycle (`connect`, `send_message`, `subscribe`, `get_state`, `close`, `reconnect`) plus monitoring (`get_latency_stats`, `get_heartbeat_health`, `get_state_metrics`). `reconnect_opts_from_state/1` is public but `@doc false`.
+2. **Public Client API**: connection lifecycle (`connect`, `send_message`, `subscribe`, `get_state`, `close`, `reconnect`) plus monitoring (`get_latency_stats`, `get_heartbeat_health`, `get_state_metrics`). `build_client_struct/2` is public but `@doc false` (ClientSupervisor).
 3. **Real API Testing**: Always test against real endpoints, never mock WebSocket behavior
 
 ## Quick Start Pattern

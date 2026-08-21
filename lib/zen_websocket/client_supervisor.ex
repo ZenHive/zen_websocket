@@ -36,6 +36,9 @@ defmodule ZenWebsocket.ClientSupervisor do
   use Descripex, namespace: "/supervisor"
   use DynamicSupervisor
 
+  alias ZenWebsocket.Client
+  alias ZenWebsocket.SafeCallback
+
   @max_restarts 10
   @restart_window_seconds 60
 
@@ -94,7 +97,7 @@ defmodule ZenWebsocket.ClientSupervisor do
       )
   """
   @spec start_client(String.t() | ZenWebsocket.Config.t(), keyword()) ::
-          {:ok, ZenWebsocket.Client.t()} | {:error, term()}
+          {:ok, Client.t()} | {:error, term()}
   def start_client(url_or_config, opts \\ []) do
     # Extract lifecycle callbacks
     on_connect = Keyword.get(opts, :on_connect)
@@ -104,7 +107,7 @@ defmodule ZenWebsocket.ClientSupervisor do
 
     child_spec = %{
       id: make_ref(),
-      start: {ZenWebsocket.Client, :start_link, [url_or_config, supervised_opts]},
+      start: {Client, :start_link, [url_or_config, supervised_opts]},
       restart: :transient,
       type: :worker
     }
@@ -125,8 +128,8 @@ defmodule ZenWebsocket.ClientSupervisor do
   defp await_connection(pid, timeout, on_connect) do
     case GenServer.call(pid, :await_connection, timeout) do
       {:ok, state} ->
-        maybe_invoke_callback(on_connect, pid)
-        {:ok, build_client_struct(pid, state)}
+        SafeCallback.invoke(on_connect, pid)
+        {:ok, Client.build_client_struct(state, pid)}
 
       {:error, reason} ->
         DynamicSupervisor.terminate_child(__MODULE__, pid)
@@ -145,35 +148,6 @@ defmodule ZenWebsocket.ClientSupervisor do
       {call_reason, {module, :call, _details}} when module in [GenServer, :gen_server] -> call_reason
       other -> other
     end
-  end
-
-  # Safely invokes a lifecycle callback, catching and logging any errors.
-  defp maybe_invoke_callback(nil, _pid), do: :ok
-
-  # User-provided callbacks may raise, throw, or exit; none should crash the caller.
-  defp maybe_invoke_callback(callback, pid) when is_function(callback, 1) do
-    callback.(pid)
-    :ok
-  catch
-    _kind, error ->
-      require Logger
-
-      Logger.warning("Lifecycle callback error: #{inspect(error)}")
-      :ok
-  end
-
-  # Builds a Client struct from the GenServer state after successful connection.
-  defp build_client_struct(pid, state) do
-    %ZenWebsocket.Client{
-      gun_pid: state.gun_pid,
-      stream_ref: state.stream_ref,
-      state: state.state,
-      url: state.url,
-      monitor_ref: state.monitor_ref,
-      server_pid: pid,
-      config: state.config,
-      reconnect_opts: ZenWebsocket.Client.reconnect_opts_from_state(state)
-    }
   end
 
   @spec await_timeout(String.t() | ZenWebsocket.Config.t(), keyword()) :: pos_integer()
@@ -293,9 +267,9 @@ defmodule ZenWebsocket.ClientSupervisor do
     # This is intentional - we only need server_pid for GenServer routing and state
     # for the connected check. Other fields (gun_pid, stream_ref, etc.) are not used
     # by send_message/2 which delegates to the GenServer.
-    client = %ZenWebsocket.Client{server_pid: selected_pid, state: :connected}
+    client = %Client{server_pid: selected_pid, state: :connected}
 
-    case ZenWebsocket.Client.send_message(client, message) do
+    case Client.send_message(client, message) do
       :ok ->
         ZenWebsocket.PoolRouter.clear_errors(selected_pid)
         :ok
