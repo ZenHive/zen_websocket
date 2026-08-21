@@ -74,11 +74,12 @@ defmodule ZenWebsocket.Client do
   use Descripex, namespace: "/client"
   use GenServer
 
-  alias ZenWebsocket.Client.Callbacks
-  alias ZenWebsocket.Client.CallFacade
-  alias ZenWebsocket.Client.Connection
-  alias ZenWebsocket.Client.Frames
-  alias ZenWebsocket.Client.Retry
+  alias ZenWebsocket.ClientCallbacks, as: Callbacks
+  alias ZenWebsocket.ClientCallFacade, as: CallFacade
+  alias ZenWebsocket.ClientConnection, as: Connection
+  alias ZenWebsocket.ClientReconnect, as: Reconnect
+  alias ZenWebsocket.ClientRecorder, as: RecorderLifecycle
+  alias ZenWebsocket.ClientRetry, as: Retry
   alias ZenWebsocket.ErrorHandler
   alias ZenWebsocket.LatencyStats
   alias ZenWebsocket.SafeCallback
@@ -407,10 +408,10 @@ defmodule ZenWebsocket.Client do
 
   @spec reconnect(t()) :: {:ok, t()} | {:error, term()}
   def reconnect(%__MODULE__{} = client) do
-    {target, opts} = CallFacade.reconnect_target(client)
+    {target, opts} = Reconnect.reconnect_target(client)
     close(client)
 
-    case CallFacade.reconnect_with(target, opts, &connect/2) do
+    case Reconnect.reconnect_with(target, opts, &connect/2) do
       {:ok, new_client} ->
         {:ok, new_client}
 
@@ -437,7 +438,7 @@ defmodule ZenWebsocket.Client do
       monitor_ref: state.monitor_ref,
       server_pid: server_pid,
       config: state.config,
-      reconnect_opts: CallFacade.reconnect_opts_from_state(state)
+      reconnect_opts: Reconnect.reconnect_opts_from_state(state)
     }
   end
 
@@ -465,7 +466,7 @@ defmodule ZenWebsocket.Client do
 
   @impl true
   def terminate(_reason, state) do
-    Frames.maybe_stop_recorder(state.recorder_pid)
+    RecorderLifecycle.maybe_stop(state.recorder_pid)
     SafeCallback.invoke(state.on_disconnect, self())
     :ok
   end

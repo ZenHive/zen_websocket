@@ -1,7 +1,8 @@
-defmodule ZenWebsocket.Client.ConnectionTest do
+defmodule ZenWebsocket.ClientConnectionTest do
   use ExUnit.Case, async: false
 
-  alias ZenWebsocket.Client.Connection
+  alias ZenWebsocket.ClientCallbacks, as: Callbacks
+  alias ZenWebsocket.ClientConnection, as: Connection
   alias ZenWebsocket.Config
 
   test "initial_state/2 records handler, heartbeat, and recorder fields" do
@@ -23,12 +24,12 @@ defmodule ZenWebsocket.Client.ConnectionTest do
     assert state.pending_requests == %{}
   end
 
-  test "latency_summary/1 is nil when the sample buffer is empty" do
+  test "get_latency_stats callback returns nil when the sample buffer is empty" do
     state = Connection.initial_state(%Config{url: "ws://localhost/ws"}, [])
-    assert Connection.latency_summary(state) == nil
+    assert {:reply, nil, ^state} = Callbacks.handle_call(:get_latency_stats, {self(), make_ref()}, state)
   end
 
-  test "tick_heartbeat/2 rearms :send_heartbeat without sending a Gun frame" do
+  test "send_heartbeat callback rearms without sending a Gun frame" do
     config = %{type: :custom, interval: 30}
 
     state =
@@ -36,14 +37,14 @@ defmodule ZenWebsocket.Client.ConnectionTest do
       |> Connection.initial_state(heartbeat_config: config)
       |> Map.put(:state, :connected)
 
-    assert {:noreply, new_state} = Connection.tick_heartbeat(state, config)
+    assert {:noreply, new_state} = Callbacks.handle_info(:send_heartbeat, state)
     assert is_reference(new_state.heartbeat_timer)
     assert_receive :send_heartbeat, 200
   end
 
-  test "metrics/1 reports connection_state and empty collection sizes" do
+  test "get_state_metrics callback reports connection state and empty collection sizes" do
     state = Connection.initial_state(%Config{url: "ws://localhost/ws"}, [])
-    metrics = Connection.metrics(state)
+    assert {:reply, metrics, ^state} = Callbacks.handle_call(:get_state_metrics, {self(), make_ref()}, state)
 
     assert metrics.connection_state == :disconnected
     assert metrics.active_heartbeats_size == 0

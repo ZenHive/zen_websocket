@@ -43,9 +43,8 @@ defmodule ZenWebsocket do
   * `ZenWebsocket.Client` — `connect/2`, `send_message/2`, `close/1`, `subscribe/2`,
     `get_state/1`, plus monitoring (`get_heartbeat_health/1`, `get_state_metrics/1`,
     `get_latency_stats/1`) and `reconnect/1`. GenServer callbacks stay on Client;
-    `Client.CallFacade`, `Client.Connection`, `Client.Retry`, `Client.Frames`,
-    and `Client.Callbacks` hold the call wrapper, Gun lifecycle, retry machine,
-    frame routing, and GenServer clause bodies.
+    responsibility-scoped `Client*` modules hold call wrapping, Gun lifecycle,
+    retry policy, frame routing, correlation, recording, and callback bodies.
   * `ZenWebsocket.ClientSupervisor` — supervised connection pool with `send_balanced/2`
   * `ZenWebsocket.Config` — connection configuration and validation
 

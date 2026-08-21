@@ -73,9 +73,14 @@ lib/zen_websocket/
 ├── client/
 │   ├── call_facade.ex      # Process-down-safe GenServer.call + connect await
 │   ├── callbacks.ex        # handle_call/handle_info clause routing
+│   ├── correlation.ex      # JSON-RPC response/timeout correlation
 │   ├── connection.ex       # Gun open, upgrade, attempt-identity timers
+│   ├── frames.ex           # WebSocket frame routing and dispatch
+│   ├── reconnect.ex        # Explicit reconnect target and options
+│   ├── recorder.ex         # Session recorder lifecycle
 │   ├── retry.ex            # Disconnect retry, backoff, stop-with-error
-│   └── frames.ex           # Frame routing, JSON-RPC correlation, recording
+│   ├── retry_policy.ex     # Retry eligibility and error normalization
+│   └── transport_errors.ex # Gun error/down logging and retry dispatch
 ├── client_supervisor.ex    # DynamicSupervisor for pooled connections
 ├── config.ex               # Configuration struct and validation
 ├── frame.ex                # WebSocket frame encoding/decoding

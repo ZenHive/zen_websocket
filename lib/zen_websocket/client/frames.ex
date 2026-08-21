@@ -1,18 +1,15 @@
-defmodule ZenWebsocket.Client.Frames do
+defmodule ZenWebsocket.ClientFrames do
   @moduledoc """
-  Inbound frame routing, JSON-RPC correlation, and session recording for `ZenWebsocket.Client`.
+  Inbound WebSocket frame routing for `ZenWebsocket.Client`.
   """
 
+  alias ZenWebsocket.ClientCorrelation, as: Correlation
+  alias ZenWebsocket.ClientRecorder, as: RecorderLifecycle
   alias ZenWebsocket.Debug
   alias ZenWebsocket.HeartbeatManager
-  alias ZenWebsocket.LatencyStats
   alias ZenWebsocket.MessageHandler
-  alias ZenWebsocket.Recorder
-  alias ZenWebsocket.RecorderServer
   alias ZenWebsocket.RequestCorrelator
   alias ZenWebsocket.SubscriptionManager
-
-  require Logger
 
   @doc """
   Routes a Gun WebSocket frame: heartbeat tracking, control-frame decode, then data dispatch.
@@ -77,7 +74,7 @@ defmodule ZenWebsocket.Client.Frames do
           {:ok, new_state} ->
             new_state = track_subscription_outbound(new_state, message)
             :gun.ws_send(gun_pid, stream_ref, {:text, message})
-            maybe_record(new_state.recorder_pid, :out, {:text, message})
+            RecorderLifecycle.maybe_record(new_state.recorder_pid, :out, {:text, message})
             {:noreply, new_state}
 
           {:error, :duplicate_id, state} ->
@@ -87,47 +84,8 @@ defmodule ZenWebsocket.Client.Frames do
       :no_id ->
         state = track_subscription_outbound(state, message)
         result = :gun.ws_send(gun_pid, stream_ref, {:text, message})
-        maybe_record(state.recorder_pid, :out, {:text, message})
+        RecorderLifecycle.maybe_record(state.recorder_pid, :out, {:text, message})
         {:reply, result, state}
-    end
-  end
-
-  @doc """
-  Applies the pending-request pin checks for Erlang and legacy correlation timeouts.
-  """
-  @spec handle_timeout_message(map(), term()) :: {:noreply, map()}
-  def handle_timeout_message(state, {:timeout, timeout_ref, {:correlation_timeout, request_id}}) do
-    case Map.get(state.pending_requests, request_id) do
-      {_from, ^timeout_ref, _start_time} ->
-        handle_correlation_timeout(state, request_id)
-
-      _other ->
-        {:noreply, state}
-    end
-  end
-
-  def handle_timeout_message(state, {:correlation_timeout, request_id}) do
-    case Map.get(state.pending_requests, request_id) do
-      {_from, _timeout_ref, _start_time} ->
-        handle_correlation_timeout(state, request_id)
-
-      _other ->
-        {:noreply, state}
-    end
-  end
-
-  @doc """
-  Replies `{:error, :timeout}` to the caller waiting on `request_id`.
-  """
-  @spec handle_correlation_timeout(map(), term()) :: {:noreply, map()}
-  def handle_correlation_timeout(state, request_id) do
-    case RequestCorrelator.timeout(state, request_id) do
-      {nil, state} ->
-        {:noreply, state}
-
-      {{from, _timeout_ref, _start_time}, new_state} ->
-        GenServer.reply(from, {:error, :timeout})
-        {:noreply, new_state}
     end
   end
 
@@ -148,43 +106,12 @@ defmodule ZenWebsocket.Client.Frames do
   end
 
   @doc """
-  Starts a session recorder when `record_to` is a path.
-  """
-  @spec maybe_start_recorder(String.t() | nil) :: pid() | nil
-  def maybe_start_recorder(nil), do: nil
-
-  def maybe_start_recorder(path) when is_binary(path) do
-    case RecorderServer.start_link(path) do
-      {:ok, pid} ->
-        pid
-
-      {:error, reason} ->
-        Logger.warning("Failed to start session recorder: #{inspect(reason)}")
-        nil
-    end
-  end
-
-  @doc """
-  Stops a session recorder if it is still alive.
-  """
-  @spec maybe_stop_recorder(pid() | nil) :: :ok
-  def maybe_stop_recorder(nil), do: :ok
-
-  def maybe_stop_recorder(recorder_pid) do
-    if Process.alive?(recorder_pid) do
-      RecorderServer.stop(recorder_pid)
-    end
-
-    :ok
-  end
-
-  @doc """
   Routes data frames to heartbeat, subscription, JSON-RPC, or the user handler.
   """
   @spec route_data_frame(term(), map()) :: map()
   def route_data_frame(frame, state) do
     # Record inbound frame
-    maybe_record(state.recorder_pid, :in, frame)
+    RecorderLifecycle.maybe_record(state.recorder_pid, :in, frame)
 
     case frame do
       {:text, json_data} ->
@@ -203,7 +130,7 @@ defmodule ZenWebsocket.Client.Frames do
 
           {:ok, %{"id" => id} = msg} when is_integer(id) or is_binary(id) ->
             # JSON-RPC response - route to pending request
-            handle_rpc_response(msg, state)
+            Correlation.handle_response(msg, state)
 
           {:ok, msg} ->
             # General message - forward to handler
@@ -223,37 +150,11 @@ defmodule ZenWebsocket.Client.Frames do
     end
   end
 
-  @spec maybe_record(pid() | nil, Recorder.direction(), term()) :: :ok
-  defp maybe_record(nil, _direction, _frame), do: :ok
-
-  defp maybe_record(recorder_pid, direction, frame) do
-    RecorderServer.record(recorder_pid, direction, frame)
-  end
-
   defp track_heartbeat_frame({:pong, payload}, %{heartbeat_config: %{type: :ping_pong}} = state) do
     HeartbeatManager.handle_message({:pong, payload}, state)
   end
 
   defp track_heartbeat_frame(_frame, state), do: state
-
-  @spec handle_rpc_response(map(), map()) :: map()
-  defp handle_rpc_response(%{"id" => id} = response, state) do
-    state = SubscriptionManager.handle_message(response, state)
-
-    case RequestCorrelator.resolve(state, id) do
-      {nil, state} ->
-        state.handler.({:unmatched_response, response})
-        state
-
-      {{from, _timeout_ref, start_time}, new_state} ->
-        GenServer.reply(from, {:ok, response})
-
-        # Update latency stats with round-trip time
-        round_trip_ms = System.monotonic_time(:millisecond) - start_time
-        updated_latency_stats = LatencyStats.add(new_state.latency_stats, round_trip_ms)
-        %{new_state | latency_stats: updated_latency_stats}
-    end
-  end
 
   # Handles frame decode errors. Only :protocol_error is reachable —
   # ErrorHandler classifies every {:bad_frame, _} as fatal.

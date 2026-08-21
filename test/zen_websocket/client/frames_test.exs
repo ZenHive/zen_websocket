@@ -1,10 +1,12 @@
-defmodule ZenWebsocket.Client.FramesTest do
+defmodule ZenWebsocket.ClientFramesTest do
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureLog
 
-  alias ZenWebsocket.Client.Connection
-  alias ZenWebsocket.Client.Frames
+  alias ZenWebsocket.ClientConnection, as: Connection
+  alias ZenWebsocket.ClientCorrelation, as: Correlation
+  alias ZenWebsocket.ClientFrames, as: Frames
+  alias ZenWebsocket.ClientRecorder, as: RecorderLifecycle
   alias ZenWebsocket.Config
   alias ZenWebsocket.LatencyStats
 
@@ -73,23 +75,23 @@ defmodule ZenWebsocket.Client.FramesTest do
   end
 
   test "maybe_start_recorder/1 returns nil for a missing path and for a missing parent dir" do
-    assert Frames.maybe_start_recorder(nil) == nil
+    assert RecorderLifecycle.maybe_start(nil) == nil
 
     log =
       capture_log(fn ->
-        assert Frames.maybe_start_recorder("/definitely/missing/#{System.unique_integer()}/session.jsonl") == nil
+        assert RecorderLifecycle.maybe_start("/definitely/missing/#{System.unique_integer()}/session.jsonl") == nil
       end)
 
     assert log =~ "Failed to start session recorder"
   end
 
   test "maybe_stop_recorder/1 is a no-op for nil" do
-    assert Frames.maybe_stop_recorder(nil) == :ok
+    assert RecorderLifecycle.maybe_stop(nil) == :ok
   end
 
   test "handle_correlation_timeout/2 is a no-op when the id is not pending" do
     state = frame_state(fn _msg -> flunk("handler") end)
-    assert {:noreply, ^state} = Frames.handle_correlation_timeout(state, "missing")
+    assert {:noreply, ^state} = Correlation.handle_timeout(state, "missing")
   end
 
   test "handle_timeout_message/2 ignores a stale Erlang timer ref" do
@@ -98,7 +100,7 @@ defmodule ZenWebsocket.Client.FramesTest do
     state = pending_state(from, timeout_ref)
 
     assert {:noreply, ^state} =
-             Frames.handle_timeout_message(state, {:timeout, make_ref(), {:correlation_timeout, "id"}})
+             Correlation.handle_timeout_message(state, {:timeout, make_ref(), {:correlation_timeout, "id"}})
 
     refute_received {_, {:error, :timeout}}
   end
@@ -109,7 +111,7 @@ defmodule ZenWebsocket.Client.FramesTest do
     state = pending_state(from, timeout_ref)
 
     assert {:noreply, new_state} =
-             Frames.handle_timeout_message(state, {:timeout, timeout_ref, {:correlation_timeout, "id"}})
+             Correlation.handle_timeout_message(state, {:timeout, timeout_ref, {:correlation_timeout, "id"}})
 
     assert new_state.pending_requests == %{}
     assert_receive {^from_ref, {:error, :timeout}}
@@ -119,7 +121,7 @@ defmodule ZenWebsocket.Client.FramesTest do
     {_pid, from_ref} = from = {self(), make_ref()}
     state = pending_state(from, make_ref())
 
-    assert {:noreply, new_state} = Frames.handle_timeout_message(state, {:correlation_timeout, "id"})
+    assert {:noreply, new_state} = Correlation.handle_timeout_message(state, {:correlation_timeout, "id"})
     assert new_state.pending_requests == %{}
     assert_receive {^from_ref, {:error, :timeout}}
   end

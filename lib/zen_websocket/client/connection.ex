@@ -1,13 +1,14 @@
-defmodule ZenWebsocket.Client.Connection do
+defmodule ZenWebsocket.ClientConnection do
   @moduledoc """
   Gun connection open, upgrade, and cleanup for `ZenWebsocket.Client`.
 
   Runs inside the Client GenServer process so Gun messages keep the same owner.
   Attempt-identity timers are preserved from the Task 2 rewrite. Retry decisions
-  live in `ZenWebsocket.Client.Retry`.
+  live in `ZenWebsocket.ClientRetry`.
   """
 
-  alias ZenWebsocket.Client.Frames
+  alias ZenWebsocket.ClientFrames, as: Frames
+  alias ZenWebsocket.ClientRecorder, as: RecorderLifecycle
   alias ZenWebsocket.Config
   alias ZenWebsocket.Debug
   alias ZenWebsocket.HeartbeatManager
@@ -43,7 +44,7 @@ defmodule ZenWebsocket.Client.Connection do
       connection_attempt: nil,
       connect_start_time: nil,
       latency_stats: LatencyStats.new(max_size: config.latency_buffer_size),
-      recorder_pid: Frames.maybe_start_recorder(config.record_to),
+      recorder_pid: RecorderLifecycle.maybe_start(config.record_to),
       on_connect: Keyword.get(opts, :on_connect),
       on_disconnect: Keyword.get(opts, :on_disconnect),
       reconnector: Keyword.get(opts, :reconnector)
@@ -123,46 +124,6 @@ defmodule ZenWebsocket.Client.Connection do
     else
       {:noreply, new_state}
     end
-  end
-
-  @doc """
-  Builds the metrics map returned by `Client.get_state_metrics/1`.
-  """
-  @spec metrics(map()) :: map()
-  def metrics(state) do
-    %{
-      connection_state: Map.get(state, :state, :unknown),
-      active_heartbeats_size: MapSet.size(Map.get(state, :active_heartbeats, MapSet.new())),
-      subscriptions_size: MapSet.size(Map.get(state, :subscriptions, MapSet.new())),
-      pending_requests_size: map_size(Map.get(state, :pending_requests, %{})),
-      state_memory: :erts_debug.size(state),
-      heartbeat_failures: Map.get(state, :heartbeat_failures, 0),
-      last_heartbeat_at: Map.get(state, :last_heartbeat_at),
-      heartbeat_timer_active: Map.get(state, :heartbeat_timer) != nil,
-      message_queue_len: self() |> Process.info(:message_queue_len) |> elem(1),
-      memory: self() |> Process.info(:memory) |> elem(1),
-      reductions: self() |> Process.info(:reductions) |> elem(1)
-    }
-  end
-
-  @doc """
-  Summarizes recorded round-trip samples, or `nil` when none exist.
-  """
-  @spec latency_summary(map()) :: map() | nil
-  def latency_summary(state) do
-    latency_stats = Map.get(state, :latency_stats)
-    if latency_stats, do: LatencyStats.summary(latency_stats)
-  end
-
-  @doc """
-  Sends one heartbeat and rearms the interval timer.
-  """
-  @spec tick_heartbeat(map(), map()) :: {:noreply, map()}
-  def tick_heartbeat(state, config) do
-    new_state = HeartbeatManager.send_heartbeat(state)
-    interval = Map.get(config, :interval, state.config.heartbeat_interval)
-    timer_ref = Process.send_after(self(), :send_heartbeat, interval)
-    {:noreply, %{new_state | heartbeat_timer: timer_ref}}
   end
 
   @doc """

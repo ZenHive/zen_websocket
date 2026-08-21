@@ -1,30 +1,32 @@
-defmodule ZenWebsocket.Client.RetryTest do
+defmodule ZenWebsocket.ClientRetryTest do
   use ExUnit.Case, async: true
 
-  alias ZenWebsocket.Client.Connection
-  alias ZenWebsocket.Client.Retry
+  alias ZenWebsocket.ClientConnection, as: Connection
+  alias ZenWebsocket.ClientRetry, as: Retry
+  alias ZenWebsocket.ClientRetryPolicy, as: RetryPolicy
+  alias ZenWebsocket.ClientTransportErrors, as: TransportErrors
   alias ZenWebsocket.Config
 
   test "normalize_error/1 unwraps nested error and gun tuples" do
-    assert Retry.normalize_error({:error, :timeout}) == :timeout
-    assert Retry.normalize_error({:shutdown, :closed}) == :closed
-    assert Retry.normalize_error({:gun_error, self(), make_ref(), :gone}) == :gone
-    assert Retry.normalize_error({:gun_error, self(), :nxdomain}) == :nxdomain
-    assert Retry.normalize_error(:timeout) == :timeout
+    assert RetryPolicy.normalize_error({:error, :timeout}) == :timeout
+    assert RetryPolicy.normalize_error({:shutdown, :closed}) == :closed
+    assert RetryPolicy.normalize_error({:gun_error, self(), make_ref(), :gone}) == :gone
+    assert RetryPolicy.normalize_error({:gun_error, self(), :nxdomain}) == :nxdomain
+    assert RetryPolicy.normalize_error(:timeout) == :timeout
   end
 
   test "retry_now?/2 is false when reconnect is disabled or retries are exhausted" do
     state = retry_state(reconnect_on_error: false, retry_count: 0, max_retries: 3)
-    refute Retry.retry_now?(state, :timeout)
+    refute RetryPolicy.retry_now?(state, :timeout)
 
     exhausted = retry_state(reconnect_on_error: true, retry_count: 3, max_retries: 3)
-    refute Retry.retry_now?(exhausted, :timeout)
+    refute RetryPolicy.retry_now?(exhausted, :timeout)
   end
 
   test "retry_now?/2 is true for recoverable errors under the retry budget" do
     state = retry_state(reconnect_on_error: true, retry_count: 0, max_retries: 3)
-    assert Retry.retry_now?(state, :timeout)
-    refute Retry.retry_now?(state, :unauthorized)
+    assert RetryPolicy.retry_now?(state, :timeout)
+    refute RetryPolicy.retry_now?(state, :unauthorized)
   end
 
   test "continue_failed/2 stops and replies when reconnect is disabled" do
@@ -45,6 +47,26 @@ defmodule ZenWebsocket.Client.RetryTest do
     assert {:noreply, new_state} = Retry.continue_failed(state, :timeout)
     assert new_state.retry_count == 1
     assert_receive :retry_reconnect, 200
+  end
+
+  test "transport process-down errors preserve their error tuple" do
+    config = %Config{url: "ws://localhost/ws", reconnect_on_error: false}
+    state = Connection.initial_state(config, [])
+
+    assert {:stop, {:connection_down, :closed}, new_state} =
+             TransportErrors.handle_process_down(state, self(), make_ref(), :closed)
+
+    assert new_state.state == :disconnected
+  end
+
+  test "transport Gun errors preserve their normalized reason" do
+    config = %Config{url: "ws://localhost/ws", reconnect_on_error: false}
+    state = Connection.initial_state(config, [])
+
+    assert {:stop, :closed, new_state} =
+             TransportErrors.handle_gun_error(state, self(), make_ref(), :closed)
+
+    assert new_state.state == :disconnected
   end
 
   defp retry_state(opts) do
