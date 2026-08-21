@@ -107,6 +107,7 @@ defmodule ZenWebsocket.ReconnectionTest do
 
   describe "query param preservation on upgrade" do
     @describetag :integration
+    @describetag :local_network
 
     setup do
       {:ok, server, port} = MockWebSockServer.start_link()

@@ -5,32 +5,21 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
   alias ZenWebsocket.ClientSupervisor
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
-  @moduletag :integration
-
   @deribit_testnet "wss://test.deribit.com/ws/api/v2"
   @restart_wait_ms 2_000
   @restart_poll_interval_ms 20
 
   setup do
-    # Start a supervised instance for testing
     {:ok, sup_pid} = start_supervised({ClientSupervisor, []})
-
-    # Start a mock server for testing
-    {:ok, server, port} = MockWebSockServer.start_link()
-
-    MockWebSockServer.set_handler(server, fn
-      {:text, msg} -> {:reply, {:text, msg}}
-      {:binary, data} -> {:reply, {:binary, data}}
-    end)
-
-    mock_url = "ws://localhost:#{port}/ws"
-
-    on_exit(fn -> MockWebSockServer.stop(server) end)
-
-    {:ok, supervisor: sup_pid, server: server, port: port, mock_url: mock_url}
+    {:ok, supervisor: sup_pid}
   end
 
   describe "basic supervised connections" do
+    @describetag :integration
+    @describetag :local_network
+
+    setup :start_mock_server
+
     test "starts supervised client connection", %{mock_url: mock_url} do
       {:ok, client} = ClientSupervisor.start_client(mock_url)
 
@@ -76,6 +65,11 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
   end
 
   describe "supervision tree integration" do
+    @describetag :integration
+    @describetag :local_network
+
+    setup :start_mock_server
+
     test "integrates with application supervision tree", %{mock_url: mock_url} do
       # Example of how it would be used in an application
       defmodule TestApp do
@@ -126,7 +120,10 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
     end
   end
 
-  describe "error handling and recovery" do
+  describe "connection failures" do
+    @describetag :integration
+    @describetag :external_network
+
     test "handles connection failures gracefully" do
       # Try to connect to invalid URL
       result = ClientSupervisor.start_client("ws://invalid.example.com:9999")
@@ -137,6 +134,13 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       Process.sleep(100)
       assert ClientSupervisor.list_clients() == []
     end
+  end
+
+  describe "error handling and recovery" do
+    @describetag :integration
+    @describetag :local_network
+
+    setup :start_mock_server
 
     test "stops supervised client cleanly", %{mock_url: mock_url} do
       {:ok, client} = ClientSupervisor.start_client(mock_url)
@@ -179,6 +183,11 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
   end
 
   describe "advanced supervision patterns" do
+    @describetag :integration
+    @describetag :local_network
+
+    setup :start_mock_server
+
     test "multiple supervised connections with different configs", %{mock_url: mock_url} do
       configs = [
         %{url: mock_url, retry_count: 3},
@@ -231,6 +240,11 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
   end
 
   describe "real-world supervised connection patterns" do
+    @describetag :integration
+    @describetag :local_network
+
+    setup :start_mock_server
+
     test "connection manager pattern", %{mock_url: mock_url} do
       defmodule ConnectionManager do
         @moduledoc false
@@ -278,8 +292,12 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       # Plain text has no correlation ID, so sending is fire-and-forget.
       assert :ok = Client.send_message(client, "managed message")
     end
+  end
 
-    @tag :external_network
+  describe "supervised Deribit connection" do
+    @describetag :integration
+    @describetag :external_network
+
     test "supervised Deribit connection" do
       client_id = System.get_env("DERIBIT_CLIENT_ID")
       client_secret = System.get_env("DERIBIT_CLIENT_SECRET")
@@ -321,6 +339,19 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
 
       :ok = Client.close(client)
     end
+  end
+
+  defp start_mock_server(_context) do
+    {:ok, server, port} = MockWebSockServer.start_link()
+
+    MockWebSockServer.set_handler(server, fn
+      {:text, msg} -> {:reply, {:text, msg}}
+      {:binary, data} -> {:reply, {:binary, data}}
+    end)
+
+    mock_url = "ws://localhost:#{port}/ws"
+    on_exit(fn -> MockWebSockServer.stop(server) end)
+    %{server: server, port: port, mock_url: mock_url}
   end
 
   defp await_supervised_client(remaining_ms \\ @restart_wait_ms)

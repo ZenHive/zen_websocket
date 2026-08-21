@@ -6,31 +6,60 @@ defmodule ZenWebsocket.ClientTest do
   alias ZenWebsocket.Config
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
-  @moduletag :integration
-
   @deribit_test_url "wss://test.deribit.com/ws/api/v2"
 
-  test "connect to test.deribit.com with URL string" do
-    {:ok, client} = Client.connect(@deribit_test_url)
+  describe "Deribit testnet connection" do
+    @describetag :integration
+    @describetag :external_network
 
-    assert client.gun_pid
-    assert client.stream_ref
-    assert client.state == :connected
-    assert client.url == @deribit_test_url
+    test "connect to test.deribit.com with URL string" do
+      {:ok, client} = Client.connect(@deribit_test_url)
 
-    Client.close(client)
-  end
+      assert client.gun_pid
+      assert client.stream_ref
+      assert client.state == :connected
+      assert client.url == @deribit_test_url
 
-  test "connect with config struct" do
-    {:ok, config} = Config.new(@deribit_test_url, timeout: 10_000)
-    {:ok, client} = Client.connect(config)
+      Client.close(client)
+    end
 
-    assert client.gun_pid
-    assert client.stream_ref
-    assert client.state == :connected
-    assert client.url == @deribit_test_url
+    test "connect with config struct" do
+      {:ok, config} = Config.new(@deribit_test_url, timeout: 10_000)
+      {:ok, client} = Client.connect(config)
 
-    Client.close(client)
+      assert client.gun_pid
+      assert client.stream_ref
+      assert client.state == :connected
+      assert client.url == @deribit_test_url
+
+      Client.close(client)
+    end
+
+    test "get_state returns current state" do
+      {:ok, client} = Client.connect(@deribit_test_url)
+
+      assert Client.get_state(client) == :connected
+
+      Client.close(client)
+    end
+
+    test "send_message when connected succeeds" do
+      {:ok, client} = Client.connect(@deribit_test_url)
+
+      result = Client.send_message(client, "test")
+      assert :ok == result
+
+      Client.close(client)
+    end
+
+    test "subscribe sends message to server" do
+      {:ok, client} = Client.connect(@deribit_test_url)
+
+      result = Client.subscribe(client, ["deribit_price_index.btc_usd"])
+      assert :ok == result
+
+      Client.close(client)
+    end
   end
 
   test "connect with invalid URL returns error" do
@@ -41,33 +70,10 @@ defmodule ZenWebsocket.ClientTest do
     {:error, "Timeout must be positive"} = Client.connect(@deribit_test_url, timeout: 0)
   end
 
-  test "get_state returns current state" do
-    {:ok, client} = Client.connect(@deribit_test_url)
-
-    assert Client.get_state(client) == :connected
-
-    Client.close(client)
-  end
-
-  test "send_message when connected succeeds" do
-    {:ok, client} = Client.connect(@deribit_test_url)
-
-    result = Client.send_message(client, "test")
-    assert :ok == result
-
-    Client.close(client)
-  end
-
-  test "subscribe sends message to server" do
-    {:ok, client} = Client.connect(@deribit_test_url)
-
-    result = Client.subscribe(client, ["deribit_price_index.btc_usd"])
-    assert :ok == result
-
-    Client.close(client)
-  end
-
   describe "default message handler" do
+    @describetag :integration
+    @describetag :local_network
+
     setup do
       # Start a local mock server with exact echo behavior
       {:ok, server, port} = MockWebSockServer.start_link()
@@ -137,24 +143,6 @@ defmodule ZenWebsocket.ClientTest do
       Client.close(client)
     end
 
-    test "default handler ignores unrecognized message types" do
-      # Test handler function directly since we can't easily trigger other frame types
-      parent_pid = self()
-
-      handler = fn
-        {:message, data} -> send(parent_pid, {:websocket_message, data})
-        {:binary, data} -> send(parent_pid, {:websocket_message, data})
-        _other -> :ok
-      end
-
-      # These should not crash
-      assert :ok = handler.({:unknown_type, "data"})
-      assert :ok = handler.(:weird_message)
-
-      # Should not have received anything
-      refute_receive _, 10
-    end
-
     test "subscribe sends correct JSON-RPC payload", %{server: server, mock_url: mock_url} do
       test_pid = self()
 
@@ -180,7 +168,28 @@ defmodule ZenWebsocket.ClientTest do
     end
   end
 
+  test "default handler ignores unrecognized message types" do
+    # Test handler function directly since we can't easily trigger other frame types
+    parent_pid = self()
+
+    handler = fn
+      {:message, data} -> send(parent_pid, {:websocket_message, data})
+      {:binary, data} -> send(parent_pid, {:websocket_message, data})
+      _other -> :ok
+    end
+
+    # These should not crash
+    assert :ok = handler.({:unknown_type, "data"})
+    assert :ok = handler.(:weird_message)
+
+    # Should not have received anything
+    refute_receive _, 10
+  end
+
   describe "GenServer implementation" do
+    @describetag :integration
+    @describetag :external_network
+
     test "client struct includes server_pid" do
       {:ok, client} = Client.connect(@deribit_test_url)
 
@@ -256,6 +265,11 @@ defmodule ZenWebsocket.ClientTest do
 
       Client.close(client)
     end
+  end
+
+  describe "reconnection delivers frames after server restart" do
+    @describetag :integration
+    @describetag :local_network
 
     test "reconnection delivers frames after server restart" do
       echo_handler = fn
@@ -311,6 +325,9 @@ defmodule ZenWebsocket.ClientTest do
   end
 
   describe "pending requests on disconnect" do
+    @describetag :integration
+    @describetag :local_network
+
     test "blocked callers receive {:error, :disconnected} on automatic disconnect" do
       # Handler that swallows inbound frames (never replies), so the correlated
       # request stays pending until the connection drops.
@@ -408,6 +425,9 @@ defmodule ZenWebsocket.ClientTest do
   end
 
   describe "duplicate request ID (R043)" do
+    @describetag :integration
+    @describetag :local_network
+
     test "second caller gets :duplicate_request_id while first still resolves" do
       dup_id = "r043-dup"
       request = Jason.encode!(%{"id" => dup_id, "method" => "public/test"})
@@ -460,6 +480,9 @@ defmodule ZenWebsocket.ClientTest do
   end
 
   describe "handler callback regressions" do
+    @describetag :integration
+    @describetag :local_network
+
     setup do
       {:ok, server, port} = MockWebSockServer.start_link()
 
@@ -548,7 +571,6 @@ defmodule ZenWebsocket.ClientTest do
       assert_receive {:DOWN, ^ref, :process, ^server_pid, _reason}, 5_000
     end
 
-    @tag :local_network
     test "subscription tracker updates state alongside handler delivery", %{server: server, mock_url: mock_url} do
       test_pid = self()
 
@@ -592,7 +614,6 @@ defmodule ZenWebsocket.ClientTest do
       Client.close(client)
     end
 
-    @tag :local_network
     test "data ticks do not add an unsubscribed channel", %{server: server, mock_url: mock_url} do
       test_pid = self()
 
@@ -624,7 +645,6 @@ defmodule ZenWebsocket.ClientTest do
       Client.close(client)
     end
 
-    @tag :local_network
     test "unsubscribe confirmation is not restored after a later data tick", %{server: server, mock_url: mock_url} do
       channel = "book.BTC-PERPETUAL.raw"
 
@@ -756,6 +776,9 @@ defmodule ZenWebsocket.ClientTest do
   end
 
   describe "dead PID failover with send_balanced/2 (R029)" do
+    @describetag :integration
+    @describetag :local_network
+
     setup do
       start_supervised!({ClientSupervisor, []})
 
@@ -785,16 +808,16 @@ defmodule ZenWebsocket.ClientTest do
 
       Client.close(client)
     end
+  end
 
-    test "returns process_down when custom discovery only returns dead pids" do
-      dead_pid = spawn(fn -> :ok end)
-      ref = Process.monitor(dead_pid)
-      receive do: ({:DOWN, ^ref, :process, ^dead_pid, _} -> :ok)
+  test "returns :no_connections when custom discovery only returns dead pids" do
+    dead_pid = spawn(fn -> :ok end)
+    ref = Process.monitor(dead_pid)
+    receive do: ({:DOWN, ^ref, :process, ^dead_pid, _} -> :ok)
 
-      discovery = fn -> [dead_pid] end
+    discovery = fn -> [dead_pid] end
 
-      assert {:error, {:not_connected, :process_down}} =
-               ClientSupervisor.send_balanced("no live clients", client_discovery: discovery)
-    end
+    assert {:error, :no_connections} =
+             ClientSupervisor.send_balanced("no live clients", client_discovery: discovery)
   end
 end

@@ -235,6 +235,7 @@ defmodule ZenWebsocket.HeartbeatManagerTest do
     end
 
     @tag :integration
+    @tag :local_network
     @tag timeout: 10_000
     test "client health reports a failure when the server withholds pongs" do
       {:ok, server, port} = MockWebSockServer.start_link()
@@ -257,6 +258,7 @@ defmodule ZenWebsocket.HeartbeatManagerTest do
     end
 
     @tag :integration
+    @tag :local_network
     @tag timeout: 10_000
     test "client correlates the server pong with its outstanding ping" do
       test_pid = self()
@@ -311,6 +313,7 @@ defmodule ZenWebsocket.HeartbeatManagerTest do
     end
 
     @tag :integration
+    @tag :local_network
     @tag timeout: 10_000
     test "sends a correlated ping frame over a real WebSocket connection" do
       # Start mock WebSocket server

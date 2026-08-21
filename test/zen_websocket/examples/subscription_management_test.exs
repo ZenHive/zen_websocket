@@ -4,11 +4,12 @@ defmodule ZenWebsocket.Examples.SubscriptionManagementTest do
   alias ZenWebsocket.Client
   alias ZenWebsocket.Examples.Docs.SubscriptionManagement
 
-  @moduletag :integration
-
   @echo_server "wss://echo.websocket.org"
 
   describe "multi_channel_subscription/0" do
+    @describetag :integration
+    @describetag :external_network
+
     test "creates connection and sends subscription message" do
       {:ok, client, channels} = SubscriptionManagement.multi_channel_subscription()
 
@@ -66,6 +67,9 @@ defmodule ZenWebsocket.Examples.SubscriptionManagementTest do
   end
 
   describe "subscription_loop/3" do
+    @describetag :integration
+    @describetag :external_network
+
     test "collects multiple messages from echo server" do
       {:ok, client} = Client.connect(@echo_server)
       channels = ["test.channel"]
@@ -98,6 +102,9 @@ defmodule ZenWebsocket.Examples.SubscriptionManagementTest do
   end
 
   describe "subscription patterns" do
+    @describetag :integration
+    @describetag :external_network
+
     test "multiple clients can subscribe independently" do
       {:ok, client1} = Client.connect(@echo_server)
       {:ok, client2} = Client.connect(@echo_server)
@@ -160,6 +167,9 @@ defmodule ZenWebsocket.Examples.SubscriptionManagementTest do
   end
 
   describe "subscription error handling" do
+    @describetag :integration
+    @describetag :external_network
+
     test "handles malformed subscription messages gracefully" do
       {:ok, client} = Client.connect(@echo_server)
 

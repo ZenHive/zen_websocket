@@ -5,6 +5,7 @@ defmodule ZenWebsocket.RecordingIntegrationTest do
   alias ZenWebsocket.Testing
 
   @moduletag :integration
+  @moduletag :local_network
 
   setup do
     path = Path.join(System.tmp_dir!(), "test_session_#{System.unique_integer()}.jsonl")
