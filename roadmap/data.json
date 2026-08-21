@@ -707,6 +707,51 @@
       "created_at": "2026-08-21",
       "scored_at": "2026-08-21",
       "cross_repo": []
+    },
+    {
+      "id": "11",
+      "phase": 1,
+      "bundle": "hygiene",
+      "status": "pending",
+      "title": "Split mixed internet/mock-server suites so :external_network and :local_network can both be accurate",
+      "scores": {
+        "d": 3,
+        "b": 6,
+        "u": 6
+      },
+      "eff": 2.0,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "assignee": "grok",
+      "model": "grok-4.6",
+      "acceptance_criteria": [
+        "Every test that opens an internet socket (Deribit testnet, echo.websocket.org, or similar) carries both :integration and :external_network",
+        "Every test that opens only a local MockWebSockServer socket and no internet connection carries :integration and :local_network, not :external_network",
+        "Unit tests in those files (no socket) carry neither network tag, so they run in default mix test and the coverage ratchet",
+        "mix test (default excludes) still opens no sockets",
+        "mix test --only external_network does not start MockWebSockServer",
+        "mix precommit.full green"
+      ],
+      "out_of_scope": [
+        "Raising the mix.exs coverage threshold",
+        "Rewriting the tests' assertions or adding new scenarios",
+        "Files already dual-tagged in the 6c7dfbc audit (error_integration_test, client_supervisor_test, rate_limiting_test, client_reconnect_test, basic_usage_test)"
+      ],
+      "files_to_modify": [
+        "test/zen_websocket/client_test.exs",
+        "test/zen_websocket/correlation_test.exs",
+        "test/zen_websocket/examples/subscription_management_test.exs",
+        "test/zen_websocket/examples/supervised_connection_test.exs",
+        "test/zen_websocket/recording_integration_test.exs",
+        "test/zen_websocket/heartbeat_manager_test.exs",
+        "test/zen_websocket/reconnection_test.exs"
+      ],
+      "body": "Task 6 (shipped c4e2819) established three tags: :integration, :external_network, and :local_network. The 6c7dfbc post-merge audit dual-tagged the files in that range and untagged the unit tests that were trapped in those describes. The remaining suites still use a single @moduletag :integration over a mix of Deribit/echo calls, local MockWebSockServer, and pure unit tests, so neither --only external_network nor --include local_network can select the right subset.\n\nEVIDENCE, read 2026-08-21 in the 6c7dfbc audit worktree:\n\n1. client_test.exs has @moduletag :integration, connects to wss://test.deribit.com/ws/api/v2 in the first tests, then starts MockWebSockServer in later describes. One module-level tag cannot be both :external_network and :local_network.\n2. correlation_test.exs is the same mix: @deribit_test_url plus MockWebSockServer.start_link in a later describe.\n3. examples/subscription_management_test.exs is @moduletag :integration against wss://echo.websocket.org — internet, no :external_network.\n4. recording_integration_test.exs, heartbeat_manager_test.exs (the three @tag :integration client tests), reconnection_test.exs (the query-param describe), and the MockWebSockServer half of supervised_connection_test.exs are local sockets tagged :integration only, so --include local_network does not retain them in the coverage ratchet.\n\nSplit per-describe (or per-test) so the tag matches the socket. Do not raise the coverage floor in this task; any coverage gain from :local_network is a side effect of honest tagging.\n",
+      "created_at": "2026-08-21",
+      "scored_at": "2026-08-21",
+      "cross_repo": []
     }
   ]
 }
