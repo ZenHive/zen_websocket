@@ -167,7 +167,7 @@
       "id": "R056",
       "phase": 1,
       "bundle": "ci",
-      "status": "in_progress",
+      "status": "done",
       "title": "Make CI coverage gate measure core library only",
       "scores": {
         "d": 4,
@@ -195,9 +195,16 @@
       "files_to_modify": [
         "mix.exs"
       ],
+      "shipped_in": "9d72056c2c47a2d3684f769fddc0512bd30b9b4a",
       "body": "mix precommit / precommit.full gate on `mix test.json --cover --cover-threshold 58 --exclude integration`, which measures raw offline coverage. Real core-library coverage is substantially higher. The gap is Examples.* / Mix.Tasks.* / Testing.* modules exercised ONLY by :integration tests (excluded offline — no Deribit creds), so they read ~0% and drag the total down. mix.exs:19-25 already declares these non-production via `test_coverage: [ignore_modules: [...]]`, but `mix test.json --cover` (ex_unit_json 0.6.0) does not honor that list — only built-in `mix test --cover` does.\n\nMake the gate measure core only, then raise the floor to whatever core-only coverage actually measures. Investigate whether ex_unit_json supports a coverage-exclusion mechanism (config or flag); if not, file/contribute upstream so `mix test.json --cover` honors `:test_coverage` ignore_modules. Alternatively, gate coverage on a core-only module filter.\n\nPREMISE CORRECTED 2026-08-20. Two facts in the original body were stale: (a) the floor is 58, not the \"50% stopgap\" it said — it was re-derived on 2026-08-01 as a measured ratchet (see the rationale comment above the alias in mix.exs); (b) the floor lives solely in the mix.exs aliases, NOT in .github/workflows/harness.yml, which explicitly documents that it has no threshold of its own and just invokes `mix ci`. Do not restore a specific target number like \"~80%\" — measure first, then set the floor to the measured value rounded down, per the ratchet rule the repo already follows. Re-verified 2026-08-20 that ex_unit_json still ignores :test_coverage ignore_modules, so the task is genuinely open.\n",
       "started_at": "2026-08-21",
+      "done_at": "2026-08-21",
       "scored_at": "2026-08-20",
+      "implemented": "Landed by grok via merge-train; reviewer-approved (run run-1787306742038-0883db4e, 9d72056c2c47a2d3684f769fddc0512bd30b9b4a).",
+      "delivered_by": "grok",
+      "verified": true,
+      "verified_by": "cursor",
+      "verification_ref": "harness-run:run-1787306742038-0883db4e",
       "cross_repo": []
     },
     {
