@@ -126,9 +126,11 @@ Crash-safe lifecycle callback invocation:
 - Used by `Client.terminate/2` (`on_disconnect`) and `ClientSupervisor.start_client/2` (`on_connect`)
 
 #### Subscription Manager (`subscription_manager.ex`)
-Subscription tracking and restoration:
-- Track confirmed subscriptions
-- Build restore messages for reconnection
+Deribit-dialect JSON-RPC subscription tracking and restoration:
+- Auto-tracks `public/subscribe` and `public/unsubscribe` (`params.channels`) plus id-keyed confirmations/rejections
+- Does not auto-track other venues; those callers use `add/2`/`remove/2`
+- `Client.subscribe/2` has no request id, so tracking is optimistic (a rejection stays in the restore set)
+- Restore payloads are Deribit `public/subscribe`
 - Telemetry events for add/remove/restore
 
 #### Latency Stats (`latency_stats.ex`)

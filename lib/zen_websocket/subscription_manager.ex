@@ -1,10 +1,17 @@
 defmodule ZenWebsocket.SubscriptionManager do
   @moduledoc """
-  Manages subscription tracking for WebSocket connections.
+  Tracks Deribit-dialect JSON-RPC subscriptions for reconnect restoration.
 
-  Pure functional module - state ownership stays with Client GenServer.
-  Tracks pending subscribe/unsubscribe operations, applies confirmations, and
-  provides restoration on reconnect.
+  Only `public/subscribe` and `public/unsubscribe` with `params.channels` are
+  auto-tracked (plus their id-keyed confirmations and rejections). Other
+  venues' subscribe shapes are ignored — call `add/2`/`remove/2` yourself if
+  you want restore; `build_restore_message/1` still emits Deribit's payload.
+
+  `Client.subscribe/2` sends no JSON-RPC id, so channels are recorded at send
+  time. A server-side rejection leaves them in the restore set. Id-carrying
+  requests wait for a result or error.
+
+  Pure functional module — state ownership stays with Client GenServer.
 
   ## Telemetry Events
 
@@ -138,19 +145,20 @@ defmodule ZenWebsocket.SubscriptionManager do
     end
   end
 
-  api(:handle_message, "Track subscription operations from requests and confirmations.",
+  api(:handle_message, "Track Deribit public/subscribe and public/unsubscribe requests and confirmations.",
     params: [
-      msg: [kind: :value, description: "Parsed subscribe/unsubscribe request, confirmation, or error map"],
+      msg: [kind: :value, description: "Parsed Deribit subscribe/unsubscribe request, confirmation, or error map"],
       state: [kind: :value, description: "Client state map containing subscription fields"]
     ],
     returns: %{type: "state()", description: "Updated pending or confirmed subscription state"}
   )
 
   @doc """
-  Tracks subscribe/unsubscribe from outbound requests and their confirmations.
+  Tracks Deribit `public/subscribe` and `public/unsubscribe` requests.
 
-  Data ticks (`"method" => "subscription"`) are ignored so a live channel
-  does not re-enter the restore set after `remove/2`.
+  Requests with no `id` (including `Client.subscribe/2`) apply immediately.
+  Id-carrying requests wait for a result or error. Data ticks and non-Deribit
+  subscribe shapes are ignored.
   """
   @spec handle_message(map(), state()) :: state()
   def handle_message(%{"method" => "public/" <> op, "params" => %{"channels" => channels}} = msg, state)

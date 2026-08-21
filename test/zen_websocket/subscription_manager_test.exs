@@ -198,6 +198,40 @@ defmodule ZenWebsocket.SubscriptionManagerTest do
       assert MapSet.member?(result.subscriptions, "ticker.BTC-PERPETUAL")
     end
 
+    test "does not auto-track a non-Deribit params.channel shape" do
+      state = build_state()
+
+      result =
+        SubscriptionManager.handle_message(%{"params" => %{"channel" => "trades.BTC-USD"}}, state)
+
+      refute MapSet.member?(result.subscriptions, "trades.BTC-USD")
+      assert SubscriptionManager.list(result) == []
+      assert SubscriptionManager.build_restore_message(result) == nil
+    end
+
+    test "id-less public/subscribe stays tracked after an unrelated error frame" do
+      state = build_state()
+
+      state =
+        SubscriptionManager.handle_message(
+          %{
+            "method" => "public/subscribe",
+            "params" => %{"channels" => ["ticker.BTC-PERPETUAL"]}
+          },
+          state
+        )
+
+      result =
+        SubscriptionManager.handle_message(
+          %{"id" => 99, "error" => %{"code" => 13_009, "message" => "unauthorized"}},
+          state
+        )
+
+      assert MapSet.member?(result.subscriptions, "ticker.BTC-PERPETUAL")
+      restore = Jason.decode!(SubscriptionManager.build_restore_message(result))
+      assert "ticker.BTC-PERPETUAL" in restore["params"]["channels"]
+    end
+
     test "registers a channel from a realistic Deribit subscribe confirmation" do
       state = build_state()
 

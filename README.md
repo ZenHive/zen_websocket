@@ -63,23 +63,24 @@ end
 
 ### Subscription Management
 
-ZenWebsocket tracks channel subscriptions and automatically restores them after reconnection:
+ZenWebsocket tracks Deribit-dialect JSON-RPC subscriptions and restores them after reconnection:
 
 ```elixir
-# Subscribe to channels
+# Subscribe via Deribit's public/subscribe (no request id — tracked at send time)
 {:ok, client} = ZenWebsocket.Client.connect("wss://api.example.com/ws")
 :ok = ZenWebsocket.Client.subscribe(client, ["ticker.BTC", "trades.BTC"])
 
-# Subscriptions are automatically tracked when confirmations arrive
-# On reconnect, tracked subscriptions are restored automatically
+# On reconnect, tracked Deribit-dialect subscriptions are restored automatically
 ```
 
 **What the library handles:**
-- Tracking confirmed subscriptions via `SubscriptionManager`
+- Tracking `public/subscribe` / `public/unsubscribe` via `SubscriptionManager`
+- `Client.subscribe/2` tracking is optimistic (applied at send; a server rejection stays in the restore set)
 - Automatic restoration after reconnection (when `restore_subscriptions: true`, the default)
-- Building restore messages in the correct format
+- Building restore messages as Deribit `public/subscribe`
 
 **What your client needs to handle:**
+- Non-Deribit subscribe dialects (call `SubscriptionManager.add/2` and `remove/2` if you want restore)
 - Processing subscription data messages (sent to your handler callback)
 - Unsubscription logic (call your API's unsubscribe method, then the library removes from tracking)
 - Authentication before subscribing to private channels

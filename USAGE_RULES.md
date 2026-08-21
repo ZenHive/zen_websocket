@@ -25,7 +25,7 @@ ZenWebsocket.Client.send_message(client, Jason.encode!(%{method: "public/test"})
 # 2. Send messages (must be binary — use Jason.encode!/1 for maps)
 :ok = ZenWebsocket.Client.send_message(client, Jason.encode!(%{method: "public/test"}))
 
-# 3. Subscribe to channels
+# 3. Subscribe to channels (Deribit public/subscribe; tracked at send time)
 :ok = ZenWebsocket.Client.subscribe(client, channels)
 
 # 4. Check connection state
@@ -261,7 +261,7 @@ Client GenServer reconnects with exponential backoff.
 | **Config struct** | Full validated `ZenWebsocket.Config` struct |
 | **Handler callback** | Same function reference — no need to re-register |
 | **Heartbeat config** | Timer restarted with original interval after reconnect |
-| **Subscriptions** | Restored automatically if `restore_subscriptions: true` (default) |
+| **Subscriptions** | Deribit-dialect channels restored if `restore_subscriptions: true` (default). See "Subscription tracking" below. |
 | **Latency stats** | Historical measurements accumulate across reconnects |
 | **Session recorder** | Continues recording to the same file |
 | **on_disconnect callback** | Same function reference |
@@ -289,6 +289,19 @@ be mismatched against a stale request id. Each failed request emits
 Callers must therefore handle `{:error, :disconnected}` from any in-flight
 request when the connection drops, and re-issue it themselves if they want it
 retried — the library does not replay it.
+
+### Subscription tracking
+
+`SubscriptionManager` auto-tracks Deribit-dialect JSON-RPC only:
+`public/subscribe` and `public/unsubscribe` with `params.channels`, plus
+id-keyed confirmations and rejections. Other venues' subscribe shapes are
+not inferred — call `SubscriptionManager.add/2` and `remove/2` if you want
+restore. Restore payloads are still Deribit `public/subscribe`.
+
+`Client.subscribe/2` sends no JSON-RPC `id`, so channels are recorded at
+send time. A server-side rejection is not observed and those channels stay
+in the reconnect restore set. Send an id-carrying `public/subscribe` via
+`send_message/2` to wait for confirmation.
 
 ### Explicit Reconnect (`Client.reconnect/1`)
 

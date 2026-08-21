@@ -302,7 +302,7 @@ defmodule ZenWebsocket.Client do
 
   def close(_client), do: :ok
 
-  api(:subscribe, "Subscribe to WebSocket channels.",
+  api(:subscribe, "Subscribe via Deribit's public/subscribe (tracked at send time; no request id).",
     params: [
       client: [kind: :value, description: "Client struct from connect/2"],
       channels: [kind: :value, description: "List of channel names to subscribe to"]
@@ -311,6 +311,14 @@ defmodule ZenWebsocket.Client do
     errors: [:not_connected]
   )
 
+  @doc """
+  Subscribe via Deribit's `public/subscribe` JSON-RPC method.
+
+  The request has no `id`, so `SubscriptionManager` records the channels at
+  send time. A server-side rejection is not observed and those channels stay
+  in the reconnect restore set. Send an id-carrying `public/subscribe` via
+  `send_message/2` to wait for confirmation.
+  """
   @spec subscribe(t(), list()) :: :ok | {:error, term()}
   def subscribe(client, channels) when is_list(channels) do
     message = Jason.encode!(%{method: "public/subscribe", params: %{channels: channels}})
