@@ -5,7 +5,7 @@
 ## Core Principles
 
 1. **Start Simple**: Use direct connection for development, add supervision for production
-2. **5 Essential Functions**: The core API is 5 functions (`connect`, `send_message`, `subscribe`, `get_state`, `close`), plus monitoring functions (`get_latency_stats`, `get_heartbeat_health`, `get_state_metrics`, `reconnect`)
+2. **Public Client API**: connection lifecycle (`connect`, `send_message`, `subscribe`, `get_state`, `close`, `reconnect`) plus monitoring (`get_latency_stats`, `get_heartbeat_health`, `get_state_metrics`). `reconnect_opts_from_state/1` is public but `@doc false`.
 3. **Real API Testing**: Always test against real endpoints, never mock WebSocket behavior
 
 ## Quick Start Pattern
@@ -16,7 +16,7 @@
 ZenWebsocket.Client.send_message(client, Jason.encode!(%{method: "public/test"}))
 ```
 
-## The 5 Essential Functions
+## Essential Functions
 
 ```elixir
 # 1. Connect to WebSocket
@@ -33,9 +33,12 @@ state = ZenWebsocket.Client.get_state(client)  # :connected, :connecting, :disco
 
 # 5. Close connection
 :ok = ZenWebsocket.Client.close(client)
+
+# 6. Reconnect using the stored connection contract
+{:ok, new_client} = ZenWebsocket.Client.reconnect(client)
 ```
 
-### Additional Monitoring Functions
+### Monitoring Functions
 
 ```elixir
 # Latency percentiles (p50/p99/last/count — all integers in ms)
@@ -46,9 +49,6 @@ health = ZenWebsocket.Client.get_heartbeat_health(client)
 
 # Connection metrics (subscriptions_size, pending_requests_size, state_memory, ...)
 metrics = ZenWebsocket.Client.get_state_metrics(client)
-
-# Explicit reconnection using the stored connection contract
-{:ok, new_client} = ZenWebsocket.Client.reconnect(client)
 ```
 
 ## Common Patterns
@@ -596,4 +596,4 @@ export DERIBIT_CLIENT_SECRET="your_client_secret"
 5. Handle raw errors with pattern matching
 6. Use telemetry for monitoring
 7. Enable `record_to` for debugging production issues
-8. Keep it simple - 5 core functions, monitoring functions when needed
+8. Keep it simple - use Client directly (connect, send, subscribe, monitor, reconnect)

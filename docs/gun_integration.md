@@ -55,12 +55,18 @@ Gun provides await functions for synchronous operations, but they require carefu
 Gun's await functions check that the calling process has a monitor on the Gun connection:
 
 ```elixir
-# Current usage in ZenWebsocket.Client
-defp await_websocket_upgrade(gun_pid, stream_ref, timeout, monitor_ref) do
-  case :gun.await(gun_pid, stream_ref, timeout, monitor_ref) do
-    {:upgrade, [<<"websocket">>], _headers} -> :ok
-    {:error, reason} -> {:error, reason}
-  end
+# Client does not :gun.await the WebSocket upgrade. Reconnection opens Gun,
+# then Client completes the upgrade asynchronously:
+def handle_info(
+      {:gun_upgrade, gun_pid, stream_ref, ["websocket"], _headers},
+      %{gun_pid: gun_pid, stream_ref: stream_ref} = state
+    ) do
+  new_state =
+    state
+    |> Map.merge(%{state: :connected, retry_count: 0})
+    |> HeartbeatManager.start_timer()
+
+  {:noreply, new_state}
 end
 ```
 
@@ -159,13 +165,8 @@ monitor_ref = Process.monitor(gun_pid)
 
 ```elixir
 # In Client GenServer
-def handle_info({:DOWN, ref, :process, pid, reason}, state) do
-  cond do
-    ref == state.monitor_ref ->
-      handle_connection_down(reason, state)
-    true ->
-      {:noreply, state}
-  end
+def handle_info({:DOWN, ref, :process, pid, reason}, %{gun_pid: pid, monitor_ref: ref} = state) do
+  handle_connection_error(state, {:connection_down, reason})
 end
 ```
 
@@ -176,14 +177,19 @@ The Client GenServer must own the Gun connection to receive messages:
 ```elixir
 defmodule ZenWebsocket.Client do
   use GenServer
-  
+
   # Gun messages come to the GenServer process
-  def handle_info({:gun_ws, _, _, _} = msg, state) do
-    route_message(msg, state)
-  end
-  
-  def handle_info({:gun_response, _, _, _} = msg, state) do
-    route_message(msg, state)
+  def handle_info({:gun_ws, gun_pid, stream_ref, frame} = msg, state) do
+    case MessageHandler.decode_and_handle_control(msg) do
+      {:ok, {:data, decoded_frame}} ->
+        {:noreply, route_data_frame(decoded_frame, state)}
+
+      {:ok, :control_frame_handled} ->
+        {:noreply, state}
+
+      {:error, {:protocol_error, _} = error} ->
+        handle_frame_error(state, error)
+    end
   end
 end
 ```
@@ -191,15 +197,13 @@ end
 ### 4. Clean Reconnection
 
 ```elixir
-defp handle_reconnection(state) do
-  # Old connection cleanup
-  Process.demonitor(state.monitor_ref, [:flush])
-  
-  # Create new connection (Client GenServer owns it)
-  case establish_new_connection(state.config) do
-    {:ok, gun_pid} ->
-      monitor_ref = Process.monitor(gun_pid)
-      %{state | gun_pid: gun_pid, monitor_ref: monitor_ref}
+defp start_gun_attempt(state) do
+  case Reconnection.establish_connection(state.config) do
+    {:ok, gun_pid, stream_ref, monitor_ref} ->
+      {:noreply, begin_attempt(state, gun_pid, stream_ref, monitor_ref)}
+
+    {:error, reason} ->
+      {:noreply, %{state | state: :disconnected}, {:continue, {:connection_failed, reason}}}
   end
 end
 ```

@@ -41,12 +41,15 @@ defmodule ZenWebsocket.Client do
   The Client GenServer handles all reconnection logic internally to maintain
   Gun message ownership throughout the connection lifecycle.
 
-  ## Core Functions
+  ## Public API
   - connect/2 - Establish connection
-  - send_message/2 - Send messages  
-  - close/1 - Close connection
+  - send_message/2 - Send messages
   - subscribe/2 - Subscribe to channels
   - get_state/1 - Get connection state
+  - close/1 - Close connection
+  - reconnect/1 - Close and re-establish the connection
+  - get_heartbeat_health/1, get_state_metrics/1, get_latency_stats/1 - Monitoring
+  - reconnect_opts_from_state/1 - Internal reconnect option capture (`@doc false`)
 
   ## Configuration Options
 
