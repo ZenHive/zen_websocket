@@ -647,7 +647,7 @@ shipped_in = "9ad7377a9cbaada5835de9d8196a2faaa444a8b5"
 id = "13"
 phase = 1
 bundle = "hygiene"
-status = "pending"
+status = "in_progress"
 title = "Close remaining NetworkTagGuard holes: over-tagging and local sockets that are not MockWebSockServer"
 scores = { d = 3, b = 5, u = 4 }
 acceptance_criteria = ["A test that opens a local socket without MockWebSockServer (for example :gen_tcp.listen / the client_reconnect_test upgrade listener pattern) fails the guard unless it carries :integration and :local_network", "A test that carries :integration, :external_network, or :local_network without a matching socket fails the guard", "The mistagged fixture covers both holes and the existing four still red", "Existing correctly tagged suites stay green, including client_reconnect_test's upgrade-listener tests", "mix precommit.full green"]
@@ -667,4 +667,5 @@ EVIDENCE, read 2026-08-21 in the 56e6ba7 post-merge audit worktree after the rev
 Do not open a fourth round of per-file retagging. Extend the guard (and the mistagged fixture) so both holes fail the same way missing MockWebSockServer / internet tags already do.
 """
 created_at = "2026-08-21"
+started_at = "2026-08-21"
 scored_at = "2026-08-21"
