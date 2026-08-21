@@ -734,7 +734,7 @@ shipped_in = "12c7a53ec09a6fe36f5ee76528b3d4baf7fadfaa"
 id = "15"
 phase = 1
 bundle = "code-quality"
-status = "pending"
+status = "in_progress"
 title = "Un-break Client module namespacing by fixing the validate_usage regex that forced flat names"
 scores = { d = 3, b = 6, u = 5 }
 acceptance_criteria = ["validate_api_usage/3 no longer treats a nested module segment as a function name: a reference to ZenWebsocket.Client.CallFacade must not be reported as :invalid_api, while a genuine unknown call such as ZenWebsocket.Client.bogus_thing/1 must still be reported - both pinned by tests", "@allowed_functions matches the Client surface that actually ships (12 non-callback public functions as of 0.6.1), not the retired 5-function API; a test asserts the list and the module's real exports agree, so the next Client API change fails the test instead of silently drifting", "The ten modules under lib/zen_websocket/client/ are renamed from ZenWebsocket.Client<Thing> to ZenWebsocket.Client.<Thing> so module name and file path agree, and every reference is updated (lib, test, lib/zen_websocket.ex discoverable list, docs/Architecture.md, CLAUDE.md module tree)", "mix zen_websocket.validate_usage exits clean against this repo's own lib/ and test/ after the rename", "AGENTS.md regenerated from CLAUDE.md (bash ~/_DATA/code/claude-marketplace/scripts/sync-agents-md.sh) and the mix ci freshness check passes", "mix precommit.full green; no behaviour change - this is a rename plus a tool fix, so no test assertions change meaning"]
@@ -765,4 +765,5 @@ SCOPE NOTE. The plan that seeded this backlog also flagged this task's `--fix` p
 WHY D=3 / B=6 / U=5. Mechanically it is a bounded regex fix plus a wide but mechanical rename, which is why D is 3 rather than higher; the breadth is in reference-chasing, not in reasoning. There is no live bug and nothing is gated on it, so B and U stay moderate. U is not lower only because the flat names are one day old - undoing the distortion now costs a rename, whereas every future module that adopts the flat convention makes it more permanent.
 '''
 created_at = "2026-08-21"
+started_at = "2026-08-21"
 scored_at = "2026-08-21"
