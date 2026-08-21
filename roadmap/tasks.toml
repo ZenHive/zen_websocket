@@ -541,7 +541,7 @@ scored_at = "2026-08-21"
 id = "11"
 phase = 1
 bundle = "hygiene"
-status = "pending"
+status = "done"
 title = "Split mixed internet/mock-server suites so :external_network and :local_network can both be accurate"
 scores = { d = 3, b = 6, u = 6 }
 acceptance_criteria = ["Every test that opens an internet socket (Deribit testnet, echo.websocket.org, or similar) carries both :integration and :external_network", "Every test that opens only a local MockWebSockServer socket and no internet connection carries :integration and :local_network, not :external_network", "Unit tests in those files (no socket) carry neither network tag, so they run in default mix test and the coverage ratchet", "mix test (default excludes) still opens no sockets", "mix test --only external_network does not start MockWebSockServer", "mix precommit.full green"]
@@ -561,5 +561,11 @@ EVIDENCE, read 2026-08-21 in the 6c7dfbc audit worktree:
 
 Split per-describe (or per-test) so the tag matches the socket. Do not raise the coverage floor in this task; any coverage gain from :local_network is a side effect of honest tagging.
 """
+implemented = "Landed by grok via harness run run-1787300568049-746710d6; reviewer-approved (delivery commit 6943c95). rmap advance was skipped because the task was not yet on origin at land time."
+verified = true
+verified_by = "codex"
+verification_ref = "harness-run:run-1787300568049-746710d6"
 created_at = "2026-08-21"
 scored_at = "2026-08-21"
+done_at = "2026-08-21"
+shipped_in = "6943c95"
