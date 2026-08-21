@@ -29,18 +29,38 @@ defmodule ZenWebsocket.MixProjectTest do
     refute output =~ "## Quick Start Pattern"
   end
 
-  test "coverage ignore_modules lists every Examples and Mix.Tasks lib module" do
+  test "coverage ignore_modules lists an atom for every lib module matching a Mix ignore regex" do
     ignore = coverage_ignore_modules()
-    missing = Enum.reject(non_core_lib_modules(), &(&1 in ignore))
+    regexes = ignore_regexes(ignore)
+    atoms = MapSet.new(Enum.filter(ignore, &is_atom/1))
+
+    missing =
+      lib_app_modules()
+      |> Enum.filter(&ignored_by_regex?(&1, regexes))
+      |> Enum.reject(&MapSet.member?(atoms, &1))
 
     assert missing == [],
            "add these atoms to test_coverage ignore_modules so mix test.json --cover excludes them: #{inspect(missing)}"
+  end
+
+  test "coverage ignore_modules atoms all match a Mix ignore regex" do
+    ignore = coverage_ignore_modules()
+    regexes = ignore_regexes(ignore)
+
+    extras =
+      ignore
+      |> Enum.filter(&is_atom/1)
+      |> Enum.reject(&ignored_by_regex?(&1, regexes))
+
+    assert extras == [],
+           "ignore_modules atoms must match a Mix regex so core modules stay measured: #{inspect(extras)}"
   end
 
   test "coverage ignore_modules keeps Mix regexes and matching atoms" do
     ignore = coverage_ignore_modules()
     sources = for %Regex{} = re <- ignore, do: Regex.source(re)
 
+    assert "^ZenWebsocket\\.Test\\.Support\\." in sources
     assert "^ZenWebsocket\\.Examples\\." in sources
     assert "^Mix\\.Tasks\\." in sources
     assert Usage in ignore
@@ -61,17 +81,21 @@ defmodule ZenWebsocket.MixProjectTest do
     Keyword.fetch!(Keyword.fetch!(project, :test_coverage), :ignore_modules)
   end
 
-  defp non_core_lib_modules do
+  defp ignore_regexes(ignore), do: for(%Regex{} = re <- ignore, do: re)
+
+  defp ignored_by_regex?(mod, regexes) do
+    name = inspect(mod)
+    Enum.any?(regexes, &Regex.match?(&1, name))
+  end
+
+  defp lib_app_modules do
     {:ok, modules} = :application.get_key(:zen_websocket, :modules)
     cwd = File.cwd!()
 
     Enum.filter(modules, fn mod ->
       source = compile_source(mod)
       relative = source && Path.relative_to(source, cwd)
-      name = inspect(mod)
-
-      is_binary(relative) and String.starts_with?(relative, "lib/") and
-        (String.starts_with?(name, "ZenWebsocket.Examples") or String.starts_with?(name, "Mix.Tasks."))
+      is_binary(relative) and String.starts_with?(relative, "lib/")
     end)
   end
 

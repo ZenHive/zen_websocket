@@ -335,7 +335,7 @@ defmodule ZenWebsocket.MixProject do
     )
   end
 
-  # Mix.Tasks.Cover matches regexes and atoms (`ignored_any?/2`).
+  # Mix.Tasks.Test.Coverage matches regexes and atoms (`ignored_any?/2`).
   # ex_unit_json 0.6.0 only does `mod in ignore_modules`, so regexes are
   # no-ops for `mix test.json --cover`. Keep the regexes as the Mix contract
   # and list matching atoms so the JSON coverage gate measures core only.
