@@ -828,7 +828,7 @@ shipped_in = "b41e0b0435f38f2ad7f286388fe07489d6dfd51c"
 id = "17"
 phase = 1
 bundle = "correctness"
-status = "in_progress"
+status = "done"
 title = "Decide whether SubscriptionManager's narrowing to Deribit's JSON-RPC dialect is intended, and make the result explicit"
 scores = { d = 4, b = 6, u = 4 }
 acceptance_criteria = ["The decision is recorded in the module's @moduledoc: either SubscriptionManager tracks Deribit-dialect JSON-RPC only (and says so in one sentence, so a non-Deribit user is not misled into expecting reconnect restoration), or generic inbound-channel tracking is restored alongside the request/confirmation path", "Whichever way it goes, a test pins it: a non-Deribit subscription shape either provably does not auto-track (documented limitation) or provably does (restored capability). No test may pass on both outcomes", "The optimistic-tracking gap is addressed explicitly: Client.subscribe/2 sends no id, so track_outbound/4 applies channels immediately with no confirmation, which means a server-side rejection leaves the channel in the restore set. Either give Client.subscribe/2 an id so it uses the confirmation path, or document that its tracking is optimistic - do not leave it undescribed", "USAGE_RULES.md and docs/Architecture.md agree with whatever is decided; neither may keep claiming confirmation-gated tracking if the primary path is optimistic", "mix precommit.full green, core coverage at or above the 90 floor"]
@@ -854,6 +854,13 @@ CONTEXT ON URGENCY. The two live consumers are bourse and onchain. Neither calls
 
 WHY D=4. The code change either way is small; the cost is in deciding and in making the docs and tests agree with the decision across four files.
 """
+implemented = "Landed by cursor via merge-train; reviewer-approved (run run-1787321301597-1f4a8ac7, 04074aaef9563b3d775bbe3853bdb7f8a3c30143)."
+delivered_by = "cursor"
+verified = true
+verified_by = "codex"
+verification_ref = "harness-run:run-1787321301597-1f4a8ac7"
 created_at = "2026-08-21"
 started_at = "2026-08-21"
 scored_at = "2026-08-21"
+done_at = "2026-08-21"
+shipped_in = "04074aaef9563b3d775bbe3853bdb7f8a3c30143"
