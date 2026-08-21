@@ -599,7 +599,7 @@ shipped_in = "6943c95"
 id = "12"
 phase = 1
 bundle = "hygiene"
-status = "in_progress"
+status = "done"
 title = "Finish dual-tagging the suites task 11 left mixed or :integration-only"
 scores = { d = 2, b = 5, u = 5 }
 acceptance_criteria = ["error_integration_test.exs Deribit/internet tests carry :integration and :external_network; its ErrorHandler unit tests carry neither network tag", "examples/error_handling_test.exs mock-server tests carry :integration and :local_network; tests that only dial an invalid host carry :integration and :external_network", "examples/supervised_client_test.exs mock-server tests carry :integration and :local_network; tests that only dial an invalid host carry :integration and :external_network", "client_supervisor_test.exs carries both :integration and :external_network (it is internet-only today)", "mix test (default excludes) still opens no sockets", "mix test --only external_network does not start MockWebSockServer", "A repo-wide guard closes the class instead of leaving a third round of this task: a test (or mix check) walks every file under test/ and fails when a suite references an internet URL without :external_network, references MockWebSockServer without :local_network, or carries a network tag without :integration — asserted by adding a deliberately mistagged fixture and confirming the guard reds", "mix precommit.full green"]
@@ -622,6 +622,13 @@ EVIDENCE, read 2026-08-21 in the e6ab330 post-merge audit worktree:
 
 Same split as task 11: per-describe (or per-test) tags that match the socket; unit tests untagged. Do not raise the coverage floor.
 """
+implemented = "Landed by cursor via merge-train; reviewer-approved (run run-1787303759832-93f3e27c, 9ad7377a9cbaada5835de9d8196a2faaa444a8b5)."
+delivered_by = "cursor"
+verified = true
+verified_by = "codex"
+verification_ref = "harness-run:run-1787303759832-93f3e27c"
 created_at = "2026-08-21"
 started_at = "2026-08-21"
 scored_at = "2026-08-21"
+done_at = "2026-08-21"
+shipped_in = "9ad7377a9cbaada5835de9d8196a2faaa444a8b5"
