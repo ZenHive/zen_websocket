@@ -44,8 +44,7 @@ defmodule ZenWebsocket.Examples.RateLimitingTest do
   end
 
   describe "rate limited client integration" do
-    @describetag :integration
-
+    @tag :integration
     @tag :external_network
     test "enforces rate limits on WebSocket messages" do
       limiter_name = :test_client_limiter
@@ -157,8 +156,7 @@ defmodule ZenWebsocket.Examples.RateLimitingTest do
   end
 
   describe "real-world rate limiting patterns" do
-    @describetag :integration
-
+    @tag :integration
     @tag :external_network
     test "handles high-frequency trading with rate limits" do
       trading_limiter = :test_trading_limiter

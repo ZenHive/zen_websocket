@@ -6,10 +6,6 @@ defmodule ZenWebsocket.ClientSupervisorTest do
   alias ZenWebsocket.ClientSupervisor
   alias ZenWebsocket.PoolRouter
 
-  # Tests require external network access to Deribit testnet
-  @moduletag :integration
-  @moduletag :external_network
-
   @deribit_test_url "wss://test.deribit.com/ws/api/v2"
 
   # Polling interval and max wait time for restart verification
@@ -31,6 +27,8 @@ defmodule ZenWebsocket.ClientSupervisorTest do
   end
 
   describe "start_client/2" do
+    @tag :integration
+    @tag :external_network
     test "starts a supervised client connection" do
       {:ok, client} = ClientSupervisor.start_client(@deribit_test_url)
 
@@ -49,6 +47,8 @@ defmodule ZenWebsocket.ClientSupervisorTest do
       assert {:error, _} = ClientSupervisor.start_client("invalid-url")
     end
 
+    @tag :integration
+    @tag :external_network
     test "supervised client restarts on crash" do
       {:ok, client} = ClientSupervisor.start_client(@deribit_test_url)
       original_pid = client.server_pid
@@ -65,6 +65,9 @@ defmodule ZenWebsocket.ClientSupervisorTest do
   end
 
   describe "list_clients/0" do
+    @describetag :integration
+    @describetag :external_network
+
     test "lists all active supervised clients" do
       assert ClientSupervisor.list_clients() == []
 
@@ -83,6 +86,9 @@ defmodule ZenWebsocket.ClientSupervisorTest do
   end
 
   describe "stop_client/1" do
+    @describetag :integration
+    @describetag :external_network
+
     test "gracefully stops a supervised client" do
       {:ok, client} = ClientSupervisor.start_client(@deribit_test_url)
 
@@ -99,6 +105,8 @@ defmodule ZenWebsocket.ClientSupervisorTest do
       assert {:error, :no_connections} = ClientSupervisor.send_balanced("test message")
     end
 
+    @tag :integration
+    @tag :external_network
     test "sends message via single connection" do
       {:ok, client} = ClientSupervisor.start_client(@deribit_test_url)
 
@@ -112,6 +120,8 @@ defmodule ZenWebsocket.ClientSupervisorTest do
       Client.close(client)
     end
 
+    @tag :integration
+    @tag :external_network
     test "routes to healthiest connection in pool" do
       {:ok, client1} = ClientSupervisor.start_client(@deribit_test_url)
       {:ok, client2} = ClientSupervisor.start_client(@deribit_test_url)
@@ -127,6 +137,8 @@ defmodule ZenWebsocket.ClientSupervisorTest do
       Client.close(client2)
     end
 
+    @tag :integration
+    @tag :external_network
     test "performs failover when connection fails" do
       {:ok, client1} = ClientSupervisor.start_client(@deribit_test_url)
       {:ok, client2} = ClientSupervisor.start_client(@deribit_test_url)
@@ -143,6 +155,8 @@ defmodule ZenWebsocket.ClientSupervisorTest do
       Client.close(client2)
     end
 
+    @tag :integration
+    @tag :external_network
     test "returns max_attempts_exceeded after all connections fail" do
       {:ok, client} = ClientSupervisor.start_client(@deribit_test_url)
 
@@ -157,6 +171,8 @@ defmodule ZenWebsocket.ClientSupervisorTest do
       assert result == {:error, :no_connections}
     end
 
+    @tag :integration
+    @tag :external_network
     test "respects max_attempts option" do
       {:ok, _client} = ClientSupervisor.start_client(@deribit_test_url)
 
@@ -170,6 +186,9 @@ defmodule ZenWebsocket.ClientSupervisorTest do
   end
 
   describe "send_balanced/2 with custom discovery" do
+    @describetag :integration
+    @describetag :external_network
+
     test "uses provided client_discovery function" do
       {:ok, client1} = ClientSupervisor.start_client(@deribit_test_url)
       {:ok, client2} = ClientSupervisor.start_client(@deribit_test_url)
@@ -209,6 +228,9 @@ defmodule ZenWebsocket.ClientSupervisorTest do
   end
 
   describe "start_client/2 lifecycle callbacks" do
+    @describetag :integration
+    @describetag :external_network
+
     test "on_connect called after successful connection" do
       test_pid = self()
       on_connect = fn pid -> send(test_pid, {:connected, pid}) end
@@ -303,6 +325,9 @@ defmodule ZenWebsocket.ClientSupervisorTest do
   end
 
   describe "send_balanced/2 telemetry" do
+    @describetag :integration
+    @describetag :external_network
+
     setup do
       test_pid = self()
       handler_id = "client-supervisor-test-#{System.unique_integer()}"

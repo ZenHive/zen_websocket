@@ -19,6 +19,19 @@ defmodule ZenWebsocket.Fixtures.MissingLocalNetwork do
   end
 end
 
+defmodule ZenWebsocket.Fixtures.MissingRawLocalNetwork do
+  @moduledoc false
+  use ExUnit.Case
+
+  test "opens a raw listener without :local_network" do
+    start_upgrade_listener()
+  end
+
+  defp start_upgrade_listener do
+    :gen_tcp.listen(0, [:binary, active: false])
+  end
+end
+
 defmodule ZenWebsocket.Fixtures.NetworkTagWithoutIntegration do
   @moduledoc false
   use ExUnit.Case
@@ -27,6 +40,22 @@ defmodule ZenWebsocket.Fixtures.NetworkTagWithoutIntegration do
   test "carries :external_network without :integration" do
     :ok
   end
+end
+
+defmodule ZenWebsocket.Fixtures.NetworkTagsWithoutSockets do
+  @moduledoc false
+  use ExUnit.Case
+
+  @tag :integration
+  test "carries :integration without a socket", do: :ok
+
+  @tag :integration
+  @tag :external_network
+  test "carries :external_network without an internet socket", do: :ok
+
+  @tag :integration
+  @tag :local_network
+  test "carries :local_network without a local socket", do: :ok
 end
 
 defmodule ZenWebsocket.Fixtures.ModuleSetupMockWithExternal do
