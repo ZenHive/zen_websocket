@@ -68,9 +68,10 @@ depends_on = ["2"]
 id = "R051"
 phase = 1
 bundle = "code-quality"
-status = "pending"
+status = "in_progress"
 title = "Decompose Reconnection.establish_connection/1 (dominator depth 39)"
 scores = { d = 4, b = 6, u = 5 }
+depends_on = ["2"]
 acceptance_criteria = [
   "Depth reduced to <20, measured with mix reach.map --depth",
   "Existing reconnection regression tests (R033, R036) pass unchanged",
@@ -92,8 +93,8 @@ RE-MEASURED 2026-08-20 on reach 2.8.2 (originally seeded from reach 1.5 on 2026-
 
 RE-MEASURED 2026-08-21 on the post-wave tree (27fe787), with task 2 now landed: establish_connection/1 is still depth 39 branches=4 at lib/zen_websocket/reconnection.ex:51, and its lead has widened — the runner-up dropped from Client.handle_continue/2 at 25 to Mix.Tasks.ZenWebsocket.Usage.filter_sections/2 at 23, with the deepest remaining Client function at 21. This is now the single deepest function in the codebase by 16 levels, and the task 2 regression suite it was waiting for is in place.
 """
+started_at = "2026-08-21"
 scored_at = "2026-08-20"
-depends_on = ["2"]
 
 [[task]]
 id = "R055"

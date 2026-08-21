@@ -49,18 +49,18 @@
 > Managed by `rmap` — source of truth is `roadmap/tasks.toml`. Run `rmap show <id>` for full task detail, `rmap next` to pick the next task.
 
 <!-- FOCUS:BEGIN -->
-**Focus phase:** 1 — Post-v0.6.1 Backlog (13 of 17 done · 1 in progress)
+**Focus phase:** 1 — Post-v0.6.1 Backlog (13 of 17 done · 2 in progress)
 
 **Last shipped:** Task R055 — Extract duplicated Gun connect/reconnect log block in Client, Task 1 — Widen JsonRpc.build_request/2 params spec to accept list params, Task 2 — Fix the reconnect state machine and its supervisor-side fallout, Task 3 — Fix RateLimiter token race and the queue that discards requests, Task 4 — Fix always-true guard, silent auth pass-through, subscription re-add, and recorder data loss, Task 5 — Make heartbeat and pool health metrics report reality instead of a constant, Task 6 — Remove tests that pass on every outcome and tag the untagged network tests, Task 7 — Make CLAUDE.md, README and the docs describe the library that actually ships, Task 8 — Resolve three places where stated policy and shipped code disagree, Task 9 — Extract three cross-module duplications that ex_dna does not catch, Task 10 — Give pool health a real pressure signal or drop the dead penalty, Task 11 — Split mixed internet/mock-server suites so :external_network and :local_network can both be accurate on 2026-08-21
 
-**Up next:** Task R051 — Decompose Reconnection.establish_connection/1 (dominator depth 39) [D:4/B:6/U:5 → Eff:1.38] 📋
+**Up next:** Task R056 — Make CI coverage gate measure core library only [D:4/B:5/U:5 → Eff:1.25] 📋
 <!-- FOCUS:END -->
 
 <!-- TASKS:BEGIN phase=1 -->
 | Task | Status | Notes |
 |------|--------|-------|
 | Task R052 | ⬜ | 🎁 **code-quality** · Flatten Client.connect/2 control flow (dominator depth 22) [D:4/B:5/U:4 → Eff:1.12] 📋 |
-| Task R051 | ⬜ | 🎁 **code-quality** · Decompose Reconnection.establish_connection/1 (dominator depth 39) [D:4/B:6/U:5 → Eff:1.38] 📋 |
+| Task R051 | 🔄 | 🎁 **code-quality** · Decompose Reconnection.establish_connection/1 (dominator depth 39) [D:4/B:6/U:5 → Eff:1.38] 📋 |
 | Task R055 | ✅ | 🎁 **code-quality** · Extract duplicated Gun connect/reconnect log block in Client [D:2/B:3/U:2 → Eff:1.25] 📋 |
 | Task R056 | ⬜ | 🎁 **ci** · Make CI coverage gate measure core library only [D:4/B:5/U:5 → Eff:1.25] 📋 |
 | Task R054 | ✅ | 🎁 **code-quality** · Deduplicate send_json_rpc/2 across the two Deribit adapters [D:2/B:4/U:4 → Eff:2.0?] 🎯 |
