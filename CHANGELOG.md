@@ -67,10 +67,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ticks.** `SubscriptionManager.handle_message/2` tracks Deribit-style
   `public/subscribe` and `public/unsubscribe` requests, applies correlated
   result frames, and clears failed operations. It no longer adds every
-  `"params.channel"` seen in inbound data. Non-Deribit integrations that relied
-  on that implicit behavior should call `SubscriptionManager.add/2` and
-  `remove/2` explicitly. The intended long-term dialect is tracked separately
-  in roadmap Task 17.
+  `"params.channel"` seen in inbound data. Tracking the Deribit dialect only is
+  intentional: `build_restore_message/1` always emits Deribit's
+  `public/subscribe` payload, so calling `SubscriptionManager.add/2` and
+  `remove/2` from a non-Deribit integration records channels but does not give
+  that venue working reconnect restoration. Non-Deribit consumers should own
+  their own re-subscribe on reconnect.
 - **BREAKING — generic heartbeat state reports the active type.** A generic
   heartbeat replaces `active_heartbeats` instead of accumulating every type
   ever observed. Treat `get_heartbeat_health/1`'s list as current state; retain
