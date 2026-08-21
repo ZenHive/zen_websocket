@@ -532,7 +532,7 @@ mix test.performance      # Performance/stress testing
 Self-contained so it survives into `AGENTS.md` on regen — cross-family reviewers (codex / cursor / grok) read `AGENTS.md`, not the Claude skill set.
 
 - **Canonical gate:** `mix precommit.full` (alias `mix ci`) — the comprehensive pass the harness reviewer's `check_command` runs and what GitHub CI (`.github/workflows/harness.yml`) invokes directly. Fast local loop: `mix precommit` (skips the cold-PLT dialyzer + deps audit).
-- `mix precommit.full` runs, in order: `compile --warnings-as-errors`, `format --check-formatted`, `credo --strict` (ignoring TODO/FIXME tags), `doctor --raise`, `ex_dna --max-clones 0` (zero-clone budget), `reach.check --arch --smells` (policy in `.reach.exs`), `sobelow --skip`, `deps.audit.gated`, `test.json --cover --cover-threshold 58 --exclude integration` (`MIX_ENV=test`), `dialyzer` (forced `MIX_ENV=dev` — see below), `agents.check`.
+- `mix precommit.full` runs, in order: `compile --warnings-as-errors`, `format --check-formatted`, `credo --strict` (ignoring TODO/FIXME tags), `doctor --raise`, `ex_dna --max-clones 0` (zero-clone budget), `reach.check --arch --smells` (policy in `.reach.exs`), `sobelow --skip`, `deps.audit.gated`, `test.json --cover --cover-threshold 58 --exclude integration --include local_network` (`MIX_ENV=test`), `dialyzer` (forced `MIX_ENV=dev` — see below), `agents.check`.
 - **The coverage floor is a measured ratchet, not an aspiration.** 58 is the non-integration coverage measured 2026-08-01, rounded down; the previous 80 had never been met by any run and so gated nothing. Raise it in lockstep with real coverage; never pad it.
 - **`mix test.json` (`ex_unit_json`) and `mix dialyzer.json` (`dialyzer_json`) emit JSON by design — this is NOT a build failure.** Parse the JSON for real failures; never flag the envelope itself. Plain `mix dialyzer` is the authoritative dialyzer check when the JSON encoder can't serialize a warning shape.
 - **The gate's dialyzer step forces `MIX_ENV=dev`, not `:test`.** Under `:test`, the test-only mock-server stack (`cowboy`, `plug_cowboy`, `websock`, `x509`, `temp`, `stream_data`) joins this repo's `plt_add_deps: :apps_direct` analyzed set and produces false `unknown_function` warnings against the OOM-tuned PLT (see `defp dialyzer` in `mix.exs`). `preferred_envs` in `def cli` is ignored inside alias steps, so the dev override is an explicit `cmd env MIX_ENV=dev mix dialyzer`.
@@ -617,9 +617,10 @@ export DERIBIT_CLIENT_SECRET="your_client_secret"
 If either is missing, create them before completing the task.
 
 ### Test Tagging
-- `:integration` - Tests using MockWebSockServer, Gun, or external APIs. Excluded from default `mix test` and the coverage gate.
+- `:integration` - Tests using MockWebSockServer, Gun, or external APIs. Excluded from default `mix test`; excluded from coverage unless paired with `:local_network`.
 - `:external_network` - Tests requiring internet access. Excluded from default `mix test` and the coverage gate.
-- Default `mix test` excludes both, so the fast suite performs no socket connections.
+- `:local_network` - Mock-server socket tests retained in the coverage ratchet. Always paired with `:integration`, so default `mix test` still excludes them.
+- Default `mix test` excludes every socket-opening test.
 
 ### Real API Testing Policy
 **NO MOCKS ALLOWED** - Only real API testing:

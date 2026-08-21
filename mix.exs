@@ -200,7 +200,10 @@ defmodule ZenWebsocket.MixProject do
         "doctor --raise",
         # Coverage floor: 58%, measured via `mix test.json --cover --exclude
         # integration` (2026-08-01), rounded down to the nearest whole
-        # percent. The prior 80% floor was aspirational — it pre-dated this
+        # percent. Mock-server tests tagged during the network-tag hygiene
+        # pass also carry `:local_network`; including that tag retains their
+        # contribution without adding sockets to the default suite. The prior
+        # 80% floor was aspirational — it pre-dated this
         # measurement and had never actually been met by any run of this
         # alias, so it blocked every `mix precommit`/`mix ci` invocation
         # without catching anything (a floor above actual coverage gates
@@ -214,7 +217,7 @@ defmodule ZenWebsocket.MixProject do
         # excluded via `test_coverage: ignore_modules` above but not yet
         # honored by ex_unit_json's `--cover`) — raise this number as real
         # coverage grows, never pad it to look higher than what's measured.
-        "cmd env MIX_ENV=test mix test.json --quiet --cover --cover-threshold 58 --summary-only --exclude integration",
+        "cmd env MIX_ENV=test mix test.json --quiet --cover --cover-threshold 58 --summary-only --exclude integration --include local_network",
         "sobelow --skip --exit low"
       ],
       # Comprehensive gate — the harness reviewer's `check_command` and `mix ci`
@@ -241,7 +244,7 @@ defmodule ZenWebsocket.MixProject do
         # nothing in CI (the log is machine-read, not human-scrolled) and costs
         # the entire diagnosis. Locally the hooks already print per-file detail,
         # so `precommit` keeps it.
-        "cmd env MIX_ENV=test mix test.json --quiet --cover --cover-threshold 58 --exclude integration",
+        "cmd env MIX_ENV=test mix test.json --quiet --cover --cover-threshold 58 --exclude integration --include local_network",
         # Dialyzer runs in MIX_ENV=dev, not the canonical bare `dialyzer` step:
         # under :test, the test-only HTTP/mock stack (cowboy, plug_cowboy,
         # websock, x509, temp, stream_data) joins :apps_direct's analyzed set

@@ -5,8 +5,6 @@ defmodule ZenWebsocket.ClientReconnectTest do
   alias ZenWebsocket.ClientSupervisor
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
-  @moduletag :integration
-
   # Maximum time to wait for client to reconnect after server restart
   @reconnect_poll_timeout_ms 3_000
   @reconnect_poll_interval_ms 100
@@ -48,6 +46,9 @@ defmodule ZenWebsocket.ClientReconnectTest do
   end
 
   describe "config preservation across reconnect" do
+    @describetag :integration
+    @describetag :local_network
+
     setup do
       echo_handler = fn
         {:text, msg} -> {:reply, {:text, msg}}

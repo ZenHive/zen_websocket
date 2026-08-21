@@ -37,6 +37,8 @@ defmodule ZenWebsocket.Examples.BasicUsageTest do
 
   describe "basic usage patterns with MockWebSockServer" do
     @describetag :integration
+    @describetag :local_network
+
     setup do
       {:ok, server, port} = MockWebSockServer.start_link()
 
