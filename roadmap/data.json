@@ -846,7 +846,7 @@
       "id": "13",
       "phase": 1,
       "bundle": "hygiene",
-      "status": "in_progress",
+      "status": "done",
       "title": "Close remaining NetworkTagGuard holes: over-tagging and local sockets that are not MockWebSockServer",
       "scores": {
         "d": 3,
@@ -877,10 +877,17 @@
         "test/zen_websocket/network_tag_guard_test.exs",
         "test/fixtures/mistagged_network_suite.fixture"
       ],
+      "shipped_in": "3296789a62501dc2ffaa1904a8207c3df0392ade",
       "body": "Task 12 (shipped 9ad7377) added NetworkTagGuard and scoped it per test. The guard closes missing-tag cases for internet URLs and MockWebSockServer, plus unpaired network tags. Two holes remain, so a later suite can still lie about its socket.\n\nEVIDENCE, read 2026-08-21 in the 56e6ba7 post-merge audit worktree after the reviewer rewrite in 9ad7377:\n\n1. Local sockets that are not MockWebSockServer are invisible. test/zen_websocket/client_reconnect_test.exs start_upgrade_listener/1 uses :gen_tcp.listen and Gun dials ws://127.0.0.1. Those tests are tagged :local_network by hand. Resources.flags/2 only sets :local_network for MockWebSockServer aliases, Testing.start_mock_server, and a bare start_mock_server call. Dropping the tag would stay green.\n\n2. Over-tagging is invisible. findings/4 only flags missing tags, not tags without a matching socket. Task 12 left unit tests under module/describe network tags in client_supervisor_test.exs (invalid URL, no_connections) and rate_limiting_test.exs (cost-function / exchange-specific limiters). The 56e6ba7 audit untagged those leftovers; the guard still cannot prevent the same wrap from returning.\n\nDo not open a fourth round of per-file retagging. Extend the guard (and the mistagged fixture) so both holes fail the same way missing MockWebSockServer / internet tags already do.\n",
       "created_at": "2026-08-21",
       "started_at": "2026-08-21",
+      "done_at": "2026-08-21",
       "scored_at": "2026-08-21",
+      "implemented": "Landed by codex via merge-train; reviewer-approved (run run-1787308300640-5729cb66, 3296789a62501dc2ffaa1904a8207c3df0392ade).",
+      "delivered_by": "codex",
+      "verified": true,
+      "verified_by": "cursor",
+      "verification_ref": "harness-run:run-1787308300640-5729cb66",
       "cross_repo": []
     }
   ]
