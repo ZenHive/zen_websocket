@@ -1,10 +1,10 @@
-defmodule ZenWebsocket.ClientFrames do
+defmodule ZenWebsocket.Client.Frames do
   @moduledoc """
   Inbound WebSocket frame routing for `ZenWebsocket.Client`.
   """
 
-  alias ZenWebsocket.ClientCorrelation, as: Correlation
-  alias ZenWebsocket.ClientRecorder, as: RecorderLifecycle
+  alias ZenWebsocket.Client.Correlation, as: Correlation
+  alias ZenWebsocket.Client.Recorder, as: RecorderLifecycle
   alias ZenWebsocket.Debug
   alias ZenWebsocket.HeartbeatManager
   alias ZenWebsocket.MessageHandler

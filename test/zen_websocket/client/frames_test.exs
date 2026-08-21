@@ -1,12 +1,12 @@
-defmodule ZenWebsocket.ClientFramesTest do
+defmodule ZenWebsocket.Client.FramesTest do
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureLog
 
-  alias ZenWebsocket.ClientConnection, as: Connection
-  alias ZenWebsocket.ClientCorrelation, as: Correlation
-  alias ZenWebsocket.ClientFrames, as: Frames
-  alias ZenWebsocket.ClientRecorder, as: RecorderLifecycle
+  alias ZenWebsocket.Client.Connection, as: Connection
+  alias ZenWebsocket.Client.Correlation, as: Correlation
+  alias ZenWebsocket.Client.Frames, as: Frames
+  alias ZenWebsocket.Client.Recorder, as: RecorderLifecycle
   alias ZenWebsocket.Config
   alias ZenWebsocket.LatencyStats
 

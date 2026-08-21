@@ -1,4 +1,4 @@
-defmodule ZenWebsocket.ClientCorrelation do
+defmodule ZenWebsocket.Client.Correlation do
   @moduledoc """
   JSON-RPC response and timeout correlation for `ZenWebsocket.Client`.
   """

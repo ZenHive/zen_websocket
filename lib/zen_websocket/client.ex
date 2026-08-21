@@ -74,12 +74,12 @@ defmodule ZenWebsocket.Client do
   use Descripex, namespace: "/client"
   use GenServer
 
-  alias ZenWebsocket.ClientCallbacks, as: Callbacks
-  alias ZenWebsocket.ClientCallFacade, as: CallFacade
-  alias ZenWebsocket.ClientConnection, as: Connection
-  alias ZenWebsocket.ClientReconnect, as: Reconnect
-  alias ZenWebsocket.ClientRecorder, as: RecorderLifecycle
-  alias ZenWebsocket.ClientRetry, as: Retry
+  alias ZenWebsocket.Client.Callbacks, as: Callbacks
+  alias ZenWebsocket.Client.CallFacade, as: CallFacade
+  alias ZenWebsocket.Client.Connection, as: Connection
+  alias ZenWebsocket.Client.Reconnect, as: Reconnect
+  alias ZenWebsocket.Client.Recorder, as: RecorderLifecycle
+  alias ZenWebsocket.Client.Retry, as: Retry
   alias ZenWebsocket.ErrorHandler
   alias ZenWebsocket.LatencyStats
   alias ZenWebsocket.SafeCallback

@@ -1,14 +1,14 @@
-defmodule ZenWebsocket.ClientRetry do
+defmodule ZenWebsocket.Client.Retry do
   @moduledoc """
   Connection-error retry state machine for `ZenWebsocket.Client`.
 
-  Attempt-identity timers live in `ZenWebsocket.ClientConnection`; this module
+  Attempt-identity timers live in `ZenWebsocket.Client.Connection`; this module
   applies retry policy to reconnect immediately, schedule backoff, or stop.
   """
 
-  alias ZenWebsocket.ClientConnection, as: Connection
-  alias ZenWebsocket.ClientRecorder, as: RecorderLifecycle
-  alias ZenWebsocket.ClientRetryPolicy, as: RetryPolicy
+  alias ZenWebsocket.Client.Connection, as: Connection
+  alias ZenWebsocket.Client.Recorder, as: RecorderLifecycle
+  alias ZenWebsocket.Client.RetryPolicy, as: RetryPolicy
   alias ZenWebsocket.Debug
   alias ZenWebsocket.Reconnection
 

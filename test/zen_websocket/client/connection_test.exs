@@ -1,8 +1,8 @@
-defmodule ZenWebsocket.ClientConnectionTest do
+defmodule ZenWebsocket.Client.ConnectionTest do
   use ExUnit.Case, async: false
 
-  alias ZenWebsocket.ClientCallbacks, as: Callbacks
-  alias ZenWebsocket.ClientConnection, as: Connection
+  alias ZenWebsocket.Client.Callbacks, as: Callbacks
+  alias ZenWebsocket.Client.Connection, as: Connection
   alias ZenWebsocket.Config
 
   test "initial_state/2 records handler, heartbeat, and recorder fields" do

@@ -1,14 +1,14 @@
-defmodule ZenWebsocket.ClientConnection do
+defmodule ZenWebsocket.Client.Connection do
   @moduledoc """
   Gun connection open, upgrade, and cleanup for `ZenWebsocket.Client`.
 
   Runs inside the Client GenServer process so Gun messages keep the same owner.
   Attempt-identity timers are preserved from the Task 2 rewrite. Retry decisions
-  live in `ZenWebsocket.ClientRetry`.
+  live in `ZenWebsocket.Client.Retry`.
   """
 
-  alias ZenWebsocket.ClientFrames, as: Frames
-  alias ZenWebsocket.ClientRecorder, as: RecorderLifecycle
+  alias ZenWebsocket.Client.Frames, as: Frames
+  alias ZenWebsocket.Client.Recorder, as: RecorderLifecycle
   alias ZenWebsocket.Config
   alias ZenWebsocket.Debug
   alias ZenWebsocket.HeartbeatManager

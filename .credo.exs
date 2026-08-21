@@ -21,7 +21,7 @@ alias Credo.Check.Refactor.Nesting
 
         # Increase cyclomatic complexity threshold from 9 to 11
         # Remaining sites after task 14: Config.validate/1 cond chain, and
-        # ClientFrames.handle_ws/4 (frame-type case + decode dispatch).
+        # Client.Frames.handle_ws/4 (frame-type case + decode dispatch).
         # The old client.ex handle_info/2 site was extracted in task 14.
         {Credo.Check.Refactor.CyclomaticComplexity, max_complexity: 11},
 

@@ -1,9 +1,9 @@
-defmodule ZenWebsocket.ClientCallFacadeTest do
+defmodule ZenWebsocket.Client.CallFacadeTest do
   use ExUnit.Case, async: true
 
   alias ZenWebsocket.Client
-  alias ZenWebsocket.ClientCallFacade, as: CallFacade
-  alias ZenWebsocket.ClientReconnect, as: Reconnect
+  alias ZenWebsocket.Client.CallFacade, as: CallFacade
+  alias ZenWebsocket.Client.Reconnect, as: Reconnect
   alias ZenWebsocket.Config
 
   test "process_down_exit?/1 recognizes noproc, normal, and shutdown exits" do

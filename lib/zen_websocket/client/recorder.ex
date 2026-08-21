@@ -1,4 +1,4 @@
-defmodule ZenWebsocket.ClientRecorder do
+defmodule ZenWebsocket.Client.Recorder do
   @moduledoc """
   Session recorder lifecycle and frame writes for `ZenWebsocket.Client`.
   """

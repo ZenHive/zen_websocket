@@ -34,12 +34,19 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
 
   use Mix.Task
 
+  # Lowercase + "(" or "/" is a call/arity/capture; uppercase is a nested module.
+  @api_call_pattern ~r/ZenWebsocket\.Client\.([a-z]\w*)(?=[\/(])/
+
   @allowed_functions ~w(
     connect send_message subscribe get_state close
     get_heartbeat_health get_state_metrics get_latency_stats
-    reconnect build_client_struct t
+    reconnect build_client_struct child_spec start_link t
   )a
   @allowed_function_strings Enum.map(@allowed_functions, &Atom.to_string/1)
+
+  @doc false
+  @spec allowed_functions() :: [atom()]
+  def allowed_functions, do: @allowed_functions
 
   defp common_antipatterns do
     [
@@ -131,25 +138,28 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
     end)
   end
 
-  defp validate_api_usage(file, content, lines) do
+  @doc false
+  @spec validate_api_usage(String.t(), String.t(), [String.t()]) :: [map()]
+  def validate_api_usage(file, content, lines) do
     lines_tuple = List.to_tuple(lines)
-    pattern = ~r/ZenWebsocket\.Client\.(\w+)/
-    names = Regex.scan(pattern, content)
-    indexes = Regex.scan(pattern, content, return: :index)
+    names = Regex.scan(@api_call_pattern, content)
+    indexes = Regex.scan(@api_call_pattern, content, return: :index)
 
     names
     |> Enum.zip(indexes)
-    |> Enum.map(fn {[_full, function], [{start_idx, _} | _rest]} ->
-      if function in @allowed_function_strings do
-        nil
-      else
-        line_num = get_line_number(content, start_idx)
-        line_content = line_at(lines_tuple, line_num)
-        message = "Unknown function Client.#{function}/N - allowed: #{inspect(@allowed_functions)}"
-        diagnostic(:invalid_api, :error, file, line_num, message, line_content)
-      end
-    end)
+    |> Enum.map(&issue_for_match(&1, file, content, lines_tuple))
     |> Enum.reject(&is_nil/1)
+  end
+
+  defp issue_for_match({[_full, function], [{start_idx, _} | _]}, file, content, lines_tuple) do
+    if function in @allowed_function_strings do
+      nil
+    else
+      line_num = get_line_number(content, start_idx)
+      line_content = line_at(lines_tuple, line_num)
+      message = "Unknown function Client.#{function}/N - allowed: #{inspect(@allowed_functions)}"
+      diagnostic(:invalid_api, :error, file, line_num, message, line_content)
+    end
   end
 
   @spec line_at(tuple(), pos_integer()) :: String.t()

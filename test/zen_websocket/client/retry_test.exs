@@ -1,10 +1,10 @@
-defmodule ZenWebsocket.ClientRetryTest do
+defmodule ZenWebsocket.Client.RetryTest do
   use ExUnit.Case, async: true
 
-  alias ZenWebsocket.ClientConnection, as: Connection
-  alias ZenWebsocket.ClientRetry, as: Retry
-  alias ZenWebsocket.ClientRetryPolicy, as: RetryPolicy
-  alias ZenWebsocket.ClientTransportErrors, as: TransportErrors
+  alias ZenWebsocket.Client.Connection, as: Connection
+  alias ZenWebsocket.Client.Retry, as: Retry
+  alias ZenWebsocket.Client.RetryPolicy, as: RetryPolicy
+  alias ZenWebsocket.Client.TransportErrors, as: TransportErrors
   alias ZenWebsocket.Config
 
   test "normalize_error/1 unwraps nested error and gun tuples" do

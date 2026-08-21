@@ -70,17 +70,17 @@ Use the existing docs instead of re-explaining patterns from scratch:
 ```
 lib/zen_websocket/
 ├── client.ex               # Main client interface (GenServer + public API)
-├── client/
-│   ├── call_facade.ex      # Process-down-safe GenServer.call + connect await
-│   ├── callbacks.ex        # handle_call/handle_info clause routing
-│   ├── correlation.ex      # JSON-RPC response/timeout correlation
-│   ├── connection.ex       # Gun open, upgrade, attempt-identity timers
-│   ├── frames.ex           # WebSocket frame routing and dispatch
-│   ├── reconnect.ex        # Explicit reconnect target and options
-│   ├── recorder.ex         # Session recorder lifecycle
-│   ├── retry.ex            # Disconnect retry, backoff, stop-with-error
-│   ├── retry_policy.ex     # Retry eligibility and error normalization
-│   └── transport_errors.ex # Gun error/down logging and retry dispatch
+├── client/                 # Nested as ZenWebsocket.Client.*
+│   ├── call_facade.ex      # Client.CallFacade — process-down-safe GenServer.call + connect await
+│   ├── callbacks.ex        # Client.Callbacks — handle_call/handle_info clause routing
+│   ├── correlation.ex      # Client.Correlation — JSON-RPC response/timeout correlation
+│   ├── connection.ex       # Client.Connection — Gun open, upgrade, attempt-identity timers
+│   ├── frames.ex           # Client.Frames — WebSocket frame routing and dispatch
+│   ├── reconnect.ex        # Client.Reconnect — explicit reconnect target and options
+│   ├── recorder.ex         # Client.Recorder — session recorder lifecycle
+│   ├── retry.ex            # Client.Retry — disconnect retry, backoff, stop-with-error
+│   ├── retry_policy.ex     # Client.RetryPolicy — retry eligibility and error normalization
+│   └── transport_errors.ex # Client.TransportErrors — Gun error/down logging and retry dispatch
 ├── client_supervisor.ex    # DynamicSupervisor for pooled connections
 ├── config.ex               # Configuration struct and validation
 ├── frame.ex                # WebSocket frame encoding/decoding

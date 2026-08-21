@@ -1,4 +1,4 @@
-defmodule ZenWebsocket.ClientCallbacks do
+defmodule ZenWebsocket.Client.Callbacks do
   @moduledoc """
   `handle_call/3` and `handle_info/2` clause bodies for `ZenWebsocket.Client`.
 
@@ -7,11 +7,11 @@ defmodule ZenWebsocket.ClientCallbacks do
   previously inlined.
   """
 
-  alias ZenWebsocket.ClientConnection, as: Connection
-  alias ZenWebsocket.ClientCorrelation, as: Correlation
-  alias ZenWebsocket.ClientFrames, as: Frames
-  alias ZenWebsocket.ClientRetry, as: Retry
-  alias ZenWebsocket.ClientTransportErrors, as: TransportErrors
+  alias ZenWebsocket.Client.Connection, as: Connection
+  alias ZenWebsocket.Client.Correlation, as: Correlation
+  alias ZenWebsocket.Client.Frames, as: Frames
+  alias ZenWebsocket.Client.Retry, as: Retry
+  alias ZenWebsocket.Client.TransportErrors, as: TransportErrors
   alias ZenWebsocket.HeartbeatManager
   alias ZenWebsocket.LatencyStats
 

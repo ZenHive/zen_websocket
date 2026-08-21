@@ -1,4 +1,4 @@
-defmodule ZenWebsocket.ClientRetryPolicy do
+defmodule ZenWebsocket.Client.RetryPolicy do
   @moduledoc """
   Pure retry eligibility and error normalization for `ZenWebsocket.Client`.
   """

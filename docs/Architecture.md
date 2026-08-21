@@ -34,16 +34,16 @@ The main interface for WebSocket operations:
 
 The GenServer callbacks stay on `Client`. Responsibility-scoped internals:
 
-- `ClientCallFacade` (`client/call_facade.ex`) - process-down-safe `GenServer.call` and connect await
-- `ClientCallbacks` (`client/callbacks.ex`) - `handle_call/3` and `handle_info/2` clause routing
-- `ClientCorrelation` (`client/correlation.ex`) - JSON-RPC response and timeout correlation
-- `ClientConnection` (`client/connection.ex`) - Gun open, upgrade, attempt-identity timers
-- `ClientFrames` (`client/frames.ex`) - inbound WebSocket frame routing
-- `ClientReconnect` (`client/reconnect.ex`) - explicit reconnect targets and options
-- `ClientRecorder` (`client/recorder.ex`) - session recorder lifecycle
-- `ClientRetry` (`client/retry.ex`) - disconnect retry, backoff, and stop-with-error
-- `ClientRetryPolicy` (`client/retry_policy.ex`) - retry eligibility and error normalization
-- `ClientTransportErrors` (`client/transport_errors.ex`) - Gun error/down logging and retry dispatch
+- `Client.CallFacade` (`client/call_facade.ex`) - process-down-safe `GenServer.call` and connect await
+- `Client.Callbacks` (`client/callbacks.ex`) - `handle_call/3` and `handle_info/2` clause routing
+- `Client.Correlation` (`client/correlation.ex`) - JSON-RPC response and timeout correlation
+- `Client.Connection` (`client/connection.ex`) - Gun open, upgrade, attempt-identity timers
+- `Client.Frames` (`client/frames.ex`) - inbound WebSocket frame routing
+- `Client.Reconnect` (`client/reconnect.ex`) - explicit reconnect targets and options
+- `Client.Recorder` (`client/recorder.ex`) - session recorder lifecycle
+- `Client.Retry` (`client/retry.ex`) - disconnect retry, backoff, and stop-with-error
+- `Client.RetryPolicy` (`client/retry_policy.ex`) - retry eligibility and error normalization
+- `Client.TransportErrors` (`client/transport_errors.ex`) - Gun error/down logging and retry dispatch
 
 #### Config (`config.ex`)
 Configuration struct and validation:

@@ -16,7 +16,19 @@ defmodule ZenWebsocket.ValidateUsageTest do
   ZenWebsocket.Client.get_latency_stats(client)
   ZenWebsocket.Client.reconnect(client)
   ZenWebsocket.Client.build_client_struct(state, pid)
+  ZenWebsocket.Client.child_spec(opts)
+  ZenWebsocket.Client.start_link(url, opts)
   """
+
+  @genserver_callbacks MapSet.new([
+                         :code_change,
+                         :handle_call,
+                         :handle_cast,
+                         :handle_continue,
+                         :handle_info,
+                         :init,
+                         :terminate
+                       ])
 
   test "allows every public Client function" do
     path = write_tmp(@public_client_calls)
@@ -32,6 +44,54 @@ defmodule ZenWebsocket.ValidateUsageTest do
     issues = json_issues(run_task(["--format", "json", path]))
 
     assert Enum.any?(issues, fn issue -> issue["type"] == "invalid_api" end)
+  end
+
+  test "validate_api_usage does not treat nested Client modules as functions" do
+    content = """
+    alias ZenWebsocket.Client.CallFacade
+    ZenWebsocket.Client.CallFacade
+    ZenWebsocket.Client.Foo.Bar
+    """
+
+    issues = ValidateUsage.validate_api_usage("nested.ex", content, String.split(content, "\n"))
+
+    refute Enum.any?(issues, &(&1.type == :invalid_api))
+  end
+
+  test "validate_api_usage still flags unknown Client calls" do
+    content = "ZenWebsocket.Client." <> "bogus_thing/1\n"
+    issues = ValidateUsage.validate_api_usage("unknown.ex", content, String.split(content, "\n"))
+
+    assert Enum.any?(issues, &(&1.type == :invalid_api))
+  end
+
+  test "allowed_functions matches Client's non-callback public exports" do
+    shipped =
+      :functions
+      |> ZenWebsocket.Client.__info__()
+      |> Keyword.keys()
+      |> Enum.uniq()
+      |> Enum.reject(&generated_or_callback?/1)
+      |> Enum.sort()
+
+    allowed = Enum.sort(ValidateUsage.allowed_functions() -- [:t])
+
+    assert allowed == shipped
+
+    assert allowed == [
+             :build_client_struct,
+             :child_spec,
+             :close,
+             :connect,
+             :get_heartbeat_health,
+             :get_latency_stats,
+             :get_state,
+             :get_state_metrics,
+             :reconnect,
+             :send_message,
+             :start_link,
+             :subscribe
+           ]
   end
 
   test "library Client calls are not invalid_api" do
@@ -89,5 +149,10 @@ defmodule ZenWebsocket.ValidateUsageTest do
       :nomatch ->
         []
     end
+  end
+
+  defp generated_or_callback?(name) do
+    MapSet.member?(@genserver_callbacks, name) or
+      String.starts_with?(Atom.to_string(name), "__")
   end
 end

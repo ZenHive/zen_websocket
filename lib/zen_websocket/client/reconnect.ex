@@ -1,9 +1,9 @@
-defmodule ZenWebsocket.ClientReconnect do
+defmodule ZenWebsocket.Client.Reconnect do
   @moduledoc """
   Explicit reconnect target and option handling for `ZenWebsocket.Client`.
   """
 
-  alias ZenWebsocket.ClientCallFacade, as: CallFacade
+  alias ZenWebsocket.Client.CallFacade, as: CallFacade
   alias ZenWebsocket.Config
 
   @doc """

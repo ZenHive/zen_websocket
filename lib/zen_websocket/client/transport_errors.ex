@@ -1,9 +1,9 @@
-defmodule ZenWebsocket.ClientTransportErrors do
+defmodule ZenWebsocket.Client.TransportErrors do
   @moduledoc """
   Gun error/down logging and retry dispatch for `ZenWebsocket.Client`.
   """
 
-  alias ZenWebsocket.ClientRetry, as: Retry
+  alias ZenWebsocket.Client.Retry, as: Retry
   alias ZenWebsocket.Debug
 
   @doc """

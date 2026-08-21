@@ -1,8 +1,8 @@
-defmodule ZenWebsocket.ClientCallbacksTest do
+defmodule ZenWebsocket.Client.CallbacksTest do
   use ExUnit.Case, async: true
 
-  alias ZenWebsocket.ClientCallbacks, as: Callbacks
-  alias ZenWebsocket.ClientConnection, as: Connection
+  alias ZenWebsocket.Client.Callbacks, as: Callbacks
+  alias ZenWebsocket.Client.Connection, as: Connection
   alias ZenWebsocket.Config
 
   test "handle_call :get_state returns the connection state atom" do

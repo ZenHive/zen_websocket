@@ -1,4 +1,4 @@
-defmodule ZenWebsocket.ClientCallFacade do
+defmodule ZenWebsocket.Client.CallFacade do
   @moduledoc """
   Process-down-safe GenServer.call helpers used by `ZenWebsocket.Client`.
 
