@@ -642,3 +642,29 @@ started_at = "2026-08-21"
 scored_at = "2026-08-21"
 done_at = "2026-08-21"
 shipped_in = "9ad7377a9cbaada5835de9d8196a2faaa444a8b5"
+
+[[task]]
+id = "13"
+phase = 1
+bundle = "hygiene"
+status = "pending"
+title = "Close remaining NetworkTagGuard holes: over-tagging and local sockets that are not MockWebSockServer"
+scores = { d = 3, b = 5, u = 4 }
+acceptance_criteria = ["A test that opens a local socket without MockWebSockServer (for example :gen_tcp.listen / the client_reconnect_test upgrade listener pattern) fails the guard unless it carries :integration and :local_network", "A test that carries :integration, :external_network, or :local_network without a matching socket fails the guard", "The mistagged fixture covers both holes and the existing four still red", "Existing correctly tagged suites stay green, including client_reconnect_test's upgrade-listener tests", "mix precommit.full green"]
+out_of_scope = ["Retagging suites that already match their sockets", "Raising the mix.exs coverage threshold", "Changing ExUnit exclude defaults"]
+files_to_modify = ["test/support/network_tag_guard.ex", "test/zen_websocket/network_tag_guard_test.exs", "test/fixtures/mistagged_network_suite.fixture"]
+assignee = "codex"
+model = "gpt-5.6-sol"
+body = """
+Task 12 (shipped 9ad7377) added NetworkTagGuard and scoped it per test. The guard closes missing-tag cases for internet URLs and MockWebSockServer, plus unpaired network tags. Two holes remain, so a later suite can still lie about its socket.
+
+EVIDENCE, read 2026-08-21 in the 56e6ba7 post-merge audit worktree after the reviewer rewrite in 9ad7377:
+
+1. Local sockets that are not MockWebSockServer are invisible. test/zen_websocket/client_reconnect_test.exs start_upgrade_listener/1 uses :gen_tcp.listen and Gun dials ws://127.0.0.1. Those tests are tagged :local_network by hand. Resources.flags/2 only sets :local_network for MockWebSockServer aliases, Testing.start_mock_server, and a bare start_mock_server call. Dropping the tag would stay green.
+
+2. Over-tagging is invisible. findings/4 only flags missing tags, not tags without a matching socket. Task 12 left unit tests under module/describe network tags in client_supervisor_test.exs (invalid URL, no_connections) and rate_limiting_test.exs (cost-function / exchange-specific limiters). The 56e6ba7 audit untagged those leftovers; the guard still cannot prevent the same wrap from returning.
+
+Do not open a fourth round of per-file retagging. Extend the guard (and the mistagged fixture) so both holes fail the same way missing MockWebSockServer / internet tags already do.
+"""
+created_at = "2026-08-21"
+scored_at = "2026-08-21"
