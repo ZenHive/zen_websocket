@@ -25,7 +25,7 @@ defmodule ZenWebsocket.Examples.Docs.JsonRpcClient do
   The Client automatically handles JSON-RPC correlation - when sending a message
   with an "id" field, it tracks the request and returns the correlated response.
   """
-  @spec call_method(Client.t(), String.t(), map() | nil, timeout()) ::
+  @spec call_method(Client.t(), String.t(), list() | map() | nil, timeout()) ::
           {:ok, term()} | {:error, term()}
   def call_method(client, method, params \\ nil, _timeout \\ 5_000) do
     {:ok, request} = JsonRpc.build_request(method, params)
@@ -44,7 +44,7 @@ defmodule ZenWebsocket.Examples.Docs.JsonRpcClient do
   @doc """
   Makes an async JSON-RPC call without waiting for response.
   """
-  @spec cast_method(Client.t(), String.t(), map() | nil) :: :ok | {:error, term()}
+  @spec cast_method(Client.t(), String.t(), list() | map() | nil) :: :ok | {:error, term()}
   def cast_method(client, method, params \\ nil) do
     {:ok, request} = JsonRpc.build_request(method, params)
 
