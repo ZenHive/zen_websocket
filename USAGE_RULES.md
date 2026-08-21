@@ -44,7 +44,7 @@ state = ZenWebsocket.Client.get_state(client)  # :connected, :connecting, :disco
 # Latency percentiles (p50/p99/last/count — all integers in ms)
 stats = ZenWebsocket.Client.get_latency_stats(client)
 
-# Heartbeat health (failure_count, last_heartbeat_at, config, timer_active)
+# Heartbeat health (active_heartbeats, last_heartbeat_at, failure_count, config, timer_active)
 health = ZenWebsocket.Client.get_heartbeat_health(client)
 
 # Connection metrics (subscriptions_size, pending_requests_size, state_memory, ...)
@@ -274,12 +274,21 @@ Client GenServer reconnects with exponential backoff.
 | **Heartbeat failures** | Counter reset to 0 |
 | **Heartbeat timer** | Cancelled on disconnect, restarted on reconnect |
 | **Gun PID / stream ref** | New connection process and stream |
+| **Pending requests** | Failed with `{:error, :disconnected}` and cleared; not replayed |
 
 #### Pending Requests on Automatic Reconnect
 
-Pending RPC requests (`pending_requests`) remain in state across reconnects.
-Responses on the new connection may not match original request IDs — callers
-should handle request timeouts gracefully.
+Pending RPC requests are **failed immediately on disconnect**, not carried
+across the reconnect. `RequestCorrelator.fail_all/2` replies `{:error,
+:disconnected}` to every caller blocked in `GenServer.call`, cancels their
+timeout timers, and clears `pending_requests` to `%{}` — so a caller gets a
+prompt error rather than a timeout, and no response on the new connection can
+be mismatched against a stale request id. Each failed request emits
+`[:zen_websocket, :request_correlator, :fail_all]`.
+
+Callers must therefore handle `{:error, :disconnected}` from any in-flight
+request when the connection drops, and re-issue it themselves if they want it
+retried — the library does not replay it.
 
 ### Explicit Reconnect (`Client.reconnect/1`)
 
@@ -473,7 +482,7 @@ stats = ZenWebsocket.Client.get_latency_stats(client)
 ```elixir
 # Check heartbeat status
 health = ZenWebsocket.Client.get_heartbeat_health(client)
-# => %{failure_count: 0, last_heartbeat_at: -576460748, config: :disabled, timer_active: false}
+# => %{active_heartbeats: [], last_heartbeat_at: -576460748, failure_count: 0, config: :disabled, timer_active: false}
 # Note: last_heartbeat_at is a monotonic timestamp (System.monotonic_time(:millisecond)), not a wall-clock DateTime
 ```
 

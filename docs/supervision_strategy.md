@@ -109,10 +109,25 @@ end
 
 ## Restart Behavior
 
-### Transient Restart Strategy
+The restart strategy depends on which pattern started the client — the two
+differ, and the difference matters when you shut a client down deliberately.
+
+### Pattern 2 — transient (`ClientSupervisor.start_client/2`)
+`ClientSupervisor` builds its child spec with `restart: :transient`:
 - Clients are restarted only if they exit abnormally
 - Normal shutdowns (via `Client.close/1`) don't trigger restart
 - Crashes and connection failures trigger automatic restart
+
+### Pattern 3 — permanent (`{ZenWebsocket.Client, opts}` in your own tree)
+`Client.child_spec/1` sets `restart: :permanent`, so a client added directly to
+a supervision tree is restarted on **every** exit, including a clean
+`Client.close/1`. If you want transient semantics here, override it yourself:
+
+```elixir
+Supervisor.child_spec({ZenWebsocket.Client, url: "wss://exchange1.com"},
+  restart: :transient
+)
+```
 
 ### Failure Scenarios
 

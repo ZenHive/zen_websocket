@@ -27,9 +27,11 @@ connect_opts = [
 
 **Verification:**
 ```elixir
-# Check client configuration
-{:ok, state} = Client.get_state(client)
-IO.inspect(state.config.reconnect_on_error)  # Should be false
+# Check client configuration. `Client.get_state/1` returns only the connection
+# state atom (:connecting | :connected | :disconnected); the config lives on the
+# client struct that `connect/2` handed back.
+IO.inspect(client.config.reconnect_on_error)  # Should be false
+IO.inspect(Client.get_state(client))          # :connected | :connecting | :disconnected
 ```
 
 ### 2. Lost Subscriptions After Reconnection
@@ -405,9 +407,10 @@ Set up alerts for:
 ```elixir
 defmodule NetworkSimulator do
   def drop_connection(client) do
-    # Get Gun pid from client
-    state = Client.get_state(client)
-    Process.exit(state.gun_pid, :kill)
+    # The Gun pid is on the client struct, not on `get_state/1` (which returns
+    # a bare state atom). Note it is a snapshot from connect time: after a
+    # reconnect the client struct you hold points at the previous Gun process.
+    Process.exit(client.gun_pid, :kill)
   end
   
   def block_traffic(duration) do

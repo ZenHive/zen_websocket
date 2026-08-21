@@ -357,47 +357,44 @@ end
 Study the production-ready Deribit adapter for a complete implementation:
 
 ```elixir
-# From lib/zen_websocket/examples/deribit_genserver_adapter.ex
+# From lib/zen_websocket/examples/deribit_genserver_adapter.ex (handle_info/2)
 
-defp do_connect(state) do
-  # Parse URL for testnet/mainnet
-  url = state.url || @default_url
-  
-  # Configure connection
-  connect_opts = [
-    heartbeat_config: %{
-      type: :deribit,
-      interval: heartbeat_interval
-    },
-    reconnect_on_error: false  # Critical!
+def handle_info(:connect, state) do
+  opts = [
+    heartbeat_config: %{type: :deribit, interval: (state.opts[:heartbeat_interval] || 30) * 1000},
+    reconnect_on_error: false
   ]
-  
-  # Connect and monitor
-  case Client.connect(url, connect_opts) do
+
+  opts = if h = state.opts[:handler], do: Keyword.put(opts, :handler, h), else: opts
+
+  case Client.connect(state.url, opts) do
     {:ok, client} ->
       ref = Process.monitor(client.server_pid)
-      
-      new_state = %{state | 
-        client: client, 
-        monitor_ref: ref,
-        connected: true,
-        connecting: false
-      }
-      
-      # Authenticate if we have credentials
-      if state.client_id && state.client_secret do
-        case authenticate(new_state) do
-          {:ok, auth_state} ->
-            restore_subscriptions(auth_state)
-          {:error, reason} ->
-            {:error, reason}
-        end
-      else
-        {:ok, new_state}
+      new_state = %{state | client: client, monitor_ref: ref}
+
+      if state.was_authenticated or MapSet.size(state.subscriptions) > 0 do
+        send(self(), :restore_state)
       end
+
+      {:noreply, new_state}
+
+    {:error, reason} ->
+      Logger.warning("Connect failed: #{inspect(reason)}")
+      Process.send_after(self(), :connect, @reconnect_delay)
+      {:noreply, state}
   end
 end
 ```
+
+Two things to note, because they differ from what a first reading might assume:
+
+- **Connecting is message-driven, not a helper call.** `init/1` sets the state
+  and does `send(self(), :connect)`, so the socket opens outside `init/1` and a
+  failed connect reschedules itself rather than crashing the GenServer.
+- **The adapter does not authenticate on first connect.** `was_authenticated`
+  starts `false`, so `:restore_state` — which is what calls `authenticate/1` —
+  only fires on a *re*-connect. A fresh process must call
+  `DeribitGenServerAdapter.authenticate/1` before any `private/*` request.
 
 ## Authentication Patterns
 

@@ -26,7 +26,7 @@ defmodule Mix.Tasks.ZenWebsocket.Usage do
       mix zen_websocket.usage --output my_rules.md
       
       # Export specific sections
-      mix zen_websocket.usage --sections "quick_start,common_patterns,error_handling"
+      mix zen_websocket.usage --sections "quick_start_pattern,common_patterns,error_handling"
       
       # Export as JSON for programmatic use
       mix zen_websocket.usage --format json --output rules.json
@@ -35,26 +35,6 @@ defmodule Mix.Tasks.ZenWebsocket.Usage do
   use Mix.Task
 
   @usage_rules_path "USAGE_RULES.md"
-
-  @available_sections [
-    "core_principles",
-    "quick_start",
-    "essential_functions",
-    "common_patterns",
-    "configuration",
-    "platform_specific",
-    "error_handling",
-    "testing_rules",
-    "do_not",
-    "architecture_notes",
-    "monitoring",
-    "module_limits",
-    "common_mistakes",
-    "migration",
-    "performance",
-    "environment_variables",
-    "best_practices"
-  ]
 
   @impl Mix.Task
   def run(args) do
@@ -69,7 +49,7 @@ defmodule Mix.Tasks.ZenWebsocket.Usage do
 
     format = Keyword.get(opts, :format, "markdown")
     output = Keyword.get(opts, :output)
-    sections = parse_sections(opts[:sections])
+    sections = parse_sections(opts[:sections], read_usage_rules())
 
     case format do
       "markdown" -> export_markdown(output, sections)
@@ -173,14 +153,39 @@ defmodule Mix.Tasks.ZenWebsocket.Usage do
     end
   end
 
-  defp parse_sections(nil), do: nil
+  defp parse_sections(nil, _content), do: nil
 
-  defp parse_sections(sections_str) do
-    sections_str
-    |> String.split(",")
-    |> Enum.map(&String.trim/1)
-    |> Enum.map(&String.downcase/1)
-    |> Enum.map(&String.replace(&1, "-", "_"))
-    |> Enum.filter(&(&1 in @available_sections))
+  defp parse_sections(sections_str, content) do
+    available = available_sections(content)
+
+    requested =
+      sections_str
+      |> String.split(",")
+      |> Enum.map(&String.trim/1)
+      |> Enum.map(&String.downcase/1)
+      |> Enum.map(&String.replace(&1, "-", "_"))
+
+    case Enum.reject(requested, &(&1 in available)) do
+      [] -> requested
+      unknown -> Mix.raise(unknown_sections_message(unknown, available))
+    end
+  end
+
+  # Derived from the document rather than hand-maintained, so a renamed or added
+  # `## ` heading can never drift out of sync with the selectable section names.
+  defp available_sections(content) do
+    content
+    |> String.split("\n")
+    |> Enum.filter(&String.starts_with?(&1, "## "))
+    |> Enum.map(&normalize_section/1)
+  end
+
+  defp unknown_sections_message(unknown, available) do
+    IO.iodata_to_binary([
+      "Unknown section(s): ",
+      Enum.join(unknown, ", "),
+      "\n\nAvailable sections:\n  ",
+      Enum.join(available, "\n  ")
+    ])
   end
 end

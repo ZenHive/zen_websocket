@@ -29,6 +29,30 @@ defmodule ZenWebsocket.MixProjectTest do
     refute output =~ "## Quick Start Pattern"
   end
 
+  test "usage task rejects a section name that matches no document heading" do
+    # Previously an unrecognized name was silently filtered out, so a typo (or a
+    # heading that had been renamed) produced a quietly empty export.
+    assert_raise Mix.Error, ~r/Unknown section\(s\): quick_start\n/, fn ->
+      Usage.run(["--sections", "quick_start"])
+    end
+  end
+
+  test "selectable sections are derived from USAGE_RULES.md, not a hand-maintained list" do
+    headings =
+      "USAGE_RULES.md"
+      |> File.read!()
+      |> String.split("\n")
+      |> Enum.filter(&String.starts_with?(&1, "## "))
+      |> Enum.map(&(&1 |> String.replace("## ", "") |> String.downcase() |> String.replace(" ", "_")))
+
+    # Sections added after the old hardcoded list was written must be selectable.
+    assert "session_recording" in headings
+
+    output = capture_io(fn -> Usage.run(["--sections", "session_recording"]) end)
+    assert output =~ "## Session Recording"
+    refute output =~ "## Core Principles"
+  end
+
   test "coverage ignore_modules lists an atom for every lib module matching a Mix ignore regex" do
     ignore = coverage_ignore_modules()
     regexes = ignore_regexes(ignore)

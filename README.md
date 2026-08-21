@@ -155,15 +155,20 @@ health = ZenWebsocket.PoolRouter.pool_health(ZenWebsocket.ClientSupervisor.list_
 ### Deribit Integration
 
 ```elixir
-# Configure Deribit credentials
-config = %{
+# Configure Deribit credentials. Opts are a keyword list; the endpoint is
+# selected with `:url` (it defaults to test.deribit.com when omitted).
+config = [
   client_id: System.get_env("DERIBIT_CLIENT_ID"),
   client_secret: System.get_env("DERIBIT_CLIENT_SECRET"),
-  test_mode: true
-}
+  url: "wss://test.deribit.com/ws/api/v2"
+]
 
 # Start the supervised adapter
 {:ok, adapter} = ZenWebsocket.Examples.DeribitGenServerAdapter.start_link(config)
+
+# Authenticate before any private/* request. The adapter does not authenticate
+# on first connect - it only re-authenticates after a reconnect.
+:ok = ZenWebsocket.Examples.DeribitGenServerAdapter.authenticate(adapter)
 
 # Subscribe to market data
 {:ok, _} = ZenWebsocket.Examples.DeribitGenServerAdapter.subscribe(
