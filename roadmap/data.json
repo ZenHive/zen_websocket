@@ -75,7 +75,7 @@
       "files_to_modify": [
         "lib/zen_websocket/client.ex"
       ],
-      "body": "mix reach.map --depth reports ZenWebsocket.Client.connect/2 at dominator depth 22, branches=5, at lib/zen_websocket/client.ex:237. It's the public entry point — high control-flow nesting here hurts both testability and the mental model for new adapter authors.\n\nDetermine whether the depth comes from legitimate branching (protocol negotiation, config validation, transport selection) or from accumulated conditionals that can be extracted into small helpers or a `with` pipeline. Match the style already used in the rest of the module. reach also lists this function as refactoring candidate R2-002 (isolate effects, mixed pure/effectful) — advisory, not a mandate.\n\nRE-MEASURED 2026-08-20 on reach 2.8.2 (originally seeded from reach 1.5 on 2026-04-20). Depth is unchanged at 22 but branches grew 4 -> 5 and the definition moved from :228 to :237, so the original line reference was stale. U dropped 5 -> 4: task 2 rewrites the surrounding connect/reconnect clauses first, and a future client.ex decomposition would absorb most of this — flattening connect/2 in isolation buys less than it did in April.\n",
+      "body": "mix reach.map --depth reports ZenWebsocket.Client.connect/2 at dominator depth 22, branches=5, at lib/zen_websocket/client.ex:237. It's the public entry point — high control-flow nesting here hurts both testability and the mental model for new adapter authors.\n\nDetermine whether the depth comes from legitimate branching (protocol negotiation, config validation, transport selection) or from accumulated conditionals that can be extracted into small helpers or a `with` pipeline. Match the style already used in the rest of the module. reach also lists this function as refactoring candidate R2-002 (isolate effects, mixed pure/effectful) — advisory, not a mandate.\n\nRE-MEASURED 2026-08-20 on reach 2.8.2 (originally seeded from reach 1.5 on 2026-04-20). Depth is unchanged at 22 but branches grew 4 -> 5 and the definition moved from :228 to :237, so the original line reference was stale. U dropped 5 -> 4: task 2 rewrites the surrounding connect/reconnect clauses first, and a future client.ex decomposition would absorb most of this — flattening connect/2 in isolation buys less than it did in April.\n\nRE-MEASURED 2026-08-21 on the post-wave tree (27fe787), after tasks 2, 4, 9 and 10 landed: connect/2 is depth 21 branches=4 at lib/zen_websocket/client.ex:248 — essentially unchanged. The reconnect rewrite did clear the old hotspot: handle_continue/2, previously depth 25, is no longer in the top 12. The two deepest Client functions are now handle_info/2 (depth 21, branches=8, client.ex:914) and connect/2; handle_info/2 is the branchier of the pair and is the better target if only one is done.\n",
       "scored_at": "2026-08-20",
       "cross_repo": []
     },
@@ -114,7 +114,7 @@
       "files_to_modify": [
         "lib/zen_websocket/reconnection.ex"
       ],
-      "body": "mix reach.map --depth reports ZenWebsocket.Reconnection.establish_connection/1 at dominator depth 39, branches=4, at lib/zen_websocket/reconnection.ex:50 — still the deepest function in the codebase by a wide margin (next is Client.handle_continue/2 at 25). It is also reach's top hotspot (score=4). One function carries most of a 206-line module. Reconnection logic is the most failure-prone area of any WebSocket client; depth here makes the \"what happens when X fails halfway through?\" question hard to answer.\n\nThe function chains several phases (open transport -> upgrade -> authenticate -> resubscribe -> restore state). Extract each phase into a named helper with a clear error-return type. A `with` pipeline or an explicit phase-list reducer both work — pick what reads better against the existing codebase style.\n\nRE-MEASURED 2026-08-20 on reach 2.8.2 (originally seeded from reach 1.5 on 2026-04-20). Depth is unchanged at 39, so the finding survived two major analyzer versions. D dropped 5 -> 4 and U rose 4 -> 5 because this now runs AFTER task 2: that task lands the reconnect regression suite, which turns a blind restructuring into one with a real safety net.\n",
+      "body": "mix reach.map --depth reports ZenWebsocket.Reconnection.establish_connection/1 at dominator depth 39, branches=4, at lib/zen_websocket/reconnection.ex:50 — still the deepest function in the codebase by a wide margin (next is Client.handle_continue/2 at 25). It is also reach's top hotspot (score=4). One function carries most of a 206-line module. Reconnection logic is the most failure-prone area of any WebSocket client; depth here makes the \"what happens when X fails halfway through?\" question hard to answer.\n\nThe function chains several phases (open transport -> upgrade -> authenticate -> resubscribe -> restore state). Extract each phase into a named helper with a clear error-return type. A `with` pipeline or an explicit phase-list reducer both work — pick what reads better against the existing codebase style.\n\nRE-MEASURED 2026-08-20 on reach 2.8.2 (originally seeded from reach 1.5 on 2026-04-20). Depth is unchanged at 39, so the finding survived two major analyzer versions. D dropped 5 -> 4 and U rose 4 -> 5 because this now runs AFTER task 2: that task lands the reconnect regression suite, which turns a blind restructuring into one with a real safety net.\n\nRE-MEASURED 2026-08-21 on the post-wave tree (27fe787), with task 2 now landed: establish_connection/1 is still depth 39 branches=4 at lib/zen_websocket/reconnection.ex:51, and its lead has widened — the runner-up dropped from Client.handle_continue/2 at 25 to Mix.Tasks.ZenWebsocket.Usage.filter_sections/2 at 23, with the deepest remaining Client function at 21. This is now the single deepest function in the codebase by 16 levels, and the task 2 regression suite it was waiting for is in place.\n",
       "scored_at": "2026-08-20",
       "cross_repo": []
     },
@@ -122,7 +122,7 @@
       "id": "R055",
       "phase": 1,
       "bundle": "code-quality",
-      "status": "pending",
+      "status": "done",
       "title": "Extract duplicated Gun connect/reconnect log block in Client",
       "scores": {
         "d": 2,
@@ -146,8 +146,13 @@
       "files_to_modify": [
         "lib/zen_websocket/client.ex"
       ],
+      "shipped_in": "27fe787",
       "body": "mix ex_dna --literal-mode abstract finds a 29-node Debug.log block duplicated at lib/zen_websocket/client.ex:598 and :640. The only differences are four log prefix strings — one branch logs \"Gun connection established\", the other \"Gun reconnection successful\", etc. Extract a helper that takes the four labels as arguments.\n\nNOTE: ex_dna's second abstract-mode hit (heartbeat_manager.ex:76 vs subscription_manager.ex:140) is a FALSE POSITIVE — both sites use descripex's api() macro, whose structural similarity is by design. Do not collapse those.\n\nNOTE ON THE GATE: mix precommit.full runs `ex_dna --max-clones 0` WITHOUT `--literal-mode abstract`, and in default literal mode the project reports zero clones. So this clone is real but ungated — a green `mix ci` is not evidence it is gone. Verify with the abstract-mode command explicitly.\n\nRE-MEASURED 2026-08-20: both the clone and the documented false positive reproduce exactly as written on the current tree. Scores unchanged.\n",
+      "done_at": "2026-08-21",
       "scored_at": "2026-08-20",
+      "implemented": "Obsolete without direct work: mix ex_dna --literal-mode abstract on 27fe787 (2026-08-21) reports exactly 1 clone, and it is the documented descripex api() false positive (heartbeat_manager.ex:84 vs subscription_manager.ex:141). The client.ex:598/640 Gun connect/reconnect log block this task targeted no longer exists — removed incidentally by the task 2 reconnect rewrite and the task 9 duplication extraction.",
+      "verified": true,
+      "verified_by": "orchestrator (mix ex_dna --literal-mode abstract)",
       "cross_repo": []
     },
     {
