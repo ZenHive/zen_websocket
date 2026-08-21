@@ -83,7 +83,7 @@
       "id": "R051",
       "phase": 1,
       "bundle": "code-quality",
-      "status": "in_progress",
+      "status": "done",
       "title": "Decompose Reconnection.establish_connection/1 (dominator depth 39)",
       "scores": {
         "d": 4,
@@ -114,9 +114,16 @@
       "files_to_modify": [
         "lib/zen_websocket/reconnection.ex"
       ],
+      "shipped_in": "65728bd541da790ec4b145093c36cce1361f0c75",
       "body": "mix reach.map --depth reports ZenWebsocket.Reconnection.establish_connection/1 at dominator depth 39, branches=4, at lib/zen_websocket/reconnection.ex:50 — still the deepest function in the codebase by a wide margin (next is Client.handle_continue/2 at 25). It is also reach's top hotspot (score=4). One function carries most of a 206-line module. Reconnection logic is the most failure-prone area of any WebSocket client; depth here makes the \"what happens when X fails halfway through?\" question hard to answer.\n\nThe function chains several phases (open transport -> upgrade -> authenticate -> resubscribe -> restore state). Extract each phase into a named helper with a clear error-return type. A `with` pipeline or an explicit phase-list reducer both work — pick what reads better against the existing codebase style.\n\nRE-MEASURED 2026-08-20 on reach 2.8.2 (originally seeded from reach 1.5 on 2026-04-20). Depth is unchanged at 39, so the finding survived two major analyzer versions. D dropped 5 -> 4 and U rose 4 -> 5 because this now runs AFTER task 2: that task lands the reconnect regression suite, which turns a blind restructuring into one with a real safety net.\n\nRE-MEASURED 2026-08-21 on the post-wave tree (27fe787), with task 2 now landed: establish_connection/1 is still depth 39 branches=4 at lib/zen_websocket/reconnection.ex:51, and its lead has widened — the runner-up dropped from Client.handle_continue/2 at 25 to Mix.Tasks.ZenWebsocket.Usage.filter_sections/2 at 23, with the deepest remaining Client function at 21. This is now the single deepest function in the codebase by 16 levels, and the task 2 regression suite it was waiting for is in place.\n",
       "started_at": "2026-08-21",
+      "done_at": "2026-08-21",
       "scored_at": "2026-08-20",
+      "implemented": "Landed by codex via merge-train; reviewer-approved (run run-1787303854499-8108e877, 65728bd541da790ec4b145093c36cce1361f0c75).",
+      "delivered_by": "codex",
+      "verified": true,
+      "verified_by": "cursor",
+      "verification_ref": "harness-run:run-1787303854499-8108e877",
       "cross_repo": []
     },
     {
