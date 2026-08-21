@@ -143,6 +143,8 @@ defmodule ZenWebsocket.RecorderServer do
   # sobelow_skip ["Traversal.FileModule"]
   # ^ Path is user-controlled by design - this is a library API
   def init(path) do
+    Process.flag(:trap_exit, true)
+
     case File.open(path, [:write, :utf8]) do
       {:ok, file} ->
         schedule_flush()
@@ -181,6 +183,10 @@ defmodule ZenWebsocket.RecorderServer do
   def handle_info(:scheduled_flush, state) do
     schedule_flush()
     {:noreply, do_flush(state)}
+  end
+
+  def handle_info({:EXIT, _pid, reason}, state) do
+    {:stop, reason, state}
   end
 
   def handle_info(_msg, state) do

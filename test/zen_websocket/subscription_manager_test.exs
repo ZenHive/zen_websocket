@@ -152,20 +152,86 @@ defmodule ZenWebsocket.SubscriptionManagerTest do
   end
 
   describe "handle_message/2" do
-    test "adds channel from subscription confirmation" do
+    test "does not add a data-tick channel that was never subscribed" do
       state = build_state()
 
       msg = %{
         "method" => "subscription",
         "params" => %{
-          "channel" => "ticker.BTC-PERPETUAL",
+          "channel" => "ticker.ETH-PERPETUAL.100ms",
           "data" => %{"price" => 50_000}
         }
       }
 
       result = SubscriptionManager.handle_message(msg, state)
 
+      refute MapSet.member?(result.subscriptions, "ticker.ETH-PERPETUAL.100ms")
+      assert MapSet.size(result.subscriptions) == 0
+    end
+
+    test "does not re-add a data tick after remove/2" do
+      state = build_state(%{subscriptions: MapSet.new(["book.BTC-PERPETUAL.raw"])})
+      state = SubscriptionManager.remove(state, "book.BTC-PERPETUAL.raw")
+      assert SubscriptionManager.list(state) == []
+
+      tick = %{
+        "method" => "subscription",
+        "params" => %{"channel" => "book.BTC-PERPETUAL.raw", "data" => %{}}
+      }
+
+      result = SubscriptionManager.handle_message(tick, state)
+
+      assert SubscriptionManager.list(result) == []
+      assert SubscriptionManager.build_restore_message(result) == nil
+    end
+
+    test "subscribe without an id adds channels immediately" do
+      state = build_state()
+
+      msg = %{
+        "method" => "public/subscribe",
+        "params" => %{"channels" => ["ticker.BTC-PERPETUAL"]}
+      }
+
+      result = SubscriptionManager.handle_message(msg, state)
+
       assert MapSet.member?(result.subscriptions, "ticker.BTC-PERPETUAL")
+    end
+
+    test "registers a channel from a realistic Deribit subscribe confirmation" do
+      state = build_state()
+
+      outbound = %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "method" => "public/subscribe",
+        "params" => %{"channels" => ["book.BTC-PERPETUAL.raw"]}
+      }
+
+      confirmation = %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "result" => ["book.BTC-PERPETUAL.raw"]
+      }
+
+      state = SubscriptionManager.handle_message(outbound, state)
+      result = SubscriptionManager.handle_message(confirmation, state)
+
+      assert MapSet.member?(result.subscriptions, "book.BTC-PERPETUAL.raw")
+    end
+
+    test "does not track an id/result list that is not a pending subscribe" do
+      state = build_state()
+
+      confirmation = %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "result" => ["book.BTC-PERPETUAL.raw"]
+      }
+
+      result = SubscriptionManager.handle_message(confirmation, state)
+
+      refute MapSet.member?(result.subscriptions, "book.BTC-PERPETUAL.raw")
     end
 
     test "handles message without channel" do
@@ -275,25 +341,36 @@ defmodule ZenWebsocket.SubscriptionManagerTest do
 
   describe "integration scenarios" do
     test "full subscribe -> disconnect -> restore cycle" do
-      # Initial state
       state = build_state()
 
-      # Subscribe to multiple channels
       state =
         SubscriptionManager.handle_message(
-          %{"params" => %{"channel" => "ticker.BTC-PERPETUAL"}},
+          %{
+            "id" => 1,
+            "method" => "public/subscribe",
+            "params" => %{"channels" => ["ticker.BTC-PERPETUAL"]}
+          },
           state
         )
 
       state =
+        SubscriptionManager.handle_message(%{"id" => 1, "result" => ["ticker.BTC-PERPETUAL"]}, state)
+
+      state =
         SubscriptionManager.handle_message(
-          %{"params" => %{"channel" => "ticker.ETH-PERPETUAL"}},
+          %{
+            "id" => 2,
+            "method" => "public/subscribe",
+            "params" => %{"channels" => ["ticker.ETH-PERPETUAL"]}
+          },
           state
         )
+
+      state =
+        SubscriptionManager.handle_message(%{"id" => 2, "result" => ["ticker.ETH-PERPETUAL"]}, state)
 
       assert MapSet.size(state.subscriptions) == 2
 
-      # Build restore message (simulating reconnection)
       restore_msg = SubscriptionManager.build_restore_message(state)
       assert is_binary(restore_msg)
 
@@ -307,13 +384,49 @@ defmodule ZenWebsocket.SubscriptionManagerTest do
           subscriptions: MapSet.new(["ticker.BTC-PERPETUAL", "ticker.ETH-PERPETUAL"])
         })
 
-      # Unsubscribe from one channel
-      state = SubscriptionManager.remove(state, "ticker.BTC-PERPETUAL")
+      state =
+        SubscriptionManager.handle_message(
+          %{
+            "id" => 3,
+            "method" => "public/unsubscribe",
+            "params" => %{"channels" => ["ticker.BTC-PERPETUAL"]}
+          },
+          state
+        )
 
-      # Restore should only include remaining channel
+      state =
+        SubscriptionManager.handle_message(%{"id" => 3, "result" => ["ticker.BTC-PERPETUAL"]}, state)
+
       restore_msg = SubscriptionManager.build_restore_message(state)
       decoded = Jason.decode!(restore_msg)
       assert decoded["params"]["channels"] == ["ticker.ETH-PERPETUAL"]
+    end
+
+    test "an unsubscribed channel is not restored on reconnect" do
+      state = build_state(%{subscriptions: MapSet.new(["book.BTC-PERPETUAL.raw"])})
+
+      state =
+        SubscriptionManager.handle_message(
+          %{
+            "id" => 4,
+            "method" => "public/unsubscribe",
+            "params" => %{"channels" => ["book.BTC-PERPETUAL.raw"]}
+          },
+          state
+        )
+
+      state =
+        SubscriptionManager.handle_message(
+          %{
+            "jsonrpc" => "2.0",
+            "id" => 4,
+            "result" => ["book.BTC-PERPETUAL.raw"]
+          },
+          state
+        )
+
+      assert SubscriptionManager.list(state) == []
+      assert SubscriptionManager.build_restore_message(state) == nil
     end
   end
 end

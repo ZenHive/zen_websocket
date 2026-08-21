@@ -548,6 +548,7 @@ defmodule ZenWebsocket.ClientTest do
       assert_receive {:DOWN, ^ref, :process, ^server_pid, _reason}, 5_000
     end
 
+    @tag :local_network
     test "subscription tracker updates state alongside handler delivery", %{server: server, mock_url: mock_url} do
       test_pid = self()
 
@@ -556,31 +557,69 @@ defmodule ZenWebsocket.ClientTest do
         _other -> :ok
       end
 
-      # Server sends subscription confirmation with channel info
-      confirmation_msg =
-        Jason.encode!(%{
-          "method" => "subscription",
-          "params" => %{"channel" => "orderbook.ETH-PERPETUAL"}
-        })
-
       MockWebSockServer.set_handler(server, fn
-        {:text, _msg} -> {:reply, {:text, confirmation_msg}}
+        {:text, msg} ->
+          decoded = Jason.decode!(msg)
+
+          {:reply,
+           {:text,
+            Jason.encode!(%{
+              "jsonrpc" => "2.0",
+              "id" => decoded["id"],
+              "result" => decoded["params"]["channels"]
+            })}}
       end)
 
       {:ok, client} = Client.connect(mock_url, handler: handler)
 
-      :ok = Client.send_message(client, "trigger")
+      request = %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "method" => "public/subscribe",
+        "params" => %{"channels" => ["book.BTC-PERPETUAL.raw"]}
+      }
 
-      # Handler receives the message
-      assert_receive :handler_called, 5_000
+      assert {:ok, %{"result" => ["book.BTC-PERPETUAL.raw"]}} =
+               Client.send_message(client, Jason.encode!(request))
 
-      # Subscription tracker must have updated state.subscriptions
       metrics = Client.get_state_metrics(client)
 
       assert metrics.subscriptions_size >= 1,
              "Expected subscriptions to be tracked, got size: #{metrics.subscriptions_size}"
 
       assert metrics.connection_state == :connected
+
+      Client.close(client)
+    end
+
+    @tag :local_network
+    test "data ticks do not add an unsubscribed channel", %{server: server, mock_url: mock_url} do
+      test_pid = self()
+
+      handler = fn
+        {:message, _data} -> send(test_pid, :tick_delivered)
+        _other -> :ok
+      end
+
+      tick =
+        Jason.encode!(%{
+          "method" => "subscription",
+          "params" => %{
+            "channel" => "ticker.ETH-PERPETUAL.100ms",
+            "data" => %{"price" => 1}
+          }
+        })
+
+      MockWebSockServer.set_handler(server, fn
+        {:text, _msg} -> {:reply, {:text, tick}}
+      end)
+
+      {:ok, client} = Client.connect(mock_url, handler: handler)
+      :ok = Client.send_message(client, "trigger")
+      assert_receive :tick_delivered, 5_000
+
+      metrics = Client.get_state_metrics(client)
+      assert metrics.subscriptions_size == 0
 
       Client.close(client)
     end

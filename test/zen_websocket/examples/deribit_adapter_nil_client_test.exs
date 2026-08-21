@@ -6,6 +6,7 @@ defmodule ZenWebsocket.Examples.DeribitAdapterNilClientTest do
   use ExUnit.Case, async: true
 
   alias ZenWebsocket.Examples.DeribitAdapter
+  alias ZenWebsocket.Examples.JsonRpcTransport
 
   defp nil_client_adapter do
     %DeribitAdapter{
@@ -40,6 +41,16 @@ defmodule ZenWebsocket.Examples.DeribitAdapterNilClientTest do
     test "send_request/3 returns :not_connected when client is nil" do
       assert {:error, :not_connected} =
                DeribitAdapter.send_request(nil_client_adapter(), "public/get_time", %{})
+    end
+  end
+
+  describe "JSON-RPC error bodies" do
+    test "rpc_or_error/1 turns a Deribit unauthorized body into {:error, reason}" do
+      response = {:ok, %{"error" => %{"code" => 13_009, "message" => "unauthorized"}, "id" => 1}}
+
+      result = JsonRpcTransport.rpc_or_error(response)
+
+      assert {:error, %{"code" => 13_009, "message" => "unauthorized"}} = result
     end
   end
 end

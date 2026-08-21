@@ -146,15 +146,48 @@ defmodule ZenWebsocket.SubscriptionManager do
   )
 
   @doc """
-  Handles incoming subscription confirmation messages.
+  Tracks subscribe/unsubscribe from outbound requests and their confirmations.
 
-  Extracts the channel from the message and adds it to tracked subscriptions.
+  Data ticks (`"method" => "subscription"`) are ignored so a live channel
+  does not re-enter the restore set after `remove/2`.
   """
   @spec handle_message(map(), state()) :: state()
-  def handle_message(%{"params" => %{"channel" => channel}}, state) do
+  def handle_message(%{"method" => "public/" <> op, "params" => %{"channels" => channels}} = msg, state)
+      when op in ["subscribe", "unsubscribe"] and is_list(channels) do
+    track_outbound(state, Map.get(msg, "id"), subscription_op(op), channels)
+  end
+
+  def handle_message(%{"id" => id, "result" => channels}, state) when is_list(channels) do
+    apply_pending_result(state, id, channels)
+  end
+
+  def handle_message(_msg, state), do: state
+
+  defp subscription_op("subscribe"), do: :add
+  defp subscription_op("unsubscribe"), do: :remove
+
+  defp track_outbound(state, nil, op, channels), do: apply_channels(state, op, channels)
+
+  defp track_outbound(state, id, op, _channels) do
+    pending = Map.get(state, :pending_subscription_ops, %{})
+    Map.put(state, :pending_subscription_ops, Map.put(pending, id, op))
+  end
+
+  defp apply_pending_result(state, id, channels) do
+    pending = Map.get(state, :pending_subscription_ops, %{})
+    {op, pending} = Map.pop(pending, id)
+    apply_channels(Map.put(state, :pending_subscription_ops, pending), op, channels)
+  end
+
+  defp apply_channels(state, :add, channels), do: Enum.reduce(channels, state, &put_channel(&2, &1, :add))
+  defp apply_channels(state, :remove, channels), do: Enum.reduce(channels, state, &put_channel(&2, &1, :remove))
+  defp apply_channels(state, _op, _channels), do: state
+
+  defp put_channel(state, channel, :add) when is_binary(channel) do
     Logger.debug("📡 [SUBSCRIPTION] Confirmed: #{channel}")
     add(state, channel)
   end
 
-  def handle_message(_msg, state), do: state
+  defp put_channel(state, channel, :remove) when is_binary(channel), do: remove(state, channel)
+  defp put_channel(state, _channel, _op), do: state
 end

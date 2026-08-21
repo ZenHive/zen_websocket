@@ -129,10 +129,10 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
         with {:ok, auth_req} <- DeribitRpc.auth_request(state.client_id, state.client_secret),
              {:ok, %{"result" => %{"access_token" => _}}} <- JsonRpcTransport.send_json_rpc(client, auth_req),
              {:ok, hb_req} <- DeribitRpc.set_heartbeat(30),
-             {:ok, _} <- JsonRpcTransport.send_json_rpc(client, hb_req) do
+             {:ok, %{"result" => _}} <- JsonRpcTransport.send_json_rpc(client, hb_req) do
           {:reply, :ok, %{state | authenticated: true, was_authenticated: true}}
         else
-          error -> {:reply, error, state}
+          other -> {:reply, JsonRpcTransport.rpc_or_error(other), state}
         end
 
       {{:subscribe, _}, %{client: nil}} ->
@@ -144,7 +144,7 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
           new_subs = Enum.reduce(channels, state.subscriptions, &MapSet.put(&2, &1))
           {:reply, :ok, %{state | subscriptions: new_subs}}
         else
-          error -> {:reply, error, state}
+          other -> {:reply, JsonRpcTransport.rpc_or_error(other), state}
         end
 
       {{:send_request, _, _}, %{client: nil}} ->
@@ -197,14 +197,12 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
   def handle_info(:restore_state, state) do
     cond do
       not state.authenticated and state.was_authenticated ->
-        {:reply, _, state} = handle_call(:authenticate, nil, state)
-        if MapSet.size(state.subscriptions) > 0, do: send(self(), :restore_subs)
-        {:noreply, state}
+        {:reply, _, new_state} = handle_call(:authenticate, nil, state)
+        if MapSet.size(new_state.subscriptions) > 0, do: send(self(), :restore_subs)
+        {:noreply, new_state}
 
       MapSet.size(state.subscriptions) > 0 ->
-        channels = MapSet.to_list(state.subscriptions)
-        {:reply, _, state} = handle_call({:subscribe, channels}, nil, %{state | subscriptions: MapSet.new()})
-        {:noreply, state}
+        restore_subscriptions(state)
 
       true ->
         {:noreply, state}
@@ -212,12 +210,21 @@ defmodule ZenWebsocket.Examples.DeribitGenServerAdapter do
   end
 
   @impl true
-  def handle_info(:restore_subs, %{subscriptions: subs} = state) when map_size(subs) > 0 do
-    channels = MapSet.to_list(subs)
-    {:reply, _, state} = handle_call({:subscribe, channels}, nil, %{state | subscriptions: MapSet.new()})
-    {:noreply, state}
+  def handle_info(:restore_subs, %{subscriptions: subs} = state) do
+    if MapSet.size(subs) > 0 do
+      restore_subscriptions(state)
+    else
+      {:noreply, state}
+    end
   end
 
   @impl true
   def handle_info(_msg, state), do: {:noreply, state}
+
+  defp restore_subscriptions(%{subscriptions: subs} = state) do
+    case handle_call({:subscribe, MapSet.to_list(subs)}, nil, state) do
+      {:reply, :ok, new_state} -> {:noreply, new_state}
+      {:reply, _reason, _failed} -> {:noreply, state}
+    end
+  end
 end

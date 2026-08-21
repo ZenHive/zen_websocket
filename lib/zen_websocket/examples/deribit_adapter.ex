@@ -77,8 +77,10 @@ defmodule ZenWebsocket.Examples.DeribitAdapter do
     with {:ok, auth_req} <- DeribitRpc.auth_request(adapter.client_id, adapter.client_secret),
          {:ok, %{"result" => %{"access_token" => _}}} <- JsonRpcTransport.send_json_rpc(client, auth_req),
          {:ok, hb_req} <- DeribitRpc.set_heartbeat(30),
-         {:ok, _} <- JsonRpcTransport.send_json_rpc(client, hb_req) do
+         {:ok, %{"result" => _}} <- JsonRpcTransport.send_json_rpc(client, hb_req) do
       {:ok, %{adapter | authenticated: true}}
+    else
+      other -> JsonRpcTransport.rpc_or_error(other)
     end
   end
 
@@ -93,6 +95,8 @@ defmodule ZenWebsocket.Examples.DeribitAdapter do
          {:ok, %{"result" => _}} <- JsonRpcTransport.send_json_rpc(client, request) do
       new_subs = Enum.reduce(channels, subs, &MapSet.put(&2, &1))
       {:ok, %{adapter | subscriptions: new_subs}}
+    else
+      other -> JsonRpcTransport.rpc_or_error(other)
     end
   end
 
@@ -107,6 +111,8 @@ defmodule ZenWebsocket.Examples.DeribitAdapter do
          {:ok, %{"result" => _}} <- JsonRpcTransport.send_json_rpc(client, request) do
       new_subs = Enum.reduce(channels, subs, &MapSet.delete(&2, &1))
       {:ok, %{adapter | subscriptions: new_subs}}
+    else
+      other -> JsonRpcTransport.rpc_or_error(other)
     end
   end
 

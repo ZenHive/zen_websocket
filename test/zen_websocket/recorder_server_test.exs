@@ -1,6 +1,8 @@
 defmodule ZenWebsocket.RecorderServerTest do
   use ExUnit.Case, async: true
 
+  import ExUnit.CaptureLog
+
   alias ZenWebsocket.RecorderServer
 
   setup do
@@ -224,6 +226,47 @@ defmodule ZenWebsocket.RecorderServerTest do
       assert stats.entries >= 100
 
       RecorderServer.stop(pid)
+    end
+  end
+
+  describe "abnormal owner exit" do
+    test "flushes buffered entries below the threshold without an explicit flush", %{path: path} do
+      test_pid = self()
+      Process.flag(:trap_exit, true)
+
+      owner =
+        spawn(fn ->
+          {:ok, rec} = RecorderServer.start_link(path)
+          send(test_pid, {:recorder, rec})
+
+          receive do
+            :crash -> exit(:max_reconnection_attempts)
+          end
+        end)
+
+      rec =
+        receive do
+          {:recorder, rec} -> rec
+        after
+          1_000 -> flunk("recorder did not start")
+        end
+
+      for i <- 1..99 do
+        RecorderServer.record(rec, :out, {:text, "frame #{i}"})
+      end
+
+      assert %{buffer_length: 99} = :sys.get_state(rec)
+      assert %{bytes: 0, entries: 0} = RecorderServer.stats(rec)
+
+      ref = Process.monitor(rec)
+
+      capture_log(fn ->
+        send(owner, :crash)
+        assert_receive {:DOWN, ^ref, :process, ^rec, :max_reconnection_attempts}, 1_000
+      end)
+
+      lines = path |> File.read!() |> String.split("\n", trim: true)
+      assert Enum.count(lines) == 99
     end
   end
 end

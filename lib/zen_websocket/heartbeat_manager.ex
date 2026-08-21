@@ -220,7 +220,7 @@ defmodule ZenWebsocket.HeartbeatManager do
 
     %{
       state
-      | active_heartbeats: MapSet.put(state.active_heartbeats, type),
+      | active_heartbeats: MapSet.new([type]),
         last_heartbeat_at: now,
         heartbeat_failures: 0
     }

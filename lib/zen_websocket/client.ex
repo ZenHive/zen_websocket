@@ -648,6 +648,8 @@ defmodule ZenWebsocket.Client do
   end
 
   def handle_call({:send_message, message}, from, %{gun_pid: gun_pid, stream_ref: stream_ref, state: :connected} = state) do
+    state = track_subscription_outbound(state, message)
+
     case RequestCorrelator.extract_id(message) do
       {:ok, id} ->
         case RequestCorrelator.track(state, id, from, state.config.request_timeout) do
@@ -1133,10 +1135,9 @@ defmodule ZenWebsocket.Client do
             HeartbeatManager.handle_message(msg, state)
 
           {:ok, %{"method" => "subscription"} = msg} ->
-            # Update subscription tracker, then forward to user handler
-            new_state = SubscriptionManager.handle_message(msg, state)
-            new_state.handler.({:message, msg})
-            new_state
+            # Market-data notifications are not subscribe confirmations.
+            state.handler.({:message, msg})
+            state
 
           {:ok, %{"id" => id} = msg} when is_integer(id) or is_binary(id) ->
             # JSON-RPC response - route to pending request
@@ -1163,6 +1164,8 @@ defmodule ZenWebsocket.Client do
   # Routes JSON-RPC responses to waiting callers
   @spec handle_rpc_response(map(), state()) :: state()
   defp handle_rpc_response(%{"id" => id} = response, state) do
+    state = SubscriptionManager.handle_message(response, state)
+
     case RequestCorrelator.resolve(state, id) do
       {nil, state} ->
         state.handler.({:unmatched_response, response})
@@ -1186,6 +1189,16 @@ defmodule ZenWebsocket.Client do
     state.handler.({:protocol_error, reason})
     {:stop, error, state}
   end
+
+  @spec track_subscription_outbound(state(), term()) :: state()
+  defp track_subscription_outbound(state, message) when is_binary(message) do
+    case Jason.decode(message) do
+      {:ok, decoded} -> SubscriptionManager.handle_message(decoded, state)
+      _ -> state
+    end
+  end
+
+  defp track_subscription_outbound(state, _message), do: state
 
   @spec maybe_start_recorder(String.t() | nil) :: pid() | nil
   defp maybe_start_recorder(nil), do: nil

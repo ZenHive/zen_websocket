@@ -129,6 +129,17 @@ defmodule ZenWebsocket.HeartbeatManagerTest do
       assert is_integer(result.last_heartbeat_at)
     end
 
+    test "generic heartbeats replace the active set instead of accumulating types" do
+      state = build_state(%{heartbeat_config: %{type: :unknown}})
+
+      first = HeartbeatManager.handle_message(%{"method" => "heartbeat", "params" => %{"type" => "ping"}}, state)
+
+      second =
+        HeartbeatManager.handle_message(%{"method" => "heartbeat", "params" => %{"type" => "custom"}}, first)
+
+      assert MapSet.to_list(second.active_heartbeats) == ["custom"]
+    end
+
     test "handles unknown heartbeat message gracefully" do
       state = build_state(%{heartbeat_config: %{type: :unknown}})
       msg = %{"unknown" => "format"}
