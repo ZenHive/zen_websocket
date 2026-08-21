@@ -384,7 +384,7 @@
       "id": "5",
       "phase": 1,
       "bundle": "correctness",
-      "status": "pending",
+      "status": "done",
       "title": "Make heartbeat and pool health metrics report reality instead of a constant",
       "scores": {
         "d": 3,
@@ -417,9 +417,16 @@
         "lib/zen_websocket/pool_router.ex",
         "lib/zen_websocket/helpers/deribit.ex"
       ],
+      "shipped_in": "f34a2b83979649be5e0861e1189bcbb67d477fa6",
       "body": "Two health surfaces report a constant instead of a measurement, so both read healthy on exactly the failures they exist to detect. Read from source on 2026-08-20.\n\n1. `heartbeat_failures` is assigned `0` at heartbeat_manager.ex:73 and :176 and is never incremented anywhere. `get_heartbeat_health/1` reads it at :146 as `failure_count`. The `:ping_pong` path also never correlates the returning pong with the ping that was sent, so a half-open connection — TCP alive, peer not responding — reports `failure_count: 0` indefinitely. For a trading client this is the difference between failing over and silently sitting on a dead socket.\n\n2. `pool_router.ex` documents `pressure_penalty` as a 0-10 point component of the health score (:19), and `@pressure_penalties %{high: 10, medium: 6, low: 3, none: 0}` (:309) with `pressure_to_penalty/1` (:312) implements it. But `get_client_metrics` hardcodes `pressure_level: :none` at both :245 and :260, so the penalty is permanently 0 and the map lookup — added with a comment explaining it exists to avoid dead-code warnings — is unreachable in practice. Separately the pool ETS table is created lazily by whichever process calls first (:231) and is unsupervised (the app has no callback module), so when that process exits all health state vanishes and failover re-selects connections it had already marked bad.\n\nWhile in heartbeat_manager.ex, note that `lib/zen_websocket/helpers/deribit.ex` sits on the same heartbeat hot path, calls `:gun.ws_send/3` directly (bypassing Frame/MessageHandler), and currently has zero tests — cover it here rather than filing a separate task.\n\nRUNTIME-VERIFIED 2026-08-20 (Tidewave project_eval against the running dev BEAM). Both defects confirmed, and the write-sets are exhaustive rather than sampled.\n\nDefect 1: scanning heartbeat_manager.ex for every assignment to `heartbeat_failures` yields exactly `[\"0\", \"0\"]`, and a scan for any increment expression yields the empty list. There is no code path in the module that can raise the counter. Calling the real `HeartbeatManager.get_health/1` (note: the acceptance criteria and the original body both say `get_heartbeat_health/1`, but the exported function is `get_health/1` — the criteria mean this function) on a state carrying a stale `last_heartbeat_at` returns `failure_count: 0`. The public export list is `cancel_timer/1, get_health/1, handle_message/2, send_heartbeat/1, start_timer/1`.\n\nDefect 2: scanning pool_router.ex for every producer of `pressure_level:` yields exactly `[\":none\", \":none\"]` — the two hardcoded sites at :245 and :260. Nothing else in the module can ever produce `:low`, `:medium` or `:high`, so `@pressure_penalties` is unreachable for every key but `:none` and the documented 0-10 point component of the score is permanently 0.\n",
       "created_at": "2026-08-20",
+      "done_at": "2026-08-21",
       "scored_at": "2026-08-20",
+      "implemented": "Landed by codex via merge-train; reviewer-approved (run run-1787292963082-195dd1c2, f34a2b83979649be5e0861e1189bcbb67d477fa6).",
+      "delivered_by": "codex",
+      "verified": true,
+      "verified_by": "cursor",
+      "verification_ref": "harness-run:run-1787292963082-195dd1c2",
       "cross_repo": []
     },
     {

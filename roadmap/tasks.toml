@@ -298,7 +298,7 @@ scored_at = "2026-08-20"
 id = "5"
 phase = 1
 bundle = "correctness"
-status = "pending"
+status = "done"
 title = "Make heartbeat and pool health metrics report reality instead of a constant"
 scores = { d = 3, b = 7, u = 6 }
 markers = ["bug"]
@@ -322,8 +322,15 @@ Defect 1: scanning heartbeat_manager.ex for every assignment to `heartbeat_failu
 
 Defect 2: scanning pool_router.ex for every producer of `pressure_level:` yields exactly `[":none", ":none"]` — the two hardcoded sites at :245 and :260. Nothing else in the module can ever produce `:low`, `:medium` or `:high`, so `@pressure_penalties` is unreachable for every key but `:none` and the documented 0-10 point component of the score is permanently 0.
 """
+implemented = "Landed by codex via merge-train; reviewer-approved (run run-1787292963082-195dd1c2, f34a2b83979649be5e0861e1189bcbb67d477fa6)."
+delivered_by = "codex"
+verified = true
+verified_by = "cursor"
+verification_ref = "harness-run:run-1787292963082-195dd1c2"
 created_at = "2026-08-20"
 scored_at = "2026-08-20"
+done_at = "2026-08-21"
+shipped_in = "f34a2b83979649be5e0861e1189bcbb67d477fa6"
 
 [[task]]
 id = "6"
