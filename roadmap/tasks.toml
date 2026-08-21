@@ -425,7 +425,7 @@ scored_at = "2026-08-20"
 id = "8"
 phase = 1
 bundle = "hygiene"
-status = "pending"
+status = "in_progress"
 title = "Resolve three places where stated policy and shipped code disagree"
 scores = { d = 3, b = 6, u = 5 }
 acceptance_criteria = ["A written recommendation for ConnectionRegistry (deprecate for 0.7 and delete in 0.8, keep and wire it, or keep as-is) lands in the repo with its reasoning, and docs/Architecture.md stops depicting it as wired in if it is not", "No breaking change to the public surface is made in this task", "The example-code policy and the shipped tree agree: either the stated per-example line limit is changed to match reality, or examples and mix tasks are dropped from package.files — with the choice and its consumer impact written down", "The .reach.exs architecture policy and the actual dependency graph agree: either testing/server.ex stops reaching Test.Support via apply/3, or the policy is amended to permit it explicitly and the credo disable comment is justified in place", "mix precommit.full green"]
@@ -443,6 +443,7 @@ Three cases where a written rule and the shipped tree contradict each other. The
 3. THE ARCHITECTURE POLICY IS EVADED, NOT SATISFIED. `.reach.exs` forbids `{:core, :support}`. But `lib/zen_websocket/testing/server.ex:14` binds `@mock_server_module ZenWebsocket.Test.Support.MockWebSockServer` and reaches it through `apply/3` at :44, :47, :72, :90, :96 and :111, with a `credo:disable-for-this-file Credo.Check.Refactor.Apply` at :9. The dependency is real; only its static-analysis visibility was removed, so `mix reach.check --arch` passes on a dependency the policy forbids. Decide whether the dependency is legitimate — if so, encode the exemption in .reach.exs where it can be reviewed, rather than hiding it behind apply/3.
 """
 created_at = "2026-08-20"
+started_at = "2026-08-21"
 scored_at = "2026-08-20"
 
 [[task]]
