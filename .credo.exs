@@ -20,9 +20,9 @@ alias Credo.Check.Refactor.Nesting
         {ExDNA.Credo, []},
 
         # Increase cyclomatic complexity threshold from 9 to 11
-        # Verified 2026-08-20 against max_complexity: 9 — exactly two sites need it:
-        # - config.ex validate/1 cond chain (11)
-        # - client.ex handle_info/2 :gun_ws frame routing (10)
+        # Remaining sites after task 14: Config.validate/1 cond chain, and
+        # ClientFrames.handle_ws/4 (frame-type case + decode dispatch).
+        # The old client.ex handle_info/2 site was extracted in task 14.
         {Credo.Check.Refactor.CyclomaticComplexity, max_complexity: 11},
 
         # Increase nesting depth for test files which need deeper nesting

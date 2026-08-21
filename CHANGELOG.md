@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Client internals split into responsibility-scoped modules
+
+`ZenWebsocket.Client` remains the public GenServer and API. Call wrapping, Gun
+lifecycle, retry policy, frame routing, JSON-RPC correlation, recording, and
+callback bodies now live in `Client*` modules under `lib/zen_websocket/client/`.
+Public signatures and return shapes are unchanged.
+
+### Changed — coverage gate measures core library only
+
+`test_coverage: ignore_modules` lists Mix regexes plus matching module atoms so
+`ex_unit_json 0.6.0` actually excludes Examples, Mix.Tasks, and Test.Support.
+The floor is 90 (measured 90.34% core-only on 2026-08-21, rounded down), not
+the previous 58 that measured the diluted suite.
+
 ### Changed — one Client struct constructor, shared heartbeat and callback helpers
 
 `Client.build_client_struct/2` is the single constructor for the returned
