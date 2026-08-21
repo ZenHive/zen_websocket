@@ -17,7 +17,7 @@
 
 ## Project Overview
 
-**ZenWebsocket** is a robust WebSocket client library for Elixir, specifically designed for financial APIs (particularly Deribit cryptocurrency trading). Built on Gun transport with 8 foundation modules, enhanced with critical financial infrastructure.
+**ZenWebsocket** is a robust WebSocket client library for Elixir, specifically designed for financial APIs (particularly Deribit cryptocurrency trading). Built on Gun transport with reconnection, heartbeat, rate limiting, and request/response correlation.
 
 **Financial Development Principle**: Start simple, add complexity only when necessary based on real data.
 
@@ -34,10 +34,10 @@ mix security                                   # Sobelow security scan
 
 # Testing (integration tests excluded by default)
 mix test.json --quiet --summary-only   # Quick health check
-mix test --include integration         # Include integration tests
-mix test.api              # Real API integration tests
-mix test.api --deribit    # Deribit-specific tests
-mix test.performance      # Performance/stress testing
+mix test --include integration         # Include integration tests (MockWebSockServer / Gun)
+mix test --include external_network    # Tests requiring internet (Deribit testnet, etc.)
+mix zen_websocket.usage                # Export usage rules
+mix zen_websocket.validate_usage       # Check Client API usage against the public surface
 ```
 
 ## Toolchain & check commands
@@ -68,27 +68,50 @@ Use the existing docs instead of re-explaining patterns from scratch:
 ### Module Structure
 ```
 lib/zen_websocket/
-├── client.ex              # Main client interface (5 public functions)
-├── config.ex              # Configuration struct and validation
-├── frame.ex               # WebSocket frame encoding/decoding
-├── connection_registry.ex # ETS-based connection tracking
-├── reconnection.ex        # Exponential backoff retry logic
-├── message_handler.ex     # Message parsing and routing
-├── error_handler.ex       # Error categorization and recovery
-├── json_rpc.ex           # JSON-RPC 2.0 protocol support
-├── correlation_manager.ex # Request/response correlation
-├── rate_limiter.ex        # API rate limit management
+├── client.ex               # Main client interface
+├── client_supervisor.ex    # DynamicSupervisor for pooled connections
+├── config.ex               # Configuration struct and validation
+├── frame.ex                # WebSocket frame encoding/decoding
+├── connection_registry.ex  # ETS-based connection tracking
+├── reconnection.ex         # Exponential backoff retry logic
+├── message_handler.ex      # Message parsing and routing
+├── error_handler.ex        # Error categorization and recovery
+├── json_rpc.ex             # JSON-RPC 2.0 protocol support
+├── request_correlator.ex   # Request/response correlation
+├── rate_limiter.ex         # API rate limit management
+├── heartbeat_manager.ex    # Heartbeat lifecycle
+├── subscription_manager.ex # Subscription tracking and restoration
+├── latency_stats.ex        # Latency percentile tracking
+├── pool_router.ex          # Health-based pool routing
+├── recorder.ex             # Session recording (pure functions)
+├── recorder_server.ex      # Async file I/O for recording
+├── debug.ex                # Conditional debug logging
+├── testing.ex              # Consumer-facing test utilities
+├── testing/
+│   └── server.ex           # Mock WebSocket server used by Testing
+├── helpers/
+│   └── deribit.ex          # Deribit helper functions
 └── examples/
-    └── deribit_adapter.ex # Deribit platform integration
+    └── deribit_adapter.ex  # Deribit platform integration (plus other in-tree examples)
 ```
 
-### Public API (5 Functions)
+### Public API
 ```elixir
+# Connection lifecycle
 ZenWebsocket.Client.connect(url, opts)
 ZenWebsocket.Client.send_message(client, message)
-ZenWebsocket.Client.close(client)
 ZenWebsocket.Client.subscribe(client, channels)
 ZenWebsocket.Client.get_state(client)
+ZenWebsocket.Client.close(client)
+ZenWebsocket.Client.reconnect(client)
+
+# Monitoring
+ZenWebsocket.Client.get_heartbeat_health(client)
+ZenWebsocket.Client.get_state_metrics(client)
+ZenWebsocket.Client.get_latency_stats(client)
+
+# Public but @doc false — used internally (e.g. ClientSupervisor)
+ZenWebsocket.Client.reconnect_opts_from_state(state)
 ```
 
 ### Project Constraints
@@ -98,11 +121,9 @@ ZenWebsocket.Client.get_state(client)
 - Real API testing only - zero mocks
 
 ### Example Code Policy
-**Non-negotiable:** All examples must be written and tested in `lib/` and `test/` first, with full validation (compile, Dialyzer, Credo, tests). After validation:
+All examples are written and tested in-tree under `lib/zen_websocket/examples/` with matching tests in `test/`. Validate with compile, Dialyzer, Credo, and tests before considering an example done. Keep examples in this tree — a separate mix project under `examples/<name>/` was tried (R026) and reverted.
 - **Executable examples**: Live in `lib/zen_websocket/examples/` without a per-file line limit
 - **Packaging**: Examples and `Mix.Tasks.ZenWebsocket.*` ship in the Hex package; removing them would make existing example modules and tasks unavailable to consumers
-
-See AGENTS.md for full policy details.
 
 ## Configuration
 
@@ -176,10 +197,9 @@ A test-only GenServer that answers **only** the three `Client` calls `send_balan
 **Source of truth unchanged:** `MockWebSockServer` (real cowboy/websock stack) and real-API tests remain the source of truth for all business logic. `client_supervisor_test.exs` covers `send_balanced/2` end-to-end against a real connection. Any test touching `Client` GenServer state, reconnection, subscription semantics, or exchange behavior continues to require `MockWebSockServer` or a real endpoint.
 
 ### Test Support Modules
-- `MockWebSockServer` - Controlled WebSocket server
-- `CertificateHelper` - TLS certificate generation
-- `NetworkSimulator` - Network condition simulation
-- `TestEnvironment` - Environment management
+- `MockWebSockServer` - Controlled WebSocket server (`test/support/mock_websock_server.ex`)
+- `CertificateHelper` - TLS certificate generation (`test/support/certificate_helper.ex`)
+- `GunStub` - Shape-only constructors for Gun transport tuples (`test/support/gun_stub.ex`)
 
 ## WebSocket Connection Architecture
 
@@ -237,25 +257,15 @@ connect_opts = [
 ## Task Management
 
 ### Roadmap
-See [roadmap.md](roadmap.md) for:
-- Current focus and active tasks
-- Prioritized task list with D/B scoring
-- Completed work history
+Tasks live in `roadmap/tasks.toml` and are rendered to `ROADMAP.md` by `rmap`. Use `rmap` to list, create, score, and prioritize work.
 
 ### Task ID Format
-Use `WNX####` format:
-- Core: WNX0001-WNX0099
-- Features: WNX0100-WNX0199
-- Docs: WNX0200-WNX0299
-- Tests: WNX0300-WNX0399
+Current ids are numeric (`7`, `8`, …). Historical ids use `R0NN` (`R026`, `R052`). There is no `WNX####` scheme.
 
 ### Task Tracking
-Tasks tracked in [roadmap.md](roadmap.md) with status markers:
-- ⬜ Pending
-- 🔄 In progress
-- ✅ Complete
+`rmap` is the substrate. Status, scores, and write-sets live in `roadmap/tasks.toml`; `ROADMAP.md` is a generated view.
 
-Priority uses D/B scoring (Difficulty/Benefit ratio).
+Priority uses D/B/U scoring (Difficulty / Benefit / Urgency). `rmap next` selects work from those scores.
 
 ### WebSocket-Specific Requirements
 - All connection tasks must include real API testing

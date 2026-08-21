@@ -235,12 +235,13 @@ end
 
 ```
 YourApp.Supervisor
-    ├── ZenWebsocket.Application
-    │   └── ZenWebsocket.ClientSupervisor
+    ├── ZenWebsocket.ClientSupervisor
     │       ├── Client_1 (Deribit Production)
     │       ├── Client_2 (Deribit Test)
     │       └── Client_3 (Binance)
     └── YourApp.TradingEngine
 ```
+
+ZenWebsocket is a library: `application/0` declares no `mod:`. Start `ClientSupervisor` in the host application's supervision tree.
 
 The supervision strategy ensures that WebSocket connections remain stable and automatically recover from failures, critical for 24/7 financial trading operations.

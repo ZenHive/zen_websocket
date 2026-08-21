@@ -13,7 +13,7 @@ A robust WebSocket client library for Elixir, built on Gun transport for product
 - **Financial-Grade Reliability** - Built for high-frequency trading systems
 - **Platform Adapters** - Ready-to-use Deribit integration, extensible for others
 - **Real API Testing** - No mocks, tested against live systems
-- **Simple API** - 5 core functions plus monitoring helpers
+- **Simple API** - connect, send, subscribe, monitor, and reconnect
 - **Comprehensive Error Handling** - Categorized errors with recovery strategies
 - **Rate Limiting** - Configurable token bucket algorithm
 - **JSON-RPC 2.0** - Full protocol support with correlation tracking
@@ -29,7 +29,7 @@ Add `zen_websocket` to your dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:zen_websocket, "~> 0.4"}
+    {:zen_websocket, "~> 0.6.1"}
   ]
 end
 ```

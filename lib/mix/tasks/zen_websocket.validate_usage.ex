@@ -14,7 +14,7 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
   ## Options
 
     * `--strict` - Enable strict mode (fail on warnings)
-    * `--fix` - Attempt to auto-fix simple issues
+    * `--fix` - Retained for compatibility; no automatic rewrites are performed
     * `--format` - Output format: `human` (default), `json`, or `github`
     
   ## Examples
@@ -28,13 +28,17 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
       # Strict validation with GitHub Actions format
       mix zen_websocket.validate_usage --strict --format github
       
-      # Auto-fix simple issues
+      # --fix is a no-op; it never rewrites files
       mix zen_websocket.validate_usage --fix
   """
 
   use Mix.Task
 
-  @allowed_functions ~w(connect send_message subscribe get_state close)a
+  @allowed_functions ~w(
+    connect send_message subscribe get_state close
+    get_heartbeat_health get_state_metrics get_latency_stats
+    reconnect reconnect_opts_from_state t
+  )a
   @allowed_function_strings Enum.map(@allowed_functions, &Atom.to_string/1)
 
   defp common_antipatterns do
@@ -46,13 +50,6 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
       {~r/Client\.\w+!\(/, "ZenWebsocket doesn't have bang functions - use pattern matching"},
       {~r/defstruct.*websocket.*state/, "Don't maintain custom WebSocket state - use Client.get_state/1"},
       {~r/GenServer\.call.*timeout:\s*:infinity/, "Always specify timeouts for WebSocket operations"}
-    ]
-  end
-
-  defp deprecated_patterns do
-    [
-      {~r/WebsockexAdapter/, "Use ZenWebsocket instead of WebsockexAdapter"},
-      {~r/Websockex\./, "Migrate from Websockex to ZenWebsocket.Client"}
     ]
   end
 
@@ -109,10 +106,9 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
         lines = String.split(content, "\n")
 
         antipattern_issues = find_antipatterns(file, content, lines)
-        deprecated_issues = find_deprecated(file, content, lines)
         api_issues = validate_api_usage(file, content, lines)
 
-        antipattern_issues ++ deprecated_issues ++ api_issues
+        antipattern_issues ++ api_issues
 
       {:error, _} ->
         []
@@ -135,32 +131,15 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
     end)
   end
 
-  defp find_deprecated(file, content, lines) do
-    lines_tuple = List.to_tuple(lines)
-
-    Enum.flat_map(deprecated_patterns(), fn {pattern, message} ->
-      case Regex.run(pattern, content, return: :index) do
-        nil ->
-          []
-
-        [{start_idx, _length} | _] ->
-          line_num = get_line_number(content, start_idx)
-          line_content = line_at(lines_tuple, line_num)
-          [diagnostic(:deprecated, :error, file, line_num, message, line_content)]
-      end
-    end)
-  end
-
   defp validate_api_usage(file, content, lines) do
-    # Find all ZenWebsocket.Client function calls
     lines_tuple = List.to_tuple(lines)
     pattern = ~r/ZenWebsocket\.Client\.(\w+)/
+    names = Regex.scan(pattern, content)
+    indexes = Regex.scan(pattern, content, return: :index)
 
-    pattern
-    |> Regex.scan(content, return: :index)
-    |> Enum.map(fn [{start_idx, _}, {func_start, func_len}] ->
-      function = String.slice(content, func_start, func_len)
-
+    names
+    |> Enum.zip(indexes)
+    |> Enum.map(fn {[_full, function], [{start_idx, _} | _rest]} ->
       if function in @allowed_function_strings do
         nil
       else
@@ -206,40 +185,12 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
     |> length()
   end
 
-  defp fix_issues(issues) do
-    fixable = Enum.filter(issues, &fixable?/1)
-
-    files_to_fix = Enum.group_by(fixable, & &1.file)
-
-    Enum.each(files_to_fix, fn {file, file_issues} ->
-      fix_file(file, file_issues)
-    end)
-
-    Mix.shell().info("Fixed #{length(fixable)} issues")
+  defp fix_issues(_issues) do
+    Mix.shell().info("No automatic fixes available")
   end
 
-  defp fixable?(%{type: :deprecated}), do: true
-  defp fixable?(_), do: false
-
-  defp fix_file(file, issues) do
-    {:ok, content} = File.read(file)
-
-    fixed_content =
-      Enum.reduce(issues, content, fn issue, acc ->
-        case issue.type do
-          :deprecated ->
-            acc
-            |> String.replace("WebsockexAdapter", "ZenWebsocket")
-            |> String.replace("Websockex.", "ZenWebsocket.Client.")
-
-          _ ->
-            acc
-        end
-      end)
-
-    File.write!(file, fixed_content)
-    Mix.shell().info("Fixed #{file}")
-  end
+  defp report_issues([], "json"), do: IO.puts("[]")
+  defp report_issues([], "github"), do: :ok
 
   defp report_issues([], _format) do
     Mix.shell().info("✅ No issues found! Your code follows ZenWebsocket usage rules.")

@@ -17,7 +17,7 @@ ZenWebsocket uses Gun as its underlying transport layer for WebSocket connection
 - Comprehensive TLS options
 - Message streaming and multiplexing
 
-The `ZenWebsocket.Client` module will be refactored to a GenServer that owns the Gun connection and manages message routing.
+The `ZenWebsocket.Client` module is a GenServer that owns the Gun connection and manages message routing.
 
 ## Process Monitoring vs. Linking
 
@@ -72,7 +72,7 @@ end
 
 ## Ownership Transfer
 
-One of Gun's most powerful features is the ability to transfer connection ownership between processes. This is crucial for ZenWebsocket's upcoming architecture where the Client GenServer needs to own the connection for message routing.
+One of Gun's most powerful features is the ability to transfer connection ownership between processes. The Client GenServer owns the connection so Gun messages land in the process that routes heartbeats and user frames.
 
 ### When to Transfer Ownership
 
@@ -105,17 +105,18 @@ defmodule ZenWebsocket.Client do
     {:ok, state}
   end
   
-  # Route Gun messages to appropriate handlers
-  def handle_info({:gun_ws, gun_pid, stream_ref, frame}, state) do
-    case MessageHandler.parse(frame) do
-      {:heartbeat, msg} ->
-        # Process heartbeat directly in Client
-        handle_heartbeat_message(state, msg)
-      {:user_message, msg} ->
-        # Forward to user handler
-        send(state.user_handler, {:websocket_message, msg})
+  # Route Gun messages through MessageHandler, then Client's data-frame router
+  def handle_info({:gun_ws, gun_pid, stream_ref, frame}, %{gun_pid: gun_pid, stream_ref: stream_ref} = state) do
+    case MessageHandler.decode_and_handle_control({:gun_ws, gun_pid, stream_ref, frame}) do
+      {:ok, {:data, decoded_frame}} ->
+        {:noreply, route_data_frame(decoded_frame, state)}
+
+      {:ok, :control_frame_handled} ->
+        {:noreply, state}
+
+      {:error, {:protocol_error, _} = error} ->
+        handle_frame_error(state, error)
     end
-    {:noreply, state}
   end
 end
 ```
@@ -123,25 +124,20 @@ end
 ### Reconnection Flow with Ownership
 
 ```elixir
-def handle_info({:DOWN, ref, :process, pid, reason}, state) do
-  if state.monitor_ref == ref and state.gun_pid == pid do
-    # Connection lost, trigger reconnection
-    case Reconnection.reconnect(state.config) do
-      {:ok, new_gun_pid} ->
-        # Client GenServer already owns the new connection
-        # because Reconnection was called from this process
-        new_monitor_ref = Process.monitor(new_gun_pid)
-        
-        new_state = %{state | 
-          gun_pid: new_gun_pid,
-          monitor_ref: new_monitor_ref
-        }
-        
-        # Resume integrated heartbeat processing
-        resume_heartbeat_processing(new_state)
-        
-        {:noreply, new_state}
-    end
+def handle_info({:DOWN, ref, :process, pid, reason}, %{gun_pid: pid, monitor_ref: ref} = state) do
+  # Connection lost — Client classifies the error and may retry
+  handle_connection_error(state, {:connection_down, reason})
+end
+
+# Reconnection.establish_connection/1 runs inside the Client GenServer
+# so the new Gun process sends messages to this process.
+defp start_gun_attempt(state) do
+  case Reconnection.establish_connection(state.config) do
+    {:ok, gun_pid, stream_ref, monitor_ref} ->
+      {:noreply, begin_attempt(state, gun_pid, stream_ref, monitor_ref)}
+
+    {:error, reason} ->
+      {:noreply, %{state | state: :disconnected}, {:continue, {:connection_failed, reason}}}
   end
 end
 ```
@@ -224,4 +220,4 @@ Gun's process monitoring and ownership features are critical for ZenWebsocket's 
 - Reliable heartbeat handling for financial trading
 - Clean separation of concerns between modules
 
-The key insight is that Gun sends messages to the process that owns the connection, making the Client GenServer refactor essential for production-grade WebSocket handling.
+The key insight is that Gun sends messages to the process that owns the connection, which is why the Client GenServer must open (or re-open) Gun itself.
