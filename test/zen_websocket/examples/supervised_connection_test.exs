@@ -8,6 +8,8 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
   @moduletag :integration
 
   @deribit_testnet "wss://test.deribit.com/ws/api/v2"
+  @restart_wait_ms 2_000
+  @restart_poll_interval_ms 20
 
   setup do
     # Start a supervised instance for testing
@@ -35,7 +37,7 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       assert is_pid(client.server_pid)
       assert Process.alive?(client.server_pid)
 
-      # Verify connection works - can return :ok or {:ok, response}
+      # Plain text has no correlation ID, so sending is fire-and-forget.
       assert :ok = Client.send_message(client, "test message")
 
       :ok = Client.close(client)
@@ -273,7 +275,7 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
       client = ConnectionManager.get_client(manager, mock_url)
       assert client
 
-      # Use the client - can return :ok or {:ok, response}
+      # Plain text has no correlation ID, so sending is fire-and-forget.
       assert :ok = Client.send_message(client, "managed message")
     end
 
@@ -321,7 +323,7 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
     end
   end
 
-  defp await_supervised_client(remaining_ms \\ 2_000)
+  defp await_supervised_client(remaining_ms \\ @restart_wait_ms)
 
   defp await_supervised_client(remaining_ms) when remaining_ms <= 0 do
     flunk("No supervised client appeared before timeout")
@@ -333,8 +335,11 @@ defmodule ZenWebsocket.Examples.SupervisedConnectionTest do
         pid
 
       [] ->
-        Process.sleep(20)
-        await_supervised_client(remaining_ms - 20)
+        receive do
+        after
+          @restart_poll_interval_ms ->
+            await_supervised_client(remaining_ms - @restart_poll_interval_ms)
+        end
     end
   end
 end

@@ -617,8 +617,8 @@ export DERIBIT_CLIENT_SECRET="your_client_secret"
 If either is missing, create them before completing the task.
 
 ### Test Tagging
-- `:integration` - Opt-in suite excluded from default `mix test` **and** from the coverage gate (`mix test.json --exclude integration`). Use for MockWebSockServer / live-API tests that are not part of the coverage ratchet.
-- `:external_network` - Tests that open a socket (local `MockWebSockServer` or internet). Excluded from default `mix test`; still run by the coverage gate, which only excludes `:integration`.
+- `:integration` - Tests using MockWebSockServer, Gun, or external APIs. Excluded from default `mix test` and the coverage gate.
+- `:external_network` - Tests requiring internet access. Excluded from default `mix test` and the coverage gate.
 - Default `mix test` excludes both, so the fast suite performs no socket connections.
 
 ### Real API Testing Policy

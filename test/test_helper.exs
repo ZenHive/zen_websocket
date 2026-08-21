@@ -1,10 +1,7 @@
 # Test Tagging Conventions:
 #
-# - :integration      - Opt-in extra suite. Excluded from default `mix test` AND
-#                       from the coverage gate (`mix test.json --exclude integration
-#                       --include external_network`).
-# - :external_network - Opens a socket (MockWebSockServer or internet). Excluded
-#                       from default `mix test` only; still runs in the coverage gate.
+# - :integration      - Tests using MockWebSockServer, Gun, or external APIs
+# - :external_network - Tests requiring internet (Deribit testnet, echo.websocket.org, etc.)
 #
 # Default: mix test runs only unit tests (no tags, no sockets)
 # Full suite: mix test --include integration --include external_network

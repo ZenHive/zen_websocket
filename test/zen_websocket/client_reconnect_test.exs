@@ -5,7 +5,7 @@ defmodule ZenWebsocket.ClientReconnectTest do
   alias ZenWebsocket.ClientSupervisor
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
-  @moduletag :external_network
+  @moduletag :integration
 
   # Maximum time to wait for client to reconnect after server restart
   @reconnect_poll_timeout_ms 3_000

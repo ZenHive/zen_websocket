@@ -7,7 +7,7 @@ defmodule ZenWebsocket.ClientSupervisorTest do
   alias ZenWebsocket.PoolRouter
 
   # Tests require external network access to Deribit testnet
-  @moduletag :integration
+  @moduletag :external_network
 
   @deribit_test_url "wss://test.deribit.com/ws/api/v2"
 
