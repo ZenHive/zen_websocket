@@ -478,7 +478,7 @@ shipped_in = "307a2bcf63e9aaf0838c00128f3d39c776131ea9"
 id = "9"
 phase = 1
 bundle = "code-quality"
-status = "in_progress"
+status = "done"
 title = "Extract three cross-module duplications that ex_dna does not catch"
 scores = { d = 3, b = 6, u = 6 }
 depends_on = ["2", "5"]
@@ -496,6 +496,13 @@ Three duplications that survive a zero-clone budget. Sequenced after the reconne
 
 All three pass `mix ex_dna --max-clones 0`, which runs TWICE per `mix ci` — standalone at mix.exs:229 and again as a Credo plugin via .credo.exs:16. That is worth a paragraph of explanation as part of this task: a duplication gate that misses byte-identical cross-module functions is a gate the project is over-trusting. Record what its actual detection boundary is.
 """
+implemented = "Landed by cursor via merge-train; reviewer-approved (run run-1787300566084-474f0fa9, f3d58fb921a65de61f921c9987637b45548ea458)."
+delivered_by = "cursor"
+verified = true
+verified_by = "codex"
+verification_ref = "harness-run:run-1787300566084-474f0fa9"
 created_at = "2026-08-20"
 started_at = "2026-08-21"
 scored_at = "2026-08-20"
+done_at = "2026-08-21"
+shipped_in = "f3d58fb921a65de61f921c9987637b45548ea458"

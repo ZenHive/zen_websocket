@@ -49,9 +49,9 @@
 > Managed by `rmap` — source of truth is `roadmap/tasks.toml`. Run `rmap show <id>` for full task detail, `rmap next` to pick the next task.
 
 <!-- FOCUS:BEGIN -->
-**Focus phase:** 1 — Post-v0.6.1 Backlog (9 of 14 done · 1 in progress)
+**Focus phase:** 1 — Post-v0.6.1 Backlog (10 of 14 done · 0 in progress)
 
-**Last shipped:** Task 1 — Widen JsonRpc.build_request/2 params spec to accept list params, Task 2 — Fix the reconnect state machine and its supervisor-side fallout, Task 3 — Fix RateLimiter token race and the queue that discards requests, Task 4 — Fix always-true guard, silent auth pass-through, subscription re-add, and recorder data loss, Task 5 — Make heartbeat and pool health metrics report reality instead of a constant, Task 6 — Remove tests that pass on every outcome and tag the untagged network tests, Task 7 — Make CLAUDE.md, README and the docs describe the library that actually ships, Task 8 — Resolve three places where stated policy and shipped code disagree on 2026-08-21
+**Last shipped:** Task 1 — Widen JsonRpc.build_request/2 params spec to accept list params, Task 2 — Fix the reconnect state machine and its supervisor-side fallout, Task 3 — Fix RateLimiter token race and the queue that discards requests, Task 4 — Fix always-true guard, silent auth pass-through, subscription re-add, and recorder data loss, Task 5 — Make heartbeat and pool health metrics report reality instead of a constant, Task 6 — Remove tests that pass on every outcome and tag the untagged network tests, Task 7 — Make CLAUDE.md, README and the docs describe the library that actually ships, Task 8 — Resolve three places where stated policy and shipped code disagree, Task 9 — Extract three cross-module duplications that ex_dna does not catch on 2026-08-21
 
 **Up next:** Task R051 — Decompose Reconnection.establish_connection/1 (dominator depth 39) [D:4/B:6/U:5 → Eff:1.38] 📋
 <!-- FOCUS:END -->
@@ -72,7 +72,7 @@
 | Task 6 | ✅ | 🎁 **hygiene** · 🐛 Remove tests that pass on every outcome and tag the untagged network tests [D:3/B:8/U:7 → Eff:2.5] 🎯 |
 | Task 7 | ✅ | 🎁 **hygiene** · 📝 Make CLAUDE.md, README and the docs describe the library that actually ships [D:3/B:9/U:8 → Eff:2.83] 🎯 |
 | Task 8 | ✅ | 🎁 **hygiene** · Resolve three places where stated policy and shipped code disagree [D:3/B:6/U:5 → Eff:1.83] 🚀 |
-| Task 9 | 🔄 | 🎁 **code-quality** · Extract three cross-module duplications that ex_dna does not catch [D:3/B:6/U:6 → Eff:2.0] 🎯 |
+| Task 9 | ✅ | 🎁 **code-quality** · Extract three cross-module duplications that ex_dna does not catch [D:3/B:6/U:6 → Eff:2.0] 🎯 |
 <!-- TASKS:END -->
 
 ### Quick Commands
