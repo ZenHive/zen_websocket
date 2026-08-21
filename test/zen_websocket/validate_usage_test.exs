@@ -48,6 +48,21 @@ defmodule ZenWebsocket.ValidateUsageTest do
     assert issues == []
   end
 
+  test "nested Client modules are not invalid_api" do
+    path =
+      write_tmp("""
+      defmodule ZenWebsocket.Client.Callbacks do
+        alias ZenWebsocket.Client.Frames
+        Frames.handle_ws(state, pid, ref, frame)
+      end
+      """)
+
+    issues = json_issues(run_task(["--format", "json", path]))
+    invalid = Enum.filter(issues, &(&1["type"] == "invalid_api"))
+
+    assert invalid == []
+  end
+
   test "UTF-8 before a legitimate call is not invalid_api" do
     path = write_tmp("# em-dash — then a call\nZenWebsocket.Client.send_message(client, msg)\n")
     issues = json_issues(run_task(["--format", "json", path]))

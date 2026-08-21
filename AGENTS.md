@@ -556,7 +556,13 @@ Use the existing docs instead of re-explaining patterns from scratch:
 ### Module Structure
 ```
 lib/zen_websocket/
-├── client.ex               # Main client interface
+├── client.ex               # Main client interface (GenServer + public API)
+├── client/
+│   ├── call_facade.ex      # Process-down-safe GenServer.call + connect await
+│   ├── callbacks.ex        # handle_call/handle_info clause routing
+│   ├── connection.ex       # Gun open, upgrade, attempt-identity timers
+│   ├── retry.ex            # Disconnect retry, backoff, stop-with-error
+│   └── frames.ex           # Frame routing, JSON-RPC correlation, recording
 ├── client_supervisor.ex    # DynamicSupervisor for pooled connections
 ├── config.ex               # Configuration struct and validation
 ├── frame.ex                # WebSocket frame encoding/decoding

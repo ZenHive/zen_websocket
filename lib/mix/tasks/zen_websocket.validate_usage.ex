@@ -133,7 +133,7 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
 
   defp validate_api_usage(file, content, lines) do
     lines_tuple = List.to_tuple(lines)
-    pattern = ~r/ZenWebsocket\.Client\.(\w+)/
+    pattern = ~r/ZenWebsocket\.Client\.(\w+)\(/
     names = Regex.scan(pattern, content)
     indexes = Regex.scan(pattern, content, return: :index)
 

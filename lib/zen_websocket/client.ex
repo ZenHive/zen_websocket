@@ -74,23 +74,14 @@ defmodule ZenWebsocket.Client do
   use Descripex, namespace: "/client"
   use GenServer
 
-  alias ZenWebsocket.Debug
-  alias ZenWebsocket.HeartbeatManager
+  alias ZenWebsocket.Client.Callbacks
+  alias ZenWebsocket.Client.CallFacade
+  alias ZenWebsocket.Client.Connection
+  alias ZenWebsocket.Client.Frames
+  alias ZenWebsocket.Client.Retry
+  alias ZenWebsocket.ErrorHandler
   alias ZenWebsocket.LatencyStats
-  alias ZenWebsocket.Reconnection
-  alias ZenWebsocket.RequestCorrelator
   alias ZenWebsocket.SafeCallback
-  alias ZenWebsocket.SubscriptionManager
-
-  require Logger
-
-  # GenServer.call needs extra time beyond the underlying operation timeout.
-  # This buffer accounts for message passing and scheduling overhead.
-  @genserver_call_buffer_ms 100
-
-  # Minimum timeout ensures connection attempts have reasonable time,
-  # even if user specifies a very short timeout.
-  @minimum_connection_timeout_ms 1000
 
   defstruct [:gun_pid, :stream_ref, :state, :url, :monitor_ref, :server_pid, :config, reconnect_opts: []]
 
@@ -161,6 +152,7 @@ defmodule ZenWebsocket.Client do
           reconnector: function() | nil
         }
 
+  # Public API
   @doc """
   Returns a child specification for starting a Client under a supervisor.
 
@@ -179,8 +171,6 @@ defmodule ZenWebsocket.Client do
       
       Supervisor.start_link(children, strategy: :one_for_one)
   """
-
-  # Public API
 
   @spec child_spec(keyword()) :: Supervisor.child_spec()
   def child_spec(opts) do
@@ -246,41 +236,7 @@ defmodule ZenWebsocket.Client do
   end
 
   def connect(%ZenWebsocket.Config{} = config, opts) do
-    # Capture calling process PID for default handler
-    parent_pid = self()
-
-    # Create default handler that sends messages to parent process if none provided
-    opts_with_handler =
-      if Keyword.has_key?(opts, :handler) do
-        opts
-      else
-        default_handler = fn
-          {:message, data} -> send(parent_pid, {:websocket_message, data})
-          {:binary, data} -> send(parent_pid, {:websocket_message, data})
-          {:unmatched_response, response} -> send(parent_pid, {:websocket_unmatched_response, response})
-          {:protocol_error, reason} -> send(parent_pid, {:websocket_protocol_error, reason})
-          _other -> :ok
-        end
-
-        Keyword.put(opts, :handler, default_handler)
-      end
-
-    case GenServer.start(__MODULE__, {config, opts_with_handler}) do
-      {:ok, server_pid} ->
-        timeout = max(config.timeout + @genserver_call_buffer_ms, @minimum_connection_timeout_ms)
-
-        case await_connected(server_pid, timeout) do
-          {:ok, state} ->
-            {:ok, build_client_struct(state, server_pid)}
-
-          {:error, reason} ->
-            stop_client_process(server_pid)
-            {:error, reason}
-        end
-
-      {:error, reason} ->
-        {:error, reason}
-    end
+    CallFacade.start_client(__MODULE__, config, opts, &build_client_struct/2)
   end
 
   api(:send_message, "Send a message through the WebSocket connection.",
@@ -307,7 +263,7 @@ defmodule ZenWebsocket.Client do
   """
   @spec send_message(t(), binary()) :: :ok | {:ok, map()} | {:error, term()}
   def send_message(%__MODULE__{server_pid: server_pid}, message) when is_pid(server_pid) do
-    safe_server_call(server_pid, {:send_message, message}, {:error, {:not_connected, :process_down}})
+    CallFacade.safe_call(server_pid, {:send_message, message}, {:error, {:not_connected, :process_down}})
   end
 
   def send_message(%__MODULE__{gun_pid: gun_pid, stream_ref: stream_ref, state: :connected}, message) do
@@ -331,7 +287,7 @@ defmodule ZenWebsocket.Client do
     :ok
   catch
     :exit, reason ->
-      if process_down_exit?(reason) do
+      if CallFacade.process_down_exit?(reason) do
         :ok
       else
         exit(reason)
@@ -375,7 +331,7 @@ defmodule ZenWebsocket.Client do
   """
   @spec get_state(t()) :: :connecting | :connected | :disconnected
   def get_state(%__MODULE__{server_pid: server_pid}) when is_pid(server_pid) do
-    safe_server_call(server_pid, :get_state, :disconnected)
+    CallFacade.safe_call(server_pid, :get_state, :disconnected)
   end
 
   def get_state(%__MODULE__{state: state}), do: state
@@ -389,7 +345,7 @@ defmodule ZenWebsocket.Client do
 
   @spec get_heartbeat_health(t()) :: map() | nil
   def get_heartbeat_health(%__MODULE__{server_pid: server_pid}) when is_pid(server_pid) do
-    safe_server_call(server_pid, :get_heartbeat_health, nil)
+    CallFacade.safe_call(server_pid, :get_heartbeat_health, nil)
   end
 
   def get_heartbeat_health(%__MODULE__{}), do: nil
@@ -414,7 +370,7 @@ defmodule ZenWebsocket.Client do
   """
   @spec get_state_metrics(t()) :: map() | nil
   def get_state_metrics(%__MODULE__{server_pid: server_pid}) when is_pid(server_pid) do
-    safe_server_call(server_pid, :get_state_metrics, nil)
+    CallFacade.safe_call(server_pid, :get_state_metrics, nil)
   end
 
   def get_state_metrics(%__MODULE__{}), do: nil
@@ -436,7 +392,7 @@ defmodule ZenWebsocket.Client do
   @spec get_latency_stats(t()) ::
           %{p50: non_neg_integer(), p99: non_neg_integer(), last: non_neg_integer(), count: non_neg_integer()} | nil
   def get_latency_stats(%__MODULE__{server_pid: server_pid}) when is_pid(server_pid) do
-    safe_server_call(server_pid, :get_latency_stats, nil)
+    CallFacade.safe_call(server_pid, :get_latency_stats, nil)
   end
 
   def get_latency_stats(%__MODULE__{}), do: nil
@@ -451,15 +407,15 @@ defmodule ZenWebsocket.Client do
 
   @spec reconnect(t()) :: {:ok, t()} | {:error, term()}
   def reconnect(%__MODULE__{} = client) do
-    {target, opts} = reconnect_target(client)
+    {target, opts} = CallFacade.reconnect_target(client)
     close(client)
 
-    case reconnect_with(target, opts) do
+    case CallFacade.reconnect_with(target, opts, &connect/2) do
       {:ok, new_client} ->
         {:ok, new_client}
 
       {:error, reason} ->
-        if ZenWebsocket.ErrorHandler.recoverable?(reason) do
+        if ErrorHandler.recoverable?(reason) do
           {:error, {:recoverable, reason}}
         else
           {:error, reason}
@@ -467,617 +423,9 @@ defmodule ZenWebsocket.Client do
     end
   end
 
-  @doc false
-  @spec safe_server_call(pid(), term(), term()) :: term()
-  defp safe_server_call(server_pid, request, fallback) do
-    GenServer.call(server_pid, request)
-  catch
-    :exit, reason ->
-      if process_down_exit?(reason) do
-        fallback
-      else
-        exit(reason)
-      end
-  end
-
-  @doc false
-  @spec process_down_exit?(term()) :: boolean()
-  defp process_down_exit?({:noproc, _details}), do: true
-
-  # GenServer callbacks
-
-  defp process_down_exit?({:normal, _details}), do: true
-  defp process_down_exit?({:shutdown, _details}), do: true
-  defp process_down_exit?({{:shutdown, _reason}, _details}), do: true
-  defp process_down_exit?(_reason), do: false
-
-  @spec await_connected(pid(), timeout()) :: {:ok, map()} | {:error, term()}
-  defp await_connected(server_pid, timeout) do
-    GenServer.call(server_pid, :await_connection, timeout)
-  catch
-    :exit, reason -> {:error, unwrap_call_exit(reason)}
-  end
-
-  @spec unwrap_call_exit(term()) :: term()
-  defp unwrap_call_exit({:timeout, _details}), do: :timeout
-  defp unwrap_call_exit({reason, {GenServer, :call, _details}}), do: reason
-  defp unwrap_call_exit({reason, {:gen_server, :call, _details}}), do: reason
-  defp unwrap_call_exit(reason), do: reason
-
-  @spec stop_client_process(pid()) :: :ok
-  defp stop_client_process(pid) do
-    if Process.alive?(pid), do: GenServer.stop(pid)
-    :ok
-  catch
-    :exit, _reason -> :ok
-  end
-
-  @doc false
-  @spec reconnect_target(t()) :: {ZenWebsocket.Config.t() | String.t() | nil, keyword()}
-  defp reconnect_target(%__MODULE__{server_pid: server_pid} = client) when is_pid(server_pid) do
-    fallback = {client.config || client.url, client.reconnect_opts}
-
-    case safe_server_call(server_pid, :get_state_internal, :disconnected) do
-      {:ok, state} -> {state.config, reconnect_opts_from_state(state)}
-      _ -> fallback
-    end
-  end
-
-  defp reconnect_target(%__MODULE__{} = client) do
-    {client.config || client.url, client.reconnect_opts}
-  end
-
-  @doc false
-  @spec reconnect_with(ZenWebsocket.Config.t() | String.t() | nil, keyword()) :: {:ok, t()} | {:error, term()}
-  defp reconnect_with(nil, _opts), do: {:error, {:not_connected, :missing_config}}
-
-  defp reconnect_with(target, opts) do
-    case Keyword.pop(opts, :reconnector) do
-      {reconnector, reconnect_opts} when is_function(reconnector, 2) ->
-        reconnector.(target, reconnect_opts)
-
-      {_reconnector, reconnect_opts} ->
-        connect(target, reconnect_opts)
-    end
-  end
-
-  @spec reconnect_opts_from_state(map()) :: keyword()
-  defp reconnect_opts_from_state(state) do
-    []
-    |> maybe_put_reconnect_opt(:handler, state.handler)
-    |> maybe_put_reconnect_opt(:heartbeat_config, state.heartbeat_config)
-    |> maybe_put_reconnect_opt(:on_connect, state.on_connect)
-    |> maybe_put_reconnect_opt(:on_disconnect, state.on_disconnect)
-    |> maybe_put_reconnect_opt(:reconnector, state.reconnector)
-  end
-
-  @impl true
-  def init({%ZenWebsocket.Config{} = config, opts}) do
-    # Trap exits to ensure terminate/2 is called on shutdown.
-    # This is required for on_disconnect callbacks when terminated via supervisor.
-    Process.flag(:trap_exit, true)
-
-    # Setup message handler callback
-    handler = Keyword.get(opts, :handler, &ZenWebsocket.MessageHandler.default_handler/1)
-
-    # Setup heartbeat configuration
-    heartbeat_config = Keyword.get(opts, :heartbeat_config, :disabled)
-
-    # Get latency buffer size from config
-    latency_buffer_size = config.latency_buffer_size
-
-    # Start recorder if configured
-    recorder_pid = maybe_start_recorder(config.record_to)
-
-    # Get lifecycle callback
-    on_connect = Keyword.get(opts, :on_connect)
-    on_disconnect = Keyword.get(opts, :on_disconnect)
-    reconnector = Keyword.get(opts, :reconnector)
-
-    initial_state = %{
-      config: config,
-      gun_pid: nil,
-      stream_ref: nil,
-      state: :disconnected,
-      monitor_ref: nil,
-      url: config.url,
-      handler: handler,
-      subscriptions: MapSet.new(),
-      pending_requests: %{},
-      # Heartbeat tracking
-      heartbeat_config: heartbeat_config,
-      active_heartbeats: MapSet.new(),
-      last_heartbeat_at: nil,
-      heartbeat_failures: 0,
-      heartbeat_timer: nil,
-      heartbeat_ping_payload: nil,
-      heartbeat_ping_sent_at: nil,
-      # Reconnection tracking
-      retry_count: 0,
-      connection_timer: nil,
-      connection_attempt: nil,
-      # Latency tracking
-      connect_start_time: nil,
-      latency_stats: LatencyStats.new(max_size: latency_buffer_size),
-      # Session recording
-      recorder_pid: recorder_pid,
-      # Lifecycle callback
-      on_connect: on_connect,
-      # Lifecycle callback
-      on_disconnect: on_disconnect,
-      # Callback used to recreate the client on explicit reconnect
-      reconnector: reconnector
-    }
-
-    {:ok, initial_state, {:continue, :connect}}
-  end
-
-  @impl true
-  def handle_continue(:connect, %{config: config} = state) do
-    Debug.log(state.config, "🔌 [GUN CONNECT] #{DateTime.to_string(DateTime.utc_now())}")
-    Debug.log(state.config, "   🌐 URL: #{config.url}")
-    Debug.log(state.config, "   ⏱️  Timeout: #{config.timeout}ms")
-    Debug.log(state.config, "   🔄 Establishing connection...")
-    start_gun_attempt(state)
-  end
-
-  def handle_continue({:connection_failed, reason}, state) do
-    state
-    |> Map.put(:state, :disconnected)
-    |> cleanup_failed_connection()
-    |> maybe_retry_open(reason)
-  end
-
-  @doc false
-  def handle_continue(:reconnect, %{config: config} = state) do
-    current_attempt = Map.get(state, :retry_count, 0)
-
-    Debug.log(state.config, "🔄 [GUN RECONNECT] #{DateTime.to_string(DateTime.utc_now())}")
-    Debug.log(state.config, "   🔢 Attempt: #{current_attempt + 1}")
-    Debug.log(state.config, "   🌐 URL: #{config.url}")
-    Debug.log(state.config, "   🔄 Re-establishing connection...")
-    start_gun_attempt(state)
-  end
-
-  @impl true
-  def handle_call(:await_connection, _from, %{state: :connected} = state) do
-    {:reply, {:ok, state}, state}
-  end
-
-  def handle_call(:await_connection, from, state) do
-    {:noreply, Map.put(state, :awaiting_connection, from)}
-  end
-
-  def handle_call({:send_message, message}, from, %{gun_pid: gun_pid, stream_ref: stream_ref, state: :connected} = state) do
-    case RequestCorrelator.extract_id(message) do
-      {:ok, id} ->
-        case RequestCorrelator.track(state, id, from, state.config.request_timeout) do
-          {:ok, new_state} ->
-            new_state = track_subscription_outbound(new_state, message)
-            :gun.ws_send(gun_pid, stream_ref, {:text, message})
-            maybe_record(new_state.recorder_pid, :out, {:text, message})
-            {:noreply, new_state}
-
-          {:error, :duplicate_id, state} ->
-            {:reply, {:error, :duplicate_request_id}, state}
-        end
-
-      :no_id ->
-        state = track_subscription_outbound(state, message)
-        result = :gun.ws_send(gun_pid, stream_ref, {:text, message})
-        maybe_record(state.recorder_pid, :out, {:text, message})
-        {:reply, result, state}
-    end
-  end
-
-  def handle_call({:send_message, _message}, _from, %{state: conn_state} = state) do
-    {:reply, {:error, {:not_connected, conn_state}}, state}
-  end
-
-  def handle_call(:get_state, _from, %{state: conn_state} = state) do
-    {:reply, conn_state, state}
-  end
-
-  def handle_call(:get_state_internal, _from, state) do
-    {:reply, {:ok, state}, state}
-  end
-
-  def handle_call(:get_heartbeat_health, _from, state) do
-    {:reply, HeartbeatManager.get_health(state), state}
-  end
-
-  def handle_call(:get_state_metrics, _from, state) do
-    metrics = %{
-      # Connection state
-      connection_state: Map.get(state, :state, :unknown),
-
-      # Data structure sizes
-      active_heartbeats_size: MapSet.size(Map.get(state, :active_heartbeats, MapSet.new())),
-      subscriptions_size: MapSet.size(Map.get(state, :subscriptions, MapSet.new())),
-      pending_requests_size: map_size(Map.get(state, :pending_requests, %{})),
-
-      # Memory usage estimates
-      state_memory: :erts_debug.size(state),
-
-      # Heartbeat tracking
-      heartbeat_failures: Map.get(state, :heartbeat_failures, 0),
-      last_heartbeat_at: Map.get(state, :last_heartbeat_at),
-      heartbeat_timer_active: Map.get(state, :heartbeat_timer) != nil,
-
-      # Process info
-      message_queue_len: self() |> Process.info(:message_queue_len) |> elem(1),
-      memory: self() |> Process.info(:memory) |> elem(1),
-      reductions: self() |> Process.info(:reductions) |> elem(1)
-    }
-
-    {:reply, metrics, state}
-  end
-
-  def handle_call(:get_latency_stats, _from, state) do
-    latency_stats = Map.get(state, :latency_stats)
-    summary = if latency_stats, do: LatencyStats.summary(latency_stats)
-    {:reply, summary, state}
-  end
-
-  # Emit connection timing telemetry
-  @impl true
-  def handle_info(
-        {:gun_upgrade, gun_pid, stream_ref, ["websocket"], headers},
-        %{gun_pid: gun_pid, stream_ref: stream_ref} = state
-      ) do
-    Debug.log(state.config, "🔗 [GUN UPGRADE] #{DateTime.to_string(DateTime.utc_now())}")
-    Debug.log(state.config, "   ✅ WebSocket connection upgraded successfully")
-    Debug.log(state.config, "   🔧 Gun PID: #{inspect(gun_pid)}")
-    Debug.log(state.config, "   📡 Stream Ref: #{inspect(stream_ref)}")
-    Debug.log(state.config, "   📋 Headers: #{inspect(headers, pretty: true)}")
-
-    if state.connect_start_time do
-      connect_time_ms = System.monotonic_time(:millisecond) - state.connect_start_time
-
-      :telemetry.execute(
-        [:zen_websocket, :connection, :upgrade],
-        %{connect_time_ms: connect_time_ms},
-        %{url: state.url}
-      )
-    end
-
-    # Start heartbeat timer if configured
-    # Reset retry_count so the next disconnect-reconnect cycle gets fresh retries
-    new_state =
-      state
-      |> cancel_connection_timer()
-      |> Map.merge(%{state: :connected, connect_start_time: nil, retry_count: 0})
-      |> HeartbeatManager.start_timer()
-      |> maybe_restore_subscriptions()
-
-    Debug.log(state.config, "   🔄 State: :connecting → :connected")
-
-    if Map.get(state, :heartbeat_config) != :disabled do
-      Debug.log(state.config, "   💓 Heartbeat timer started")
-    end
-
-    if Map.has_key?(state, :awaiting_connection) do
-      GenServer.reply(state.awaiting_connection, {:ok, new_state})
-      {:noreply, Map.delete(new_state, :awaiting_connection)}
-    else
-      {:noreply, new_state}
-    end
-  end
-
-  def handle_info({:gun_error, gun_pid, stream_ref, reason}, %{gun_pid: gun_pid, stream_ref: stream_ref} = state) do
-    Debug.log(state.config, "❌ [GUN ERROR] #{DateTime.to_string(DateTime.utc_now())}")
-    Debug.log(state.config, "   🔧 Gun PID: #{inspect(gun_pid)}")
-    Debug.log(state.config, "   📡 Stream Ref: #{inspect(stream_ref)}")
-    Debug.log(state.config, "   💥 Reason: #{inspect(reason)}")
-    Debug.log(state.config, "   🔄 Triggering connection error handling...")
-
-    handle_connection_error(state, {:gun_error, gun_pid, stream_ref, reason})
-  end
-
-  def handle_info({:gun_down, gun_pid, protocol, reason, killed_streams}, %{gun_pid: gun_pid} = state) do
-    Debug.log(state.config, "📉 [GUN DOWN] #{DateTime.to_string(DateTime.utc_now())}")
-    Debug.log(state.config, "   🔧 Gun PID: #{inspect(gun_pid)}")
-    Debug.log(state.config, "   🌐 Protocol: #{inspect(protocol)}")
-    Debug.log(state.config, "   💥 Reason: #{inspect(reason)}")
-    Debug.log(state.config, "   🚫 Killed Streams: #{inspect(killed_streams)}")
-    Debug.log(state.config, "   🔄 Connection lost, triggering error handling...")
-
-    handle_connection_error(state, {:gun_down, gun_pid, protocol, reason, killed_streams})
-  end
-
-  def handle_info({:DOWN, ref, :process, gun_pid, reason}, %{gun_pid: gun_pid, monitor_ref: ref} = state) do
-    Debug.log(state.config, "💀 [PROCESS DOWN] #{DateTime.to_string(DateTime.utc_now())}")
-    Debug.log(state.config, "   🔧 Gun PID: #{inspect(gun_pid)} (monitored process)")
-    Debug.log(state.config, "   📍 Monitor Ref: #{inspect(ref)}")
-    Debug.log(state.config, "   💥 Exit Reason: #{inspect(reason)}")
-    Debug.log(state.config, "   🔄 Process terminated, triggering connection error handling...")
-
-    handle_connection_error(state, {:connection_down, reason})
-  end
-
-  def handle_info({:gun_ws, gun_pid, stream_ref, frame}, %{gun_pid: gun_pid, stream_ref: stream_ref} = state) do
-    # Log WebSocket frame details
-    case frame do
-      {:text, _} ->
-        Debug.log(state.config, "📨 [GUN WS TEXT] #{DateTime.to_string(DateTime.utc_now())}")
-
-      {:binary, data} ->
-        Debug.log(state.config, "📦 [GUN WS BINARY] #{DateTime.to_string(DateTime.utc_now())}")
-        Debug.log(state.config, "   📏 Size: #{byte_size(data)} bytes")
-
-      {:ping, payload} ->
-        Debug.log(state.config, "🏓 [GUN WS PING] #{DateTime.to_string(DateTime.utc_now())}")
-        Debug.log(state.config, "   📦 Payload: #{inspect(payload)}")
-
-      {:pong, payload} ->
-        Debug.log(state.config, "🏓 [GUN WS PONG] #{DateTime.to_string(DateTime.utc_now())}")
-        Debug.log(state.config, "   📦 Payload: #{inspect(payload)}")
-
-      {:close, code, reason} ->
-        Debug.log(state.config, "🔒 [GUN WS CLOSE] #{DateTime.to_string(DateTime.utc_now())}")
-        Debug.log(state.config, "   🔢 Code: #{code}")
-        Debug.log(state.config, "   📝 Reason: #{inspect(reason)}")
-
-      other ->
-        Debug.log(state.config, "❓ [GUN WS OTHER] #{DateTime.to_string(DateTime.utc_now())}")
-        Debug.log(state.config, "   🔍 Frame: #{inspect(other)}")
-    end
-
-    heartbeat_state = track_heartbeat_frame(frame, state)
-
-    # Decode the frame. Control frames are classified only — Gun already
-    # answered inbound pings. Uses decode_and_handle_control (not
-    # handle_message) to avoid double handler delivery; route_data_frame
-    # dispatches user callbacks.
-    case ZenWebsocket.MessageHandler.decode_and_handle_control({:gun_ws, gun_pid, stream_ref, frame}) do
-      {:ok, {:data, decoded_frame}} ->
-        new_state = route_data_frame(decoded_frame, heartbeat_state)
-        {:noreply, new_state}
-
-      {:ok, :control_frame_handled} ->
-        {:noreply, heartbeat_state}
-
-      {:error, {:protocol_error, _} = error} ->
-        handle_frame_error(heartbeat_state, error)
-    end
-  end
-
-  def handle_info({:connection_timeout, attempt}, %{state: :connecting, connection_attempt: attempt} = state) do
-    Debug.log(state.config, "⏰ [CONNECTION TIMEOUT] #{DateTime.to_string(DateTime.utc_now())}")
-    Debug.log(state.config, "   🔄 State: :connecting (timeout)")
-    Debug.log(state.config, "   🔄 Triggering connection error handling...")
-
-    handle_connection_error(%{state | connection_timer: nil}, :timeout)
-  end
-
-  def handle_info({:connection_timeout, _attempt}, state) do
-    {:noreply, state}
-  end
-
-  @doc false
-  # Handles scheduled reconnection retry with exponential backoff
-  def handle_info(:retry_reconnect, %{config: config} = state) do
-    current_retries = Map.get(state, :retry_count, 0)
-
-    Debug.log(state.config, "🔄 [RETRY RECONNECT] #{DateTime.to_string(DateTime.utc_now())}")
-    Debug.log(state.config, "   🔢 Current Retries: #{current_retries}")
-    Debug.log(state.config, "   🔢 Max Retries: #{config.retry_count}")
-
-    if Reconnection.max_retries_exceeded?(current_retries, config.retry_count) do
-      Debug.log(state.config, "   🚫 Max reconnection attempts exceeded")
-      Debug.log(state.config, "   🛑 Stopping GenServer with reason: :max_reconnection_attempts")
-      stop_with_error(state, :max_reconnection_attempts)
-    else
-      Debug.log(state.config, "   ✅ Retries within limit, attempting reconnection...")
-      {:noreply, state, {:continue, :reconnect}}
-    end
-  end
-
-  @doc false
-  # Handles periodic heartbeat sending
-  def handle_info(:send_heartbeat, %{state: :connected, heartbeat_config: config} = state) when is_map(config) do
-    new_state = HeartbeatManager.send_heartbeat(state)
-
-    # Schedule next heartbeat
-    interval = Map.get(config, :interval, state.config.heartbeat_interval)
-    timer_ref = Process.send_after(self(), :send_heartbeat, interval)
-
-    {:noreply, %{new_state | heartbeat_timer: timer_ref}}
-  end
-
-  def handle_info(:send_heartbeat, state) do
-    # Not connected or heartbeat disabled
-    {:noreply, state}
-  end
-
-  def handle_info({:timeout, timeout_ref, {:correlation_timeout, request_id}}, state) do
-    # Ignore stale timeout messages from an older request if the same ID is reused.
-    case Map.get(state.pending_requests, request_id) do
-      {_from, ^timeout_ref, _start_time} ->
-        handle_correlation_timeout(state, request_id)
-
-      _other ->
-        {:noreply, state}
-    end
-  end
-
-  def handle_info({:correlation_timeout, request_id}, state) do
-    case Map.get(state.pending_requests, request_id) do
-      {_from, _timeout_ref, _start_time} ->
-        handle_correlation_timeout(state, request_id)
-
-      _other ->
-        {:noreply, state}
-    end
-  end
-
-  def handle_info(_msg, state) do
-    {:noreply, state}
-  end
-
-  @impl true
-  def terminate(_reason, state) do
-    maybe_stop_recorder(state.recorder_pid)
-    SafeCallback.invoke(state.on_disconnect, self())
-    :ok
-  end
-
-  @spec handle_correlation_timeout(state(), term()) :: {:noreply, state()}
-  defp handle_correlation_timeout(state, request_id) do
-    case RequestCorrelator.timeout(state, request_id) do
-      {nil, state} ->
-        {:noreply, state}
-
-      {{from, _timeout_ref, _start_time}, new_state} ->
-        GenServer.reply(from, {:error, :timeout})
-        {:noreply, new_state}
-    end
-  end
-
-  # Private functions
-
-  defp track_heartbeat_frame({:pong, payload}, %{heartbeat_config: %{type: :ping_pong}} = state) do
-    HeartbeatManager.handle_message({:pong, payload}, state)
-  end
-
-  defp track_heartbeat_frame(_frame, state), do: state
-
-  # Handles connection errors and triggers internal reconnection when appropriate.
-  # This maintains Gun ownership by reconnecting from within the same GenServer.
-  @spec handle_connection_error(map(), term()) :: {:noreply, map()} | {:stop, term(), map()}
-  defp handle_connection_error(state, reason) do
-    conn_state = state.state
-    retry? = retry_now?(state, reason)
-    state = cleanup_failed_connection(state)
-
-    cond do
-      retry? and conn_state == :connected ->
-        {:noreply, state, {:continue, :reconnect}}
-
-      retry? ->
-        schedule_retry(state)
-
-      true ->
-        stop_with_error(state, reason)
-    end
-  end
-
-  @spec start_gun_attempt(map()) ::
-          {:noreply, map()} | {:noreply, map(), {:continue, {:connection_failed, term()}}}
-  defp start_gun_attempt(state) do
-    state = %{state | connect_start_time: System.monotonic_time(:millisecond)}
-
-    case Reconnection.establish_connection(state.config) do
-      {:ok, gun_pid, stream_ref, monitor_ref} ->
-        Debug.log(state.config, "   ✅ Gun connection established")
-        {:noreply, begin_attempt(state, gun_pid, stream_ref, monitor_ref)}
-
-      {:error, reason} ->
-        Debug.log(state.config, "   ❌ Gun connection failed: #{inspect(reason)}")
-        {:noreply, %{state | state: :disconnected}, {:continue, {:connection_failed, reason}}}
-    end
-  end
-
-  @spec maybe_retry_open(map(), term()) :: {:noreply, map()} | {:stop, term(), map()}
-  defp maybe_retry_open(state, reason) do
-    retry? =
-      state.config.reconnect_on_error and
-        not Reconnection.max_retries_exceeded?(state.retry_count, state.config.retry_count)
-
-    if retry?, do: schedule_retry(state), else: stop_with_error(state, reason)
-  end
-
-  @spec begin_attempt(map(), pid(), reference(), reference()) :: map()
-  defp begin_attempt(state, gun_pid, stream_ref, monitor_ref) do
-    state = arm_connection_timer(state)
-    %{state | gun_pid: gun_pid, stream_ref: stream_ref, monitor_ref: monitor_ref, state: :connecting}
-  end
-
-  @spec arm_connection_timer(map()) :: map()
-  defp arm_connection_timer(state) do
-    state = cancel_connection_timer(state)
-    attempt = make_ref()
-    timer = Process.send_after(self(), {:connection_timeout, attempt}, state.config.timeout)
-    %{state | connection_timer: timer, connection_attempt: attempt}
-  end
-
-  @spec cancel_connection_timer(map()) :: map()
-  defp cancel_connection_timer(%{connection_timer: nil} = state), do: state
-
-  defp cancel_connection_timer(%{connection_timer: timer} = state) do
-    Process.cancel_timer(timer, async: false, info: false)
-    %{state | connection_timer: nil}
-  end
-
-  defp cancel_connection_timer(state), do: Map.put(state, :connection_timer, nil)
-
-  @spec close_gun(map()) :: map()
-  defp close_gun(state) do
-    if is_reference(state.monitor_ref), do: Process.demonitor(state.monitor_ref, [:flush])
-    if is_pid(state.gun_pid), do: :gun.close(state.gun_pid)
-    %{state | gun_pid: nil, stream_ref: nil, monitor_ref: nil}
-  end
-
-  @spec cleanup_failed_connection(map()) :: map()
-  defp cleanup_failed_connection(state) do
-    state
-    |> RequestCorrelator.fail_all(:disconnected)
-    |> HeartbeatManager.cancel_timer()
-    |> cancel_connection_timer()
-    |> close_gun()
-    |> Map.put(:state, :disconnected)
-  end
-
-  @spec retry_now?(map(), term()) :: boolean()
-  defp retry_now?(state, reason) do
-    state.config.reconnect_on_error and
-      Reconnection.should_reconnect?(reason) and
-      not Reconnection.max_retries_exceeded?(state.retry_count, state.config.retry_count)
-  end
-
-  @spec schedule_retry(map()) :: {:noreply, map()} | {:stop, term(), map()}
-  defp schedule_retry(state) do
-    count = state.retry_count + 1
-    state = %{state | retry_count: count}
-
-    if Reconnection.max_retries_exceeded?(count, state.config.retry_count) do
-      stop_with_error(state, :max_reconnection_attempts)
-    else
-      delay = Reconnection.calculate_backoff(count - 1, state.config.retry_delay, state.config.max_backoff)
-      Process.send_after(self(), :retry_reconnect, delay)
-      {:noreply, state}
-    end
-  end
-
-  @spec stop_with_error(map(), term()) :: {:stop, term(), map()}
-  defp stop_with_error(state, reason) do
-    reason = normalize_error(reason)
-    maybe_stop_recorder(state.recorder_pid)
-    {:stop, reason, reply_awaiting(state, {:error, reason})}
-  end
-
-  @spec reply_awaiting(map(), term()) :: map()
-  defp reply_awaiting(state, reply) do
-    case Map.pop(state, :awaiting_connection) do
-      {nil, state} ->
-        state
-
-      {from, state} ->
-        GenServer.reply(from, reply)
-        state
-    end
-  end
-
-  @spec normalize_error(term()) :: term()
-  defp normalize_error({:error, reason}), do: normalize_error(reason)
-  defp normalize_error({:shutdown, reason}), do: normalize_error(reason)
-  defp normalize_error({:gun_error, _pid, _stream, reason}), do: reason
-  defp normalize_error({:gun_error, _pid, reason}), do: reason
-  defp normalize_error(reason), do: reason
-
   # Public because ClientSupervisor.start_client/2 builds the same returned
   # struct after await_connection/3. Keeping this as the single constructor
-  # lets reconnect_opts_from_state/1 stay private.
+  # lets reconnect_opts_from_state/1 stay off the Client public surface.
   @doc false
   @spec build_client_struct(state(), pid()) :: t()
   def build_client_struct(state, server_pid) do
@@ -1089,139 +437,36 @@ defmodule ZenWebsocket.Client do
       monitor_ref: state.monitor_ref,
       server_pid: server_pid,
       config: state.config,
-      reconnect_opts: reconnect_opts_from_state(state)
+      reconnect_opts: CallFacade.reconnect_opts_from_state(state)
     }
   end
 
+  @impl true
+  def init({%ZenWebsocket.Config{} = config, opts}) do
+    Process.flag(:trap_exit, true)
+    {:ok, Connection.initial_state(config, opts), {:continue, :connect}}
+  end
+
+  @impl true
+  def handle_continue(:connect, state), do: Connection.continue_connect(state)
+
+  def handle_continue({:connection_failed, reason}, state) do
+    Retry.continue_failed(state, reason)
+  end
+
   @doc false
-  # Restores subscriptions after reconnection if configured
-  @spec maybe_restore_subscriptions(state()) :: state()
-  defp maybe_restore_subscriptions(state) do
-    case SubscriptionManager.build_restore_message(state) do
-      nil ->
-        state
+  def handle_continue(:reconnect, state), do: Connection.continue_reconnect(state)
 
-      message ->
-        Debug.log(state.config, "   📡 Restoring subscriptions...")
-        :gun.ws_send(state.gun_pid, state.stream_ref, {:text, message})
-        state
-    end
-  end
+  @impl true
+  def handle_call(request, from, state), do: Callbacks.handle_call(request, from, state)
 
-  # Routes data frames to appropriate handlers based on content
-  @spec route_data_frame(term(), state()) :: state()
-  defp route_data_frame(frame, state) do
-    # Record inbound frame
-    maybe_record(state.recorder_pid, :in, frame)
+  @impl true
+  def handle_info(msg, state), do: Callbacks.handle_info(msg, state)
 
-    case frame do
-      {:text, json_data} ->
-        # Parse JSON and route based on message type
-        case Jason.decode(json_data) do
-          {:ok, %{"method" => "heartbeat"} = msg} ->
-            # Handle heartbeat directly
-            Debug.log(state.config, "💓 [HEARTBEAT DETECTED] #{DateTime.to_string(DateTime.utc_now())}")
-            Debug.log(state.config, "   Heartbeat message: #{inspect(msg, pretty: true)}")
-            HeartbeatManager.handle_message(msg, state)
-
-          {:ok, %{"method" => "subscription"} = msg} ->
-            # Market-data notifications are not subscribe confirmations.
-            state.handler.({:message, msg})
-            state
-
-          {:ok, %{"id" => id} = msg} when is_integer(id) or is_binary(id) ->
-            # JSON-RPC response - route to pending request
-            handle_rpc_response(msg, state)
-
-          {:ok, msg} ->
-            # General message - forward to handler
-            state.handler.({:message, msg})
-            state
-
-          {:error, _} ->
-            # Non-JSON text frame
-            state.handler.({:message, json_data})
-            state
-        end
-
-      {:binary, data} ->
-        # Binary frame
-        state.handler.({:binary, data})
-        state
-    end
-  end
-
-  # Routes JSON-RPC responses to waiting callers
-  @spec handle_rpc_response(map(), state()) :: state()
-  defp handle_rpc_response(%{"id" => id} = response, state) do
-    state = SubscriptionManager.handle_message(response, state)
-
-    case RequestCorrelator.resolve(state, id) do
-      {nil, state} ->
-        state.handler.({:unmatched_response, response})
-        state
-
-      {{from, _timeout_ref, start_time}, new_state} ->
-        GenServer.reply(from, {:ok, response})
-
-        # Update latency stats with round-trip time
-        round_trip_ms = System.monotonic_time(:millisecond) - start_time
-        updated_latency_stats = LatencyStats.add(new_state.latency_stats, round_trip_ms)
-        %{new_state | latency_stats: updated_latency_stats}
-    end
-  end
-
-  # Handles frame decode errors. Only :protocol_error is reachable —
-  # ErrorHandler classifies every {:bad_frame, _} as fatal.
-  @spec handle_frame_error(state(), {:protocol_error, term()}) :: {:stop, term(), state()}
-  defp handle_frame_error(state, {:protocol_error, reason} = error) do
-    # Notify handler before stopping — matches handler_message/0 contract
-    state.handler.({:protocol_error, reason})
-    {:stop, error, state}
-  end
-
-  @spec track_subscription_outbound(state(), binary()) :: state()
-  defp track_subscription_outbound(state, message) when is_binary(message) do
-    case Jason.decode(message) do
-      {:ok, decoded} -> SubscriptionManager.handle_message(decoded, state)
-      _ -> state
-    end
-  end
-
-  @spec maybe_start_recorder(String.t() | nil) :: pid() | nil
-  defp maybe_start_recorder(nil), do: nil
-
-  defp maybe_start_recorder(path) when is_binary(path) do
-    case ZenWebsocket.RecorderServer.start_link(path) do
-      {:ok, pid} ->
-        pid
-
-      {:error, reason} ->
-        Logger.warning("Failed to start session recorder: #{inspect(reason)}")
-        nil
-    end
-  end
-
-  @spec maybe_record(pid() | nil, ZenWebsocket.Recorder.direction(), term()) :: :ok
-  defp maybe_record(nil, _direction, _frame), do: :ok
-
-  defp maybe_record(recorder_pid, direction, frame) do
-    ZenWebsocket.RecorderServer.record(recorder_pid, direction, frame)
-  end
-
-  @spec maybe_put_reconnect_opt(keyword(), atom(), term()) :: keyword()
-  defp maybe_put_reconnect_opt(opts, _key, nil), do: opts
-  defp maybe_put_reconnect_opt(opts, :heartbeat_config, :disabled), do: opts
-  defp maybe_put_reconnect_opt(opts, key, value), do: Keyword.put(opts, key, value)
-
-  @spec maybe_stop_recorder(pid() | nil) :: :ok
-  defp maybe_stop_recorder(nil), do: :ok
-
-  defp maybe_stop_recorder(recorder_pid) do
-    if Process.alive?(recorder_pid) do
-      ZenWebsocket.RecorderServer.stop(recorder_pid)
-    end
-
+  @impl true
+  def terminate(_reason, state) do
+    Frames.maybe_stop_recorder(state.recorder_pid)
+    SafeCallback.invoke(state.on_disconnect, self())
     :ok
   end
 end

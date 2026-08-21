@@ -32,6 +32,14 @@ The main interface for WebSocket operations:
 - `get_state_metrics/1` - Get detailed connection metrics
 - `reconnect/1` - Explicitly reconnect
 
+The GenServer callbacks stay on `Client`. Responsibility-scoped internals:
+
+- `Client.CallFacade` (`client/call_facade.ex`) - process-down-safe `GenServer.call` and connect await
+- `Client.Connection` (`client/connection.ex`) - Gun open, upgrade, attempt-identity timers
+- `Client.Retry` (`client/retry.ex`) - disconnect retry, backoff, and stop-with-error
+- `Client.Frames` (`client/frames.ex`) - inbound frame routing, JSON-RPC correlation, session recording
+- `Client.Callbacks` (`client/callbacks.ex`) - `handle_call/3` and `handle_info/2` clause routing
+
 #### Config (`config.ex`)
 Configuration struct and validation:
 - `new/2`, `new!/2` - Create and validate configuration
