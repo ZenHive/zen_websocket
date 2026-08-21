@@ -73,7 +73,7 @@ defmodule ZenWebsocket.Reconnection do
         Debug.log(config, "   📍 Monitor Ref: #{inspect(monitor_ref)}")
         Debug.log(config, "   ⏳ Awaiting Gun up (timeout: #{config.timeout}ms)...")
 
-        case :gun.await_up(gun_pid, config.timeout) do
+        case await_gun_up(gun_pid, config.timeout) do
           {:ok, protocol} ->
             Debug.log(config, "   ✅ Gun connection up")
             Debug.log(config, "   🌐 Protocol: #{inspect(protocol)}")
@@ -90,8 +90,7 @@ defmodule ZenWebsocket.Reconnection do
             Debug.log(config, "   ❌ Gun await_up failed: #{inspect(reason)}")
             Debug.log(config, "   🧹 Cleaning up monitor and closing Gun...")
 
-            Process.demonitor(monitor_ref, [:flush])
-            :gun.close(gun_pid)
+            close_connection(gun_pid, monitor_ref)
             {:error, reason}
         end
 
@@ -116,6 +115,7 @@ defmodule ZenWebsocket.Reconnection do
   @spec build_gun_opts(URI.t()) :: map()
   def build_gun_opts(%URI{scheme: "wss"}) do
     %{
+      retry: 0,
       protocols: [:http],
       transport: :tls,
       tls_opts: [
@@ -127,7 +127,25 @@ defmodule ZenWebsocket.Reconnection do
   end
 
   def build_gun_opts(%URI{}) do
-    %{protocols: [:http]}
+    %{protocols: [:http], retry: 0}
+  end
+
+  api(:close_connection, "Close a Gun connection and flush its monitor.",
+    params: [
+      gun_pid: [kind: :value, description: "Gun connection pid or nil"],
+      monitor_ref: [kind: :value, description: "Process monitor reference or nil"]
+    ],
+    returns: %{type: ":ok", description: "Always succeeds"}
+  )
+
+  @doc """
+  Demonitor and close a Gun connection. Safe when pid or monitor is missing.
+  """
+  @spec close_connection(pid() | nil, reference() | nil) :: :ok
+  def close_connection(gun_pid, monitor_ref) do
+    if is_reference(monitor_ref), do: Process.demonitor(monitor_ref, [:flush])
+    if is_pid(gun_pid), do: :gun.close(gun_pid)
+    :ok
   end
 
   api(:calculate_backoff, "Calculate exponential backoff delay for a reconnection attempt.",
@@ -203,5 +221,19 @@ defmodule ZenWebsocket.Reconnection do
   defp build_upgrade_path(%URI{path: path, query: query}) do
     base = path || "/"
     if query, do: base <> "?" <> query, else: base
+  end
+
+  # Waits for Gun to come up, matching connection-level errors that :gun.await_up/2
+  # does not surface (e.g. :nxdomain delivered as {:gun_error, pid, reason}).
+  defp await_gun_up(gun_pid, timeout) do
+    receive do
+      {:gun_up, ^gun_pid, protocol} -> {:ok, protocol}
+      {:gun_error, ^gun_pid, reason} -> {:error, reason}
+      {:gun_error, ^gun_pid, _stream, reason} -> {:error, reason}
+      {:gun_down, ^gun_pid, _proto, reason, _killed} -> {:error, reason}
+      {:DOWN, _ref, :process, ^gun_pid, reason} -> {:error, reason}
+    after
+      timeout -> {:error, :timeout}
+    end
   end
 end

@@ -5,6 +5,19 @@ defmodule ZenWebsocket.ClientReconnectTest do
   alias ZenWebsocket.ClientSupervisor
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
+  defmodule StopOnAwait do
+    @moduledoc false
+    use GenServer
+
+    def start_link(reason), do: GenServer.start_link(__MODULE__, reason)
+
+    @impl true
+    def init(reason), do: {:ok, reason}
+
+    @impl true
+    def handle_call(:await_connection, _from, reason), do: {:stop, reason, reason}
+  end
+
   # Maximum time to wait for client to reconnect after server restart
   @reconnect_poll_timeout_ms 3_000
   @reconnect_poll_interval_ms 100
@@ -287,6 +300,148 @@ defmodule ZenWebsocket.ClientReconnectTest do
     end
   end
 
+  describe "upgrade timeout reconnect (TCP up, 101 never arrives)" do
+    @tag timeout: 20_000
+    test "stops after retry_count with backoff instead of hammering at timeout cadence" do
+      listener = start_upgrade_listener(handshake_once: true, close_after_ms: 1_000)
+      url = "ws://127.0.0.1:#{listener.port}/ws"
+
+      {:ok, client} =
+        Client.connect(url,
+          timeout: 500,
+          retry_count: 3,
+          retry_delay: 200,
+          reconnect_on_error: true
+        )
+
+      # Window long enough for unbounded 1/timeout retries to accumulate,
+      # and long enough for 3 backed-off retries to finish and stop.
+      Process.sleep(6_000)
+      accepts = drain_accepts()
+
+      reconnects = Enum.drop(accepts, 1)
+
+      refute Process.alive?(client.server_pid),
+             "client still alive after retry_count exhausted; accepts=#{inspect(accepts)}"
+
+      refute match?([_, _, _, _ | _], reconnects),
+             "expected at most retry_count reconnect accepts, got #{inspect(accepts)}"
+
+      gaps = gaps(reconnects)
+
+      Enum.each(gaps, fn gap ->
+        assert gap >= 150,
+               "expected backoff (>= retry_delay), got #{gap}ms gaps=#{inspect(gaps)} accepts=#{inspect(accepts)}"
+      end)
+
+      if match?([_, _ | _], gaps) do
+        assert List.last(gaps) > hd(gaps),
+               "expected growing backoff, got gaps=#{inspect(gaps)}"
+      end
+    end
+
+    @tag timeout: 20_000
+    test "stale connection timeout cannot kill the next attempt; one close is one reconnect" do
+      listener = start_upgrade_listener(handshake_once: true, close_after_ms: 3_000)
+      url = "ws://127.0.0.1:#{listener.port}/ws"
+
+      {:ok, client} =
+        Client.connect(url,
+          timeout: 4_000,
+          retry_count: 99,
+          retry_delay: 50,
+          reconnect_on_error: true
+        )
+
+      Process.sleep(8_000)
+      accepts = drain_accepts()
+      Client.close(client)
+
+      close_window = Enum.filter(accepts, &(&1 in 2_800..3_300))
+
+      assert match?([_], close_window),
+             "single socket close must produce one reconnect, got #{inspect(close_window)} from #{inspect(accepts)}"
+
+      third = Enum.at(accepts, 2)
+
+      assert third >= 6_200,
+             "third accept must land at the later own-deadline (~7000), not the stale timer (~4000); got #{third} from #{inspect(accepts)}"
+    end
+  end
+
+  describe "connect error reasons and caller survival" do
+    test "unresolvable host returns nxdomain without waiting for timeout" do
+      started_at = System.monotonic_time(:millisecond)
+      result = Client.connect("wss://no-such-host.invalid/ws", timeout: 8_000, retry_count: 0)
+      elapsed = System.monotonic_time(:millisecond) - started_at
+
+      assert {:error, reason} = result
+      assert nxdomain_reason?(reason), "expected nxdomain, got #{inspect(reason)}"
+      assert elapsed < 2_000, "blocked #{elapsed}ms for nxdomain; must not wait for timeout"
+    end
+
+    test "await_connected translates max_reconnection_attempts instead of exiting the caller" do
+      {:ok, pid} = start_supervised({StopOnAwait, :max_reconnection_attempts})
+      assert {:error, :max_reconnection_attempts} = Client.await_connected(pid, 5_000)
+    end
+
+    @tag timeout: 10_000
+    test "connect returns error instead of exiting the caller when retries are exhausted" do
+      listener = start_upgrade_listener(handshake_once: false, close_after_ms: 0)
+      url = "ws://127.0.0.1:#{listener.port}/ws"
+
+      result =
+        Client.connect(url,
+          timeout: 200,
+          retry_count: 1,
+          retry_delay: 50,
+          reconnect_on_error: true
+        )
+
+      assert {:error, reason} = result
+      assert reason in [:timeout, :max_reconnection_attempts]
+    end
+
+    @tag timeout: 10_000
+    test "ClientSupervisor start_client returns error instead of exiting the caller" do
+      start_supervised!({ClientSupervisor, []})
+      listener = start_upgrade_listener(handshake_once: false, close_after_ms: 0)
+      url = "ws://127.0.0.1:#{listener.port}/ws"
+
+      result =
+        ClientSupervisor.start_client(url,
+          timeout: 200,
+          retry_count: 1,
+          retry_delay: 50,
+          reconnect_on_error: true
+        )
+
+      assert {:error, reason} = result
+      assert reason in [:timeout, :max_reconnection_attempts]
+    end
+  end
+
+  describe "ClientSupervisor restarting children" do
+    test "client_pids ignores :restarting and :undefined" do
+      children = [
+        {:id, :restarting, :worker, [Client]},
+        {:id, :undefined, :worker, [Client]},
+        {:id, self(), :worker, [Client]}
+      ]
+
+      refute ClientSupervisor.alive_client_pid?(:restarting)
+      refute ClientSupervisor.alive_client_pid?(:undefined)
+      assert ClientSupervisor.client_pids(children) == [self()]
+    end
+
+    test "send_balanced does not raise when discovery reports :restarting" do
+      start_supervised!({ClientSupervisor, []})
+
+      assert {:error, :no_connections} =
+               ClientSupervisor.send_balanced("msg", client_discovery: fn -> [:restarting, :undefined] end)
+    end
+  end
+
   describe "reconnect_on_error configuration" do
     @tag :external_network
     test "client stops cleanly when reconnect_on_error is false" do
@@ -355,4 +510,113 @@ defmodule ZenWebsocket.ClientReconnectTest do
       Client.close(client)
     end
   end
+
+  # Raw TCP listener: first accept may complete a WebSocket 101, later accepts stay silent.
+  @ws_guid "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+  defp start_upgrade_listener(opts) do
+    handshake_once? = Keyword.get(opts, :handshake_once, true)
+    close_after_ms = Keyword.get(opts, :close_after_ms, 1_000)
+    owner = self()
+    {:ok, listen} = :gen_tcp.listen(0, [:binary, packet: :raw, active: false, reuseaddr: true])
+    {:ok, port} = :inet.port(listen)
+    started_at = System.monotonic_time(:millisecond)
+
+    acceptor =
+      spawn_link(fn ->
+        accept_loop(listen, owner, started_at, handshake_once?, close_after_ms, true)
+      end)
+
+    on_exit(fn ->
+      :gen_tcp.close(listen)
+      Process.exit(acceptor, :kill)
+    end)
+
+    %{port: port, listen: listen, acceptor: acceptor, started_at: started_at}
+  end
+
+  defp accept_loop(listen, owner, started_at, handshake_once?, close_after_ms, first?) do
+    case :gen_tcp.accept(listen, 30_000) do
+      {:ok, sock} ->
+        send(owner, {:accepted, System.monotonic_time(:millisecond) - started_at})
+
+        if first? and handshake_once? do
+          spawn_link(fn -> handshake_then_close(sock, close_after_ms) end)
+        else
+          spawn_link(fn -> hold_silent(sock) end)
+        end
+
+        accept_loop(listen, owner, started_at, handshake_once?, close_after_ms, false)
+
+      {:error, _reason} ->
+        :ok
+    end
+  end
+
+  defp handshake_then_close(sock, close_after_ms) do
+    case recv_http_request(sock, <<>>) do
+      {:ok, request} ->
+        key = websocket_key(request)
+        accept = Base.encode64(:crypto.hash(:sha, key <> @ws_guid))
+
+        response =
+          "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: #{accept}\r\n\r\n"
+
+        :gen_tcp.send(sock, response)
+        Process.sleep(close_after_ms)
+        :gen_tcp.close(sock)
+
+      {:error, _reason} ->
+        :gen_tcp.close(sock)
+    end
+  end
+
+  defp hold_silent(sock) do
+    # Keep the TCP connection open and never speak HTTP so the 101 cannot complete.
+    Process.sleep(:infinity)
+  after
+    :gen_tcp.close(sock)
+  end
+
+  defp recv_http_request(sock, acc) do
+    case :gen_tcp.recv(sock, 0, 5_000) do
+      {:ok, data} ->
+        acc = acc <> data
+        if String.contains?(acc, "\r\n\r\n"), do: {:ok, acc}, else: recv_http_request(sock, acc)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp websocket_key(request) do
+    request
+    |> String.split(["\r\n", "\n"])
+    |> Enum.find_value(fn line ->
+      case String.split(line, ":", parts: 2) do
+        [name, value] ->
+          if String.downcase(String.trim(name)) == "sec-websocket-key", do: String.trim(value)
+
+        _other ->
+          nil
+      end
+    end)
+  end
+
+  defp drain_accepts(acc \\ []) do
+    receive do
+      {:accepted, ms} -> drain_accepts([ms | acc])
+    after
+      0 -> Enum.reverse(acc)
+    end
+  end
+
+  defp gaps([]), do: []
+  defp gaps([_single]), do: []
+  defp gaps(timestamps), do: Enum.zip_with(timestamps, tl(timestamps), fn a, b -> b - a end)
+
+  defp nxdomain_reason?(:nxdomain), do: true
+  defp nxdomain_reason?({:error, :nxdomain}), do: true
+  defp nxdomain_reason?(reason) when is_tuple(reason), do: :nxdomain in Tuple.to_list(reason)
+  defp nxdomain_reason?(_reason), do: false
 end

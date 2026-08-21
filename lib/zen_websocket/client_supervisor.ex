@@ -123,7 +123,7 @@ defmodule ZenWebsocket.ClientSupervisor do
   # Terminates the child process on connection failure or timeout.
   # Invokes on_connect callback after successful connection.
   defp await_connection(pid, timeout, on_connect) do
-    case GenServer.call(pid, :await_connection, timeout) do
+    case ZenWebsocket.Client.await_connected(pid, timeout) do
       {:ok, state} ->
         maybe_invoke_callback(on_connect, pid)
         {:ok, build_client_struct(pid, state)}
@@ -132,10 +132,6 @@ defmodule ZenWebsocket.ClientSupervisor do
         DynamicSupervisor.terminate_child(__MODULE__, pid)
         {:error, reason}
     end
-  catch
-    :exit, {:timeout, _} ->
-      DynamicSupervisor.terminate_child(__MODULE__, pid)
-      {:error, :timeout}
   end
 
   # Safely invokes a lifecycle callback, catching and logging any errors.
@@ -191,9 +187,19 @@ defmodule ZenWebsocket.ClientSupervisor do
   def list_clients do
     __MODULE__
     |> DynamicSupervisor.which_children()
-    |> Enum.map(fn {_, pid, _, _} -> pid end)
-    |> Enum.filter(&Process.alive?/1)
+    |> client_pids()
   end
+
+  @doc false
+  @spec client_pids([tuple()]) :: [pid()]
+  def client_pids(children) do
+    for {_, pid, _, _} <- children, alive_client_pid?(pid), do: pid
+  end
+
+  @doc false
+  @spec alive_client_pid?(term()) :: boolean()
+  def alive_client_pid?(pid) when is_pid(pid), do: Process.alive?(pid)
+  def alive_client_pid?(_other), do: false
 
   api(:stop_client, "Gracefully stop a supervised client.",
     params: [
@@ -253,7 +259,7 @@ defmodule ZenWebsocket.ClientSupervisor do
   def send_balanced(message, opts \\ []) do
     max_attempts = Keyword.get(opts, :max_attempts, 3)
     discover_fn = Keyword.get(opts, :client_discovery, &list_clients/0)
-    pids = discover_fn.()
+    pids = Enum.filter(discover_fn.(), &alive_client_pid?/1)
 
     case ZenWebsocket.PoolRouter.select_connection(pids) do
       {:error, :no_connections} ->

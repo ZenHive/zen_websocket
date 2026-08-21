@@ -15,13 +15,14 @@ defmodule ZenWebsocket.ReconnectionTest do
       assert opts[:tls_opts][:alpn_advertised_protocols] == ["http/1.1"]
       assert opts[:tls_opts][:verify] == :verify_peer
       assert is_list(opts[:tls_opts][:cacerts])
+      assert opts[:retry] == 0
     end
 
     test "WS connections do not include TLS options" do
       uri = URI.parse("ws://localhost:8080/ws")
       opts = Reconnection.build_gun_opts(uri)
 
-      assert opts == %{protocols: [:http]}
+      assert opts == %{protocols: [:http], retry: 0}
       refute Map.has_key?(opts, :tls_opts)
     end
 
@@ -31,6 +32,7 @@ defmodule ZenWebsocket.ReconnectionTest do
 
       assert opts[:protocols] == [:http]
       assert opts[:tls_opts][:alpn_advertised_protocols] == ["http/1.1"]
+      assert opts[:retry] == 0
     end
   end
 
@@ -88,6 +90,12 @@ defmodule ZenWebsocket.ReconnectionTest do
       # Zero retries means first attempt is already exceeded
       assert Reconnection.max_retries_exceeded?(0, 0)
       assert Reconnection.max_retries_exceeded?(1, 0)
+    end
+  end
+
+  describe "close_connection/2" do
+    test "is safe when pid and monitor are missing" do
+      assert :ok = Reconnection.close_connection(nil, nil)
     end
   end
 
