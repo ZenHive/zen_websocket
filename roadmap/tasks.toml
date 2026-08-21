@@ -165,7 +165,7 @@ implemented = "Extracted a shared JsonRpcTransport helper consumed by both Derib
 id = "1"
 phase = 1
 bundle = "code-quality"
-status = "pending"
+status = "in_progress"
 title = "Widen JsonRpc.build_request/2 params spec to accept list params"
 scores = { d = 1, b = 7, u = 6 }
 acceptance_criteria = ["build_request/2 spec accepts list params without dialyzer contract violations", "A dialyzer-checked test or example exercises list params (Ethereum-style) and map params (Deribit-style)", "Downstream consumers (onchain Onchain.Subscription, blockwatch LiveTransferSubscriber) can remove their @dialyzer suppressions against this cascade"]
@@ -174,6 +174,7 @@ assignee = "codex"
 model = "gpt-5.6-sol"
 body = """@spec build_request(String.t(), map() | nil) :: {:ok, map()} is narrower than the implementation, which accepts any params term and always returns {:ok, map}. Ethereum JSON-RPC consumers pass LIST params (e.g. onchain calls it with ["newHeads"], ["logs", filter], [subscription_id]), so dialyzer concludes every such call violates the contract and poisons success typings downstream: onchain carries an UPSTREAM(zen_websocket) comment plus @dialyzer suppressions in Onchain.Subscription, and blockwatch had to mirror the suppression in its own subscriber (false 'can never match {:ok, _}' at every Subscription.subscribe call site). Widen the params type to what the body actually accepts (term(), or list() | map() | nil), keeping the {:ok, map()} return. After release, drop the suppressions in onchain and blockwatch."""
 created_at = "2026-07-13"
+started_at = "2026-08-21"
 scored_at = "2026-07-13"
 
 [[task]]
