@@ -5,19 +5,6 @@ defmodule ZenWebsocket.ClientReconnectTest do
   alias ZenWebsocket.ClientSupervisor
   alias ZenWebsocket.Test.Support.MockWebSockServer
 
-  defmodule StopOnAwait do
-    @moduledoc false
-    use GenServer
-
-    def start_link(reason), do: GenServer.start_link(__MODULE__, reason)
-
-    @impl true
-    def init(reason), do: {:ok, reason}
-
-    @impl true
-    def handle_call(:await_connection, _from, reason), do: {:stop, reason, reason}
-  end
-
   # Maximum time to wait for client to reconnect after server restart
   @reconnect_poll_timeout_ms 3_000
   @reconnect_poll_interval_ms 100
@@ -324,20 +311,17 @@ defmodule ZenWebsocket.ClientReconnectTest do
       refute Process.alive?(client.server_pid),
              "client still alive after retry_count exhausted; accepts=#{inspect(accepts)}"
 
-      refute match?([_, _, _, _ | _], reconnects),
-             "expected at most retry_count reconnect accepts, got #{inspect(accepts)}"
+      assert [_, _, _] = reconnects
 
       gaps = gaps(reconnects)
 
-      Enum.each(gaps, fn gap ->
-        assert gap >= 150,
-               "expected backoff (>= retry_delay), got #{gap}ms gaps=#{inspect(gaps)} accepts=#{inspect(accepts)}"
-      end)
+      assert [first_gap, second_gap] = gaps
 
-      if match?([_, _ | _], gaps) do
-        assert List.last(gaps) > hd(gaps),
-               "expected growing backoff, got gaps=#{inspect(gaps)}"
-      end
+      assert first_gap >= 650,
+             "expected timeout plus configured backoff, got gaps=#{inspect(gaps)} accepts=#{inspect(accepts)}"
+
+      assert second_gap - first_gap >= 150,
+             "expected growing configured backoff, got gaps=#{inspect(gaps)} accepts=#{inspect(accepts)}"
     end
 
     @tag timeout: 20_000
@@ -353,9 +337,11 @@ defmodule ZenWebsocket.ClientReconnectTest do
           reconnect_on_error: true
         )
 
-      Process.sleep(8_000)
+      Process.sleep(8_500)
       accepts = drain_accepts()
       Client.close(client)
+
+      assert [_, _, _] = accepts
 
       close_window = Enum.filter(accepts, &(&1 in 2_800..3_300))
 
@@ -375,31 +361,33 @@ defmodule ZenWebsocket.ClientReconnectTest do
       result = Client.connect("wss://no-such-host.invalid/ws", timeout: 8_000, retry_count: 0)
       elapsed = System.monotonic_time(:millisecond) - started_at
 
-      assert {:error, reason} = result
-      assert nxdomain_reason?(reason), "expected nxdomain, got #{inspect(reason)}"
+      assert {:error, :nxdomain} = result
       assert elapsed < 2_000, "blocked #{elapsed}ms for nxdomain; must not wait for timeout"
-    end
-
-    test "await_connected translates max_reconnection_attempts instead of exiting the caller" do
-      {:ok, pid} = start_supervised({StopOnAwait, :max_reconnection_attempts})
-      assert {:error, :max_reconnection_attempts} = Client.await_connected(pid, 5_000)
     end
 
     @tag timeout: 10_000
     test "connect returns error instead of exiting the caller when retries are exhausted" do
       listener = start_upgrade_listener(handshake_once: false, close_after_ms: 0)
       url = "ws://127.0.0.1:#{listener.port}/ws"
+      parent = self()
 
-      result =
-        Client.connect(url,
-          timeout: 200,
-          retry_count: 1,
-          retry_delay: 50,
-          reconnect_on_error: true
-        )
+      caller =
+        spawn(fn ->
+          result =
+            Client.connect(url,
+              timeout: 200,
+              retry_count: 1,
+              retry_delay: 50,
+              reconnect_on_error: true
+            )
 
-      assert {:error, reason} = result
-      assert reason in [:timeout, :max_reconnection_attempts]
+          send(parent, {:connect_result, self(), result})
+        end)
+
+      caller_ref = Process.monitor(caller)
+
+      assert_receive {:connect_result, ^caller, {:error, :max_reconnection_attempts}}, 5_000
+      assert_receive {:DOWN, ^caller_ref, :process, ^caller, :normal}
     end
 
     @tag timeout: 10_000
@@ -407,17 +395,25 @@ defmodule ZenWebsocket.ClientReconnectTest do
       start_supervised!({ClientSupervisor, []})
       listener = start_upgrade_listener(handshake_once: false, close_after_ms: 0)
       url = "ws://127.0.0.1:#{listener.port}/ws"
+      parent = self()
 
-      result =
-        ClientSupervisor.start_client(url,
-          timeout: 200,
-          retry_count: 1,
-          retry_delay: 50,
-          reconnect_on_error: true
-        )
+      caller =
+        spawn(fn ->
+          result =
+            ClientSupervisor.start_client(url,
+              timeout: 200,
+              retry_count: 1,
+              retry_delay: 50,
+              reconnect_on_error: true
+            )
 
-      assert {:error, reason} = result
-      assert reason in [:timeout, :max_reconnection_attempts]
+          send(parent, {:supervised_connect_result, self(), result})
+        end)
+
+      caller_ref = Process.monitor(caller)
+
+      assert_receive {:supervised_connect_result, ^caller, {:error, :max_reconnection_attempts}}, 5_000
+      assert_receive {:DOWN, ^caller_ref, :process, ^caller, :normal}
     end
   end
 
@@ -614,9 +610,4 @@ defmodule ZenWebsocket.ClientReconnectTest do
   defp gaps([]), do: []
   defp gaps([_single]), do: []
   defp gaps(timestamps), do: Enum.zip_with(timestamps, tl(timestamps), fn a, b -> b - a end)
-
-  defp nxdomain_reason?(:nxdomain), do: true
-  defp nxdomain_reason?({:error, :nxdomain}), do: true
-  defp nxdomain_reason?(reason) when is_tuple(reason), do: :nxdomain in Tuple.to_list(reason)
-  defp nxdomain_reason?(_reason), do: false
 end

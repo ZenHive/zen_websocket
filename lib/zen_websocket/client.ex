@@ -486,9 +486,8 @@ defmodule ZenWebsocket.Client do
   defp process_down_exit?({{:shutdown, _reason}, _details}), do: true
   defp process_down_exit?(_reason), do: false
 
-  @doc false
   @spec await_connected(pid(), timeout()) :: {:ok, map()} | {:error, term()}
-  def await_connected(server_pid, timeout) do
+  defp await_connected(server_pid, timeout) do
     GenServer.call(server_pid, :await_connection, timeout)
   catch
     :exit, reason -> {:error, unwrap_call_exit(reason)}
@@ -1023,7 +1022,8 @@ defmodule ZenWebsocket.Client do
 
   @spec close_gun(map()) :: map()
   defp close_gun(state) do
-    Reconnection.close_connection(state.gun_pid, state.monitor_ref)
+    if is_reference(state.monitor_ref), do: Process.demonitor(state.monitor_ref, [:flush])
+    if is_pid(state.gun_pid), do: :gun.close(state.gun_pid)
     %{state | gun_pid: nil, stream_ref: nil, monitor_ref: nil}
   end
 

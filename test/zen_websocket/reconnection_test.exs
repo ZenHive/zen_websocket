@@ -93,12 +93,6 @@ defmodule ZenWebsocket.ReconnectionTest do
     end
   end
 
-  describe "close_connection/2" do
-    test "is safe when pid and monitor are missing" do
-      assert :ok = Reconnection.close_connection(nil, nil)
-    end
-  end
-
   describe "should_reconnect?/1" do
     test "returns true for recoverable errors" do
       assert Reconnection.should_reconnect?(:timeout)

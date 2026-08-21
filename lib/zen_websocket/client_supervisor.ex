@@ -123,7 +123,7 @@ defmodule ZenWebsocket.ClientSupervisor do
   # Terminates the child process on connection failure or timeout.
   # Invokes on_connect callback after successful connection.
   defp await_connection(pid, timeout, on_connect) do
-    case ZenWebsocket.Client.await_connected(pid, timeout) do
+    case GenServer.call(pid, :await_connection, timeout) do
       {:ok, state} ->
         maybe_invoke_callback(on_connect, pid)
         {:ok, build_client_struct(pid, state)}
@@ -131,6 +131,19 @@ defmodule ZenWebsocket.ClientSupervisor do
       {:error, reason} ->
         DynamicSupervisor.terminate_child(__MODULE__, pid)
         {:error, reason}
+    end
+  catch
+    :exit, reason ->
+      DynamicSupervisor.terminate_child(__MODULE__, pid)
+      {:error, unwrap_call_exit(reason)}
+  end
+
+  @spec unwrap_call_exit(term()) :: term()
+  defp unwrap_call_exit(reason) do
+    case reason do
+      {:timeout, _details} -> :timeout
+      {call_reason, {module, :call, _details}} when module in [GenServer, :gen_server] -> call_reason
+      other -> other
     end
   end
 

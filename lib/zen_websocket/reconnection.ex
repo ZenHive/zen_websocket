@@ -90,7 +90,8 @@ defmodule ZenWebsocket.Reconnection do
             Debug.log(config, "   ❌ Gun await_up failed: #{inspect(reason)}")
             Debug.log(config, "   🧹 Cleaning up monitor and closing Gun...")
 
-            close_connection(gun_pid, monitor_ref)
+            Process.demonitor(monitor_ref, [:flush])
+            :gun.close(gun_pid)
             {:error, reason}
         end
 
@@ -128,24 +129,6 @@ defmodule ZenWebsocket.Reconnection do
 
   def build_gun_opts(%URI{}) do
     %{protocols: [:http], retry: 0}
-  end
-
-  api(:close_connection, "Close a Gun connection and flush its monitor.",
-    params: [
-      gun_pid: [kind: :value, description: "Gun connection pid or nil"],
-      monitor_ref: [kind: :value, description: "Process monitor reference or nil"]
-    ],
-    returns: %{type: ":ok", description: "Always succeeds"}
-  )
-
-  @doc """
-  Demonitor and close a Gun connection. Safe when pid or monitor is missing.
-  """
-  @spec close_connection(pid() | nil, reference() | nil) :: :ok
-  def close_connection(gun_pid, monitor_ref) do
-    if is_reference(monitor_ref), do: Process.demonitor(monitor_ref, [:flush])
-    if is_pid(gun_pid), do: :gun.close(gun_pid)
-    :ok
   end
 
   api(:calculate_backoff, "Calculate exponential backoff delay for a reconnection attempt.",
