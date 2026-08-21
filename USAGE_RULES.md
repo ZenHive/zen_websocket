@@ -486,10 +486,10 @@ metrics = ZenWebsocket.Client.get_state_metrics(client)
 
 ### Rate Limiter Status
 ```elixir
-# Check rate limiter pressure
+# Check remaining tokens. Queue/pressure keys stay at compatibility
+# defaults — this limiter does not retain requests.
 status = ZenWebsocket.RateLimiter.status(limiter)
-# => %{tokens: 85, queue_size: 5, pressure_level: :low, suggested_delay_ms: 0}
-# pressure_level: :none (<25%), :low (25-50%), :medium (50-75%), :high (>75%)
+# => %{tokens: 85, queue_size: 0, pressure_level: :none, suggested_delay_ms: 0}
 ```
 
 ### Key Telemetry Events
@@ -500,9 +500,6 @@ status = ZenWebsocket.RateLimiter.status(limiter)
 | `[:zen_websocket, :heartbeat, :pong]` | `rtt_ms` | Heartbeat response received |
 | `[:zen_websocket, :rate_limiter, :consume]` | `tokens_remaining`, `cost` | Token consumed |
 | `[:zen_websocket, :rate_limiter, :refill]` | `tokens_before`, `tokens_after`, `refill_rate` | Bucket refilled |
-| `[:zen_websocket, :rate_limiter, :queue]` | `queue_size`, `cost` | Request queued |
-| `[:zen_websocket, :rate_limiter, :queue_full]` | `queue_size` | Queue at capacity |
-| `[:zen_websocket, :rate_limiter, :pressure]` | `queue_size`, `ratio` | Pressure threshold crossed |
 | `[:zen_websocket, :request_correlator, :track]` | `count` | Request tracked |
 | `[:zen_websocket, :request_correlator, :resolve]` | `count`, `round_trip_ms` | Response correlated |
 | `[:zen_websocket, :request_correlator, :timeout]` | `count` | Request timed out |

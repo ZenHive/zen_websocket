@@ -856,9 +856,10 @@ defmodule ZenWebsocket.Client do
 
     heartbeat_state = track_heartbeat_frame(frame, state)
 
-    # Decode frame and handle control frames (ping/pong auto-response).
-    # Uses decode_and_handle_control (not handle_message) to avoid double
-    # handler delivery — route_data_frame handles user callback dispatch.
+    # Decode the frame. Control frames are classified only — Gun already
+    # answered inbound pings. Uses decode_and_handle_control (not
+    # handle_message) to avoid double handler delivery; route_data_frame
+    # dispatches user callbacks.
     case ZenWebsocket.MessageHandler.decode_and_handle_control({:gun_ws, gun_pid, stream_ref, frame}) do
       {:ok, {:data, decoded_frame}} ->
         new_state = route_data_frame(decoded_frame, heartbeat_state)

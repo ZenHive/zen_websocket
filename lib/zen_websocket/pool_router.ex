@@ -6,7 +6,7 @@ defmodule ZenWebsocket.PoolRouter do
   - Pending request count (queue depth)
   - Response latency (p99)
   - Recent error count (with 60s decay)
-  - Rate limiter pressure level
+  - Optional `pressure_level` from client state metrics (`:none` when absent)
 
   ## Health Score Formula (0-100)
 
@@ -135,8 +135,9 @@ defmodule ZenWebsocket.PoolRouter do
   Calculates health score (0-100) for a connection.
 
   Gathers metrics from the client and applies the scoring formula.
-  Returns 100 if metrics cannot be retrieved.
-  TODO: optimistic default (100) when metrics unavailable — acceptable for pool routing where unhealthy connections self-report via errors
+  Returns 100 if metrics cannot be retrieved. That optimistic default is
+  acceptable for pool routing: unhealthy connections still self-report
+  via errors.
   """
   @spec calculate_health(pid()) :: health_score()
   def calculate_health(pid) when is_pid(pid) do

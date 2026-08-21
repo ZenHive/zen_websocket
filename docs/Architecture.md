@@ -88,8 +88,8 @@ ETS-based connection tracking:
 #### Rate Limiter (`rate_limiter.ex`)
 Token bucket rate limiting:
 - Exchange-specific cost functions (`deribit_cost/1`, `binance_cost/1`, `simple_cost/1`)
-- Queue-based backpressure with pressure levels
-- Configurable refill rate and max queue size
+- Atomic consume/refill against a public ETS table
+- Allow/deny gate — rate-limited requests are not retained
 
 #### Heartbeat Manager (`heartbeat_manager.ex`)
 Heartbeat lifecycle management:

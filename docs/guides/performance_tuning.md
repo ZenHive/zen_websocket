@@ -112,7 +112,6 @@ config = %{
   tokens: 100,              # Bucket capacity
   refill_rate: 10,          # Tokens added per interval
   refill_interval: 1000,    # Interval in milliseconds
-  max_queue_size: 100,      # Maximum queued requests
   request_cost: &MyModule.cost_function/1
 }
 
@@ -155,26 +154,21 @@ config = %{
 }
 ```
 
-### Pressure Levels and Backpressure
+### Allow/Deny and Retry
 
-The rate limiter tracks queue pressure and provides suggested delays:
-
-| Pressure Level | Queue Fill | Suggested Delay |
-|---------------|------------|-----------------|
-| `:none` | < 25% | 0ms |
-| `:low` | 25-50% | 1× refill_interval |
-| `:medium` | 50-75% | 2× refill_interval |
-| `:high` | 75%+ | 4× refill_interval |
-
-**Using backpressure signals:**
+The rate limiter is an allow/deny gate. Rate-limited requests are not
+queued or retried inside the limiter — the caller decides when to retry.
 
 ```elixir
-{:ok, status} = RateLimiter.status(:my_limiter)
-# => %{tokens: 50, queue_size: 30, pressure_level: :medium, suggested_delay_ms: 2000}
-
-if status.suggested_delay_ms > 0 do
-  Process.sleep(status.suggested_delay_ms)
+case RateLimiter.consume(:my_limiter, request) do
+  :ok -> send_request(request)
+  {:error, :rate_limited} -> schedule_retry(request)
 end
+
+{:ok, status} = RateLimiter.status(:my_limiter)
+# => %{tokens: 50, queue_size: 0, pressure_level: :none, suggested_delay_ms: 0}
+# queue_size / pressure_level / suggested_delay_ms stay at those defaults
+# for response compatibility; they are not a live backpressure signal.
 ```
 
 ## Telemetry Events
@@ -189,9 +183,6 @@ ZenWebsocket emits telemetry events for monitoring. Attach handlers for observab
 | `[:zen_websocket, :heartbeat, :pong]` | `rtt_ms` | `type` |
 | `[:zen_websocket, :rate_limiter, :consume]` | `tokens_remaining`, `cost` | `name` |
 | `[:zen_websocket, :rate_limiter, :refill]` | `tokens_before`, `tokens_after`, `refill_rate` | `name` |
-| `[:zen_websocket, :rate_limiter, :queue]` | `queue_size`, `cost` | `name` |
-| `[:zen_websocket, :rate_limiter, :queue_full]` | `queue_size` | `name` |
-| `[:zen_websocket, :rate_limiter, :pressure]` | `queue_size`, `ratio` | `name`, `level`, `previous_level` |
 | `[:zen_websocket, :request_correlator, :track]` | `count` | `id`, `timeout_ms` |
 | `[:zen_websocket, :request_correlator, :resolve]` | `count`, `round_trip_ms` | `id` |
 | `[:zen_websocket, :request_correlator, :timeout]` | `count` | `id` |
@@ -226,7 +217,7 @@ defmodule MyApp.TelemetryHandler do
 
   def setup do
     events = [
-      [:zen_websocket, :rate_limiter, :pressure],
+      [:zen_websocket, :rate_limiter, :consume],
       [:zen_websocket, :request_correlator, :resolve],
       [:zen_websocket, :request_correlator, :timeout]
     ]
@@ -239,8 +230,8 @@ defmodule MyApp.TelemetryHandler do
     )
   end
 
-  def handle_event([:zen_websocket, :rate_limiter, :pressure], measurements, metadata, _config) do
-    Logger.warning("Rate limiter pressure: #{metadata.level}, queue: #{measurements.queue_size}")
+  def handle_event([:zen_websocket, :rate_limiter, :consume], measurements, metadata, _config) do
+    Logger.debug("Rate limiter #{metadata.name}: #{measurements.tokens_remaining} tokens remaining")
   end
 
   def handle_event([:zen_websocket, :request_correlator, :resolve], measurements, metadata, _config) do
@@ -273,7 +264,7 @@ end
 | Component | Growth Factor |
 |-----------|--------------|
 | RequestCorrelator | ~200 bytes per pending request |
-| RateLimiter queue | ~100 bytes per queued request |
+| RateLimiter ETS table | config map + token counter |
 | SubscriptionManager | ~50 bytes per subscription |
 | LatencyStats | 8 bytes per sample up to buffer_size |
 
@@ -286,12 +277,11 @@ end
   request_timeout: 10_000     # Shorter timeout = fewer pending requests
 )
 
-# Initialize rate limiter with smaller queue
+# Initialize a smaller rate-limit bucket
 RateLimiter.init(:my_limiter, %{
-  tokens: 100,
+  tokens: 25,
   refill_rate: 10,
   refill_interval: 1000,
-  max_queue_size: 25,  # Smaller queue, fail faster
   request_cost: &RateLimiter.simple_cost/1
 })
 ```
@@ -378,7 +368,7 @@ metrics = Client.get_state_metrics(client)
 ```elixir
 {:ok, status} = RateLimiter.status(:my_limiter)
 IO.inspect(status)
-# => %{tokens: 85, queue_size: 5, pressure_level: :low, suggested_delay_ms: 1000}
+# => %{tokens: 85, queue_size: 0, pressure_level: :none, suggested_delay_ms: 0}
 ```
 
 ## Summary
@@ -387,9 +377,9 @@ IO.inspect(status)
 |------|----------------|
 | Lower latency | Reduce `timeout`, `request_timeout`, `heartbeat_interval` |
 | Higher reliability | Increase `retry_count`, `max_backoff` |
-| Less memory | Reduce `latency_buffer_size`, `max_queue_size` |
+| Less memory | Reduce `latency_buffer_size` |
 | Better observability | Attach telemetry handlers, enable `debug: true` |
-| Prevent rate limits | Configure appropriate `request_cost` function, monitor pressure |
+| Prevent rate limits | Configure an appropriate `request_cost` function, monitor remaining tokens |
 
 ## Related Guides
 

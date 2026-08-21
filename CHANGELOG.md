@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — RateLimiter is an allow/deny gate, not a queue
+
+`consume/2` no longer enqueues rate-limited requests. It returns
+`:ok | {:error, :rate_limited}` and leaves retry to the caller.
+`{:error, :queue_full}` is gone. Token refill and consume use
+compare-and-swap (`:ets.select_replace/2`) so a concurrent consume
+cannot resurrect tokens a refill just overwrote.
+
+`status/1` still returns `queue_size`, `pressure_level`, and
+`suggested_delay_ms` at their neutral values (`0` / `:none` / `0`) so
+existing callers keep compiling; those keys no longer describe a live
+queue.
+
+### Changed — Heartbeat and pool health measure the connection they report on
+
+`:ping_pong` heartbeats send a unique ping payload and only count a
+matching pong as success. An unanswered ping increments
+`heartbeat_failures` instead of assuming the connection is alive.
+Gun WebSocket upgrades set `silence_pings: false` so pong frames reach
+the client; `MessageHandler` no longer sends a second pong (Gun already
+did). The pool ETS table is owned by a dedicated process so health
+state survives the first caller exiting.
+
 ## [0.6.1] - 2026-08-17
 
 ### Changed — dependency refresh
