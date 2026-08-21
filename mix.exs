@@ -3,6 +3,12 @@ defmodule ZenWebsocket.MixProject do
 
   @version "0.6.1"
 
+  # Core-only coverage floor. Measured 2026-08-21 via
+  # `mix test.json --cover --exclude integration --include local_network`
+  # after excluding `test_coverage: ignore_modules` (90.34%), rounded down.
+  # Raise in lockstep with real core coverage; never pad it.
+  @core_cover_threshold 90
+
   def project do
     [
       app: :zen_websocket,
@@ -17,11 +23,7 @@ defmodule ZenWebsocket.MixProject do
       # Test coverage configuration - exclude non-production modules
       # Excludes: Examples (documentation/reference), Test.Support (test infra), Mix.Tasks (CLI)
       test_coverage: [
-        ignore_modules: [
-          ~r/^ZenWebsocket\.Test\.Support\./,
-          ~r/^ZenWebsocket\.Examples\./,
-          ~r/^Mix\.Tasks\./
-        ]
+        ignore_modules: coverage_ignore_modules()
       ],
 
       # Hex Package metadata
@@ -198,26 +200,18 @@ defmodule ZenWebsocket.MixProject do
         "compile --warnings-as-errors",
         "credo --strict --ignore TagTODO,TagFIXME",
         "doctor --raise",
-        # Coverage floor: 58%, measured via `mix test.json --cover --exclude
-        # integration` (2026-08-01), rounded down to the nearest whole
-        # percent. Mock-server tests tagged during the network-tag hygiene
-        # pass also carry `:local_network`; including that tag retains their
+        # Coverage floor: core library only. Measured 2026-08-21 via
+        # `mix test.json --cover --exclude integration --include local_network`
+        # after excluding `test_coverage: ignore_modules` (90.34%), rounded
+        # down. Mock-server tests tagged during the network-tag hygiene pass
+        # also carry `:local_network`; including that tag retains their
         # contribution without adding sockets to the default suite. The prior
-        # 80% floor was aspirational — it pre-dated this
-        # measurement and had never actually been met by any run of this
-        # alias, so it blocked every `mix precommit`/`mix ci` invocation
-        # without catching anything (a floor above actual coverage gates
-        # nothing; it just always fails). 58% is a ratchet: it reflects
-        # real, currently-passing coverage on the non-integration suite, so
-        # it will correctly fail on a genuine regression from here forward.
-        # A large share of the remaining gap is integration-only surface
-        # (live-Gun connection paths in Client/Reconnection/Helpers.Deribit,
-        # the Testing/Testing.Server mock-server helpers, and the
-        # Examples.*/Mix.Tasks.* reference modules, the latter two nominally
-        # excluded via `test_coverage: ignore_modules` above but not yet
-        # honored by ex_unit_json's `--cover`) — raise this number as real
-        # coverage grows, never pad it to look higher than what's measured.
-        "cmd env MIX_ENV=test mix test.json --quiet --cover --cover-threshold 58 --summary-only --exclude integration --include local_network",
+        # 58% floor measured the diluted suite (Examples.*/Mix.Tasks.* regexes
+        # in ignore_modules were a no-op for ex_unit_json 0.6.0, which only
+        # matches module atoms). This is a ratchet: it reflects real,
+        # currently-passing core coverage, so it will fail on a genuine
+        # regression. Raise it as real core coverage grows; never pad it.
+        "cmd env MIX_ENV=test mix test.json --quiet --cover --cover-threshold #{@core_cover_threshold} --summary-only --exclude integration --include local_network",
         "sobelow --skip --exit low"
       ],
       # Comprehensive gate — the harness reviewer's `check_command` and `mix ci`
@@ -243,7 +237,8 @@ defmodule ZenWebsocket.MixProject do
         # preferred_envs (cli/0) is ignored inside alias steps — set MIX_ENV explicitly.
         # `mix cmd` runs System.cmd with no shell, so use `env` to apply the assignment.
         # Coverage floor rationale: see the `precommit` alias above — same
-        # measured, ratcheted 58% floor, kept in sync with it.
+        # measured, ratcheted core-only floor, kept in sync via
+        # `@core_cover_threshold`.
         #
         # NO `--summary-only` here, deliberately — unlike the fast `precommit`
         # alias above. This is the alias CI runs, and `--summary-only` omits the
@@ -253,7 +248,7 @@ defmodule ZenWebsocket.MixProject do
         # nothing in CI (the log is machine-read, not human-scrolled) and costs
         # the entire diagnosis. Locally the hooks already print per-file detail,
         # so `precommit` keeps it.
-        "cmd env MIX_ENV=test mix test.json --quiet --cover --cover-threshold 58 --exclude integration --include local_network",
+        "cmd env MIX_ENV=test mix test.json --quiet --cover --cover-threshold #{@core_cover_threshold} --exclude integration --include local_network",
         # Dialyzer runs in MIX_ENV=dev, not the canonical bare `dialyzer` step:
         # under :test, the test-only HTTP/mock stack (cowboy, plug_cowboy,
         # websock, x509, temp, stream_data) joins :apps_direct's analyzed set
@@ -338,6 +333,36 @@ defmodule ZenWebsocket.MixProject do
       [],
       "advisory-mirror freshness check"
     )
+  end
+
+  # Mix.Tasks.Cover matches regexes and atoms (`ignored_any?/2`).
+  # ex_unit_json 0.6.0 only does `mod in ignore_modules`, so regexes are
+  # no-ops for `mix test.json --cover`. Keep the regexes as the Mix contract
+  # and list matching atoms so the JSON coverage gate measures core only.
+  # Completeness is asserted in mix_project_test.exs.
+  @spec coverage_ignore_modules() :: [module() | Regex.t()]
+  defp coverage_ignore_modules do
+    [
+      ~r/^ZenWebsocket\.Test\.Support\./,
+      ~r/^ZenWebsocket\.Examples\./,
+      ~r/^Mix\.Tasks\./,
+      Mix.Tasks.ZenWebsocket.Usage,
+      Mix.Tasks.ZenWebsocket.ValidateUsage,
+      ZenWebsocket.Examples.AdapterSupervisor,
+      ZenWebsocket.Examples.BatchSubscriptionManager,
+      ZenWebsocket.Examples.DeribitAdapter,
+      ZenWebsocket.Examples.DeribitGenServerAdapter,
+      ZenWebsocket.Examples.DeribitRpc,
+      ZenWebsocket.Examples.Docs.BasicUsage,
+      ZenWebsocket.Examples.Docs.ErrorHandling,
+      ZenWebsocket.Examples.Docs.JsonRpcClient,
+      ZenWebsocket.Examples.Docs.SubscriptionManagement,
+      ZenWebsocket.Examples.JsonRpcTransport,
+      ZenWebsocket.Examples.PlatformAdapterTemplate,
+      ZenWebsocket.Examples.SupervisedClient,
+      ZenWebsocket.Examples.UsagePatterns,
+      ZenWebsocket.Examples.UsagePatterns.ExampleApp
+    ]
   end
 
   @spec host_script(String.t(), [String.t()], String.t()) :: :ok
