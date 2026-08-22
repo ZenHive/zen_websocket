@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `@default_max_queue_size` were removed. Remove that key from limiter
   configuration and bound any application-owned retry queue where requests are
   actually retained.
-- **BREAKING — `ZenWebsocket.RateLimiter.state/0`:** the public type was
+- **BREAKING — the `ZenWebsocket.RateLimiter` `state/0` type:** the public type was
   removed with the internal queue state. Replace references to it with an
   application-owned status-map type (or `map()`); use
   `t:ZenWebsocket.RateLimiter.config/0` for `init/2` input.
@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of the package because the package definition ships the complete `lib` tree.
   Replace scripts that invoke it with the relevant test command, such as
   `mix test --only external_network`, or an application-owned soak test.
-- **BREAKING — `ZenWebsocket.Client.reconnect_opts_from_state/1`:** this
+- **BREAKING — `ZenWebsocket.Client` `reconnect_opts_from_state/1`:** this
   function was removed from the `ZenWebsocket.Client` surface; it was not made
   private. Code that still needs this internal-state conversion can call the
   public `ZenWebsocket.Client.Reconnect.reconnect_opts_from_state/1` function.

@@ -233,7 +233,7 @@ Comprehensive guides are available in the `docs/guides/` directory:
 | [Performance Tuning](docs/guides/performance_tuning.md) | Configure timeouts, rate limiting, and memory for your use case |
 | [Troubleshooting Reconnection](docs/guides/troubleshooting_reconnection.md) | Debug connection issues and reconnection logic |
 | [Deployment Considerations](docs/guides/deployment_considerations.md) | Latency, geography, architecture, and monitoring questions for trading apps |
-| [AGENTS.md](AGENTS.md) | Guide for AI coding agents contributing to this project |
+| [AGENTS.md](https://github.com/ZenHive/zen_websocket/blob/main/AGENTS.md) | Guide for AI coding agents contributing to this project |
 
 See the full [HexDocs documentation](https://hexdocs.pm/zen_websocket) for API reference and module documentation.
 
