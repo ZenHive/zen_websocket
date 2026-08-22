@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-08-22
+
+### Changed — descripex bound
+
+- Runtime requirement widened `{:descripex, "~> 0.12.0"}` →
+  `{:descripex, "~> 0.12"}` so a descripex minor no longer forces a
+  zen_websocket release. The committed `mix.lock` still pins the resolved
+  version; a new descripex lands only through a deliberate `mix deps.update`.
+- Resolved `descripex 0.13.0` in the lockfile. 0.13.0 adds
+  `typeless_params/1` and folds more `@spec` shapes into JSON Schema; it does
+  not change `json_spec ~> 1.1` or zen_websocket's `use Descripex` call sites.
+
 ## [0.7.0] - 2026-08-21
 
 ### Removed
@@ -509,7 +521,8 @@ Additive release — no public-API or behavior change. Consumers upgrading from
 - Real-world tested against live WebSocket endpoints
 - Strict code quality standards (max 5 functions per module, 15 lines per function)
 
-[Unreleased]: https://github.com/ZenHive/zen_websocket/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/ZenHive/zen_websocket/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/ZenHive/zen_websocket/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/ZenHive/zen_websocket/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/ZenHive/zen_websocket/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/ZenHive/zen_websocket/compare/v0.5.0...v0.6.0
