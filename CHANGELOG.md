@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING — `ZenWebsocket.RateLimiter.state/0`:** the public type was
   removed with the internal queue state. Replace references to it with an
   application-owned status-map type (or `map()`); use
-  `ZenWebsocket.RateLimiter.config/0` for `init/2` input.
+  `t:ZenWebsocket.RateLimiter.config/0` for `init/2` input.
 - **BREAKING — `mix stability_test`:** the shipped
   `Mix.Tasks.StabilityTest` task and its guide were removed. The task was part
   of the package because the package definition ships the complete `lib` tree.
