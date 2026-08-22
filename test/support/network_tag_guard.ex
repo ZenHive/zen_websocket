@@ -287,21 +287,18 @@ defmodule ZenWebsocket.Test.Support.NetworkTagGuard.Scope do
 
   defp findings(module_name, test_name, tags, resources) do
     prefix = "#{module_name} #{inspect(test_name)}"
+    external_resource? = MapSet.member?(resources, :external_network)
+    local_resource? = MapSet.member?(resources, :local_network)
     network_resource? = Enum.any?(@network_tags, &MapSet.member?(resources, &1))
 
     for {true, message} <- [
-          {MapSet.member?(resources, :external_network) and :external_network not in tags,
-           "#{prefix}: internet URL without :external_network"},
-          {MapSet.member?(resources, :local_network) and :local_network not in tags,
-           "#{prefix}: local socket without :local_network"},
+          {external_resource? and :external_network not in tags, "#{prefix}: internet URL without :external_network"},
+          {local_resource? and :local_network not in tags, "#{prefix}: local socket without :local_network"},
           {Enum.any?(@network_tags, &(&1 in tags)) and :integration not in tags,
            "#{prefix}: network tag without :integration"},
-          {MapSet.member?(resources, :local_network) and :external_network in tags,
-           "#{prefix}: local socket selected by :external_network"},
-          {:external_network in tags and not MapSet.member?(resources, :external_network),
-           "#{prefix}: :external_network without internet socket"},
-          {:local_network in tags and not MapSet.member?(resources, :local_network),
-           "#{prefix}: :local_network without local socket"},
+          {local_resource? and :external_network in tags, "#{prefix}: local socket selected by :external_network"},
+          {:external_network in tags and not external_resource?, "#{prefix}: :external_network without internet socket"},
+          {:local_network in tags and not local_resource?, "#{prefix}: :local_network without local socket"},
           {:integration in tags and not network_resource?, "#{prefix}: :integration without network socket"}
         ],
         do: message
