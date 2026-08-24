@@ -219,5 +219,5 @@ end
 - [Building Adapters Guide](../guides/building_adapters.md)
 - [Troubleshooting Reconnection](../guides/troubleshooting_reconnection.md)
 - [Gun Integration Guide](../gun_integration.md)
-- [Client Module Documentation](../../lib/zen_websocket/client.ex)
-- [DeribitGenServerAdapter Example](../../lib/zen_websocket/examples/deribit_genserver_adapter.ex)
+- `ZenWebsocket.Client` — the client module itself
+- `ZenWebsocket.Examples.DeribitGenServerAdapter` — supervised adapter example

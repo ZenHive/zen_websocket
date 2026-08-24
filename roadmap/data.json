@@ -1212,7 +1212,7 @@
       "out_of_scope": [
         "Verifying prose claims. Only code blocks and the symbols they name are in scope; a sentence that describes behavior wrongly is not something this test can catch and must not be faked with keyword matching",
         "Executing the code blocks. Compiling or running arbitrary documentation snippets against a live socket is a different and much larger problem; symbol and option existence is the contract being encoded here",
-        "Checking link targets or anchors. Relative links that break under ExDoc are a real and separate defect class, tracked on their own",
+        "Checking link targets or anchors. ExDoc rewrites relative links between extras itself, and the only two links that did not resolve pointed at .ex source files from docs/architecture/reconnection.md; both were replaced with module references and a full mix docs build now leaves no unresolved relative link, so there is nothing left for this test to guard",
         "Re-auditing the documentation by hand. The nine defects this task exists because of are already fixed in the tree; this task encodes the rule, it does not repeat the sweep"
       ],
       "touches": [
