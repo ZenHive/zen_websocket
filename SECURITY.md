@@ -9,10 +9,10 @@ reports seriously.
 
 This library is pre-1.0; only the current release line receives security fixes.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.4.x   | :white_check_mark: |
-| < 0.4   | :x:                |
+| Version          | Supported          |
+| ---------------- | ------------------ |
+| Latest minor     | :white_check_mark: |
+| Earlier versions | :x:                |
 
 ## Reporting a Vulnerability
 

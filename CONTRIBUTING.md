@@ -23,16 +23,23 @@ By participating in this project, you agree to abide by the [Hex.pm Code of Cond
 # Install dependencies
 mix deps.get
 
-# Run tests
-mix test.json --quiet --summary-only
+# Fast local pre-commit loop (skips cold dialyzer PLT and full deps audit)
+mix precommit
 
-# Quality checks
-mix dialyzer.json --quiet              # Type checking
-mix credo --strict --format json       # Static analysis
-mix security                           # Sobelow security scan
-
-# Generate documentation
-mix docs
+# Comprehensive gate — run before pushing or creating a PR
+mix precommit.full
+# This is aliased as 'mix ci' and runs, in order:
+#   - compile --warnings-as-errors
+#   - format --check-formatted
+#   - credo --strict
+#   - doctor --raise
+#   - ex_dna --max-clones 0 (zero-clone duplication budget)
+#   - reach.check --arch --smells (architecture policy)
+#   - sobelow --skip (security scanning)
+#   - deps.audit.gated (advisory freshness + audit)
+#   - test.json --cover --cover-threshold 90 (90% minimum coverage)
+#   - dialyzer (type checking)
+#   - agents.check (AGENTS.md freshness)
 ```
 
 ## Documentation

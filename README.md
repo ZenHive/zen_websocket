@@ -15,7 +15,7 @@ A robust WebSocket client library for Elixir, built on Gun transport for product
 - **Real API Testing** - No mocks, tested against live systems
 - **Simple API** - connect, send, subscribe, monitor, and reconnect
 - **Comprehensive Error Handling** - Categorized errors with recovery strategies
-- **Rate Limiting** - Configurable token bucket algorithm
+- **Rate Limiting** - Standalone token bucket you drive from your own code
 - **JSON-RPC 2.0** - Full protocol support with correlation tracking
 - **Pool Load Balancing** - Health-based routing with automatic failover
 - **Session Recording** - JSONL message recording for debugging and replay
@@ -39,10 +39,11 @@ end
 ### Basic Connection
 
 ```elixir
-# Connect to a WebSocket endpoint (use your actual endpoint)
+# Connect to a WebSocket endpoint (use your actual endpoint).
+# Heartbeats are off unless you pass `heartbeat_config`.
 {:ok, client} = ZenWebsocket.Client.connect("wss://api.example.com/ws", [
   timeout: 5000,
-  heartbeat_interval: 30000
+  heartbeat_config: %{type: :ping_pong, interval: 30_000}
 ])
 
 # Send a message (must be binary — use Jason.encode!/1 for maps)
@@ -100,7 +101,7 @@ For more detailed examples, see our working examples with fully tested implement
 - **JSON-RPC Client** - JSON-RPC 2.0 protocol usage
 - **Subscription Management** - Channel subscription patterns
 
-See the [Examples Guide](https://hexdocs.pm/zen_websocket/Examples.html) for complete code samples and usage patterns.
+See the [Examples Guide](https://hexdocs.pm/zen_websocket/examples.html) for an index of every in-tree example module and its test suite.
 
 ### Session Recording
 
@@ -137,9 +138,14 @@ Route messages to the healthiest connection in a pool:
 {:ok, _} = ZenWebsocket.ClientSupervisor.start_link([])
 
 # Create multiple supervised connections
-{:ok, _client1} = ZenWebsocket.ClientSupervisor.start_client("wss://api.example.com/ws")
-{:ok, _client2} = ZenWebsocket.ClientSupervisor.start_client("wss://api.example.com/ws")
-{:ok, _client3} = ZenWebsocket.ClientSupervisor.start_client("wss://api.example.com/ws")
+# `handler:` is required on this path — without it frames are silently dropped
+opts = [handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end]
+
+{:ok, _client1} = ZenWebsocket.ClientSupervisor.start_client("wss://api.example.com/ws", opts)
+{:ok, _client2} = ZenWebsocket.ClientSupervisor.start_client("wss://api.example.com/ws", opts)
+{:ok, _client3} = ZenWebsocket.ClientSupervisor.start_client("wss://api.example.com/ws", opts)
+
+message = Jason.encode!(%{method: "public/test"})
 
 # Send messages with automatic load balancing
 # Routes to healthiest connection based on: pending requests, latency, errors
@@ -153,7 +159,51 @@ health = ZenWebsocket.PoolRouter.pool_health(ZenWebsocket.ClientSupervisor.list_
 # => [%{pid: #PID<0.123.0>, health: 95}, %{pid: #PID<0.124.0>, health: 87}, ...]
 ```
 
+### Rate Limiting
+
+`ZenWebsocket.RateLimiter` is a standalone token bucket backed by a named ETS
+table. `Client` never consults it — call it from your own code before sending.
+
+```elixir
+alias ZenWebsocket.RateLimiter
+
+# All four config keys are required; a missing `:tokens` raises KeyError.
+{:ok, :deribit_limiter} = RateLimiter.init(:deribit_limiter, %{
+  tokens: 100,
+  refill_rate: 10,
+  refill_interval: 1_000,
+  request_cost: &RateLimiter.deribit_cost/1
+})
+
+request = %{"method" => "public/test"}
+
+case RateLimiter.consume(:deribit_limiter, request) do
+  :ok -> ZenWebsocket.Client.send_message(client, Jason.encode!(request))
+  {:error, :rate_limited} -> {:error, :rate_limited}
+end
+
+{:ok, %{tokens: tokens}} = RateLimiter.status(:deribit_limiter)
+
+# ETS tables are not reclaimed on process exit — free it explicitly
+:ok = RateLimiter.shutdown(:deribit_limiter)
+```
+
+`init/2` schedules refills with `Process.send_after/3` against the **calling**
+process. That process must handle `{:refill, name}` or refills stop permanently:
+
+```elixir
+def handle_info({:refill, name}, state) do
+  ZenWebsocket.RateLimiter.refill(name)
+  {:noreply, state}
+end
+```
+
 ### Deribit Integration
+
+`DeribitGenServerAdapter` is the recommended supervised entry point.
+`ZenWebsocket.Examples.DeribitAdapter` is the functional/struct-based variant:
+`connect/1` returns a struct you thread through `authenticate/1`, `subscribe/2`,
+`unsubscribe/2`, and `send_request/2,3`.
 
 ```elixir
 # Configure Deribit credentials. Opts are a keyword list; the endpoint is
@@ -172,7 +222,7 @@ config = [
 :ok = ZenWebsocket.Examples.DeribitGenServerAdapter.authenticate(adapter)
 
 # Subscribe to market data
-{:ok, _} = ZenWebsocket.Examples.DeribitGenServerAdapter.subscribe(
+:ok = ZenWebsocket.Examples.DeribitGenServerAdapter.subscribe(
   adapter,
   ["book.BTC-PERPETUAL.raw", "trades.BTC-PERPETUAL.raw"]
 )
@@ -221,7 +271,14 @@ The library includes a complete Deribit adapter as a reference implementation. T
 3. Handle platform message formats
 4. Add comprehensive tests against the real API
 
-See `lib/zen_websocket/examples/deribit_adapter.ex` for a complete example.
+Two Deribit adapters ship as reference implementations:
+
+- `ZenWebsocket.Examples.DeribitGenServerAdapter` (`lib/zen_websocket/examples/deribit_genserver_adapter.ex`)
+  — the recommended supervised entry point: `start_link/1` plus `authenticate/1`,
+  `subscribe/2`, `send_request/2,3`, `get_state/1`, with reconnect handling in the GenServer.
+- `ZenWebsocket.Examples.DeribitAdapter` (`lib/zen_websocket/examples/deribit_adapter.ex`)
+  — the functional/struct-based variant: `connect/0,1` returns a struct you thread
+  through `authenticate/1`, `subscribe/2`, `unsubscribe/2`, `send_request/2,3`.
 
 ## Documentation
 
@@ -246,11 +303,31 @@ See the full [HexDocs documentation](https://hexdocs.pm/zen_websocket) for API r
 | `timeout` | Connection timeout in milliseconds | `5000` |
 | `retry_count` | Maximum reconnection attempts | `3` |
 | `retry_delay` | Initial retry delay in milliseconds | `1000` |
-| `heartbeat_interval` | Ping interval in milliseconds | `30000` |
+| `heartbeat_config` | Heartbeat mode (see below); heartbeats are off until you set it | `:disabled` |
+| `heartbeat_interval` | Fallback interval used when `heartbeat_config` omits `:interval` | `30000` |
 | `reconnect_on_error` | Enable automatic reconnection | `true` |
 | `restore_subscriptions` | Restore tracked Deribit subscriptions after reconnect | `true` |
 | `record_to` | Path to JSONL file for session recording | `nil` |
 | `debug` | Enable verbose debug logging | `false` |
+
+### Heartbeat Configuration
+
+`heartbeat_config` is either the atom `:disabled` (the default — no heartbeat is
+ever sent) or a map with a `:type`:
+
+| `type` | Behavior |
+|--------|----------|
+| `:ping_pong` | Sends a WebSocket ping frame each interval and measures the pong round trip |
+| `:deribit` | Sends Deribit's `public/set_heartbeat` dialect and answers `test_request` |
+| `:binance` | Inbound-only: incoming heartbeat messages are consumed, nothing is sent outbound |
+
+```elixir
+{:ok, client} = ZenWebsocket.Client.connect("wss://api.example.com/ws",
+  heartbeat_config: %{type: :ping_pong, interval: 30_000}
+)
+```
+
+`:interval` falls back to the `heartbeat_interval` option when omitted.
 
 ### Debug Logging
 
@@ -322,11 +399,13 @@ defmodule MyApp.WebSocketTest do
   test "client handles disconnection", %{server: server} do
     {:ok, client} = ZenWebsocket.Client.connect(server.url, reconnect_on_error: false)
 
+    ref = Process.monitor(client.server_pid)
+
     # Simulate server disconnect
     Testing.simulate_disconnect(server, :going_away)
 
     # Verify client detected disconnect
-    Process.sleep(100)
+    assert_receive {:DOWN, ^ref, :process, _, _}, 1000
     refute Process.alive?(client.server_pid)
   end
 end

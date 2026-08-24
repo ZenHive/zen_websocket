@@ -45,6 +45,10 @@ IO.inspect(Client.get_state(client))          # :connected | :connecting | :disc
 Adapter not tracking or restoring subscriptions.
 
 **Solution:**
+
+`Client.send_message/2` takes a `binary()` and writes it to the socket
+unchanged — it does not encode. Encode the payload yourself, or the send raises.
+
 ```elixir
 defmodule YourAdapter do
   # Track subscriptions in state
@@ -52,7 +56,7 @@ defmodule YourAdapter do
   
   def handle_call({:subscribe, channels}, _from, state) do
     # Send subscription request
-    Client.send_message(state.client, build_sub_msg(channels))
+    Client.send_message(state.client, Jason.encode!(build_sub_msg(channels)))
     
     # Track in state
     new_subs = MapSet.union(state.subscriptions, MapSet.new(channels))
@@ -62,7 +66,7 @@ defmodule YourAdapter do
   # Restore after reconnection
   defp restore_subscriptions(state) do
     Enum.each(state.subscriptions, fn channel ->
-      Client.send_message(state.client, build_sub_msg([channel]))
+      Client.send_message(state.client, Jason.encode!(build_sub_msg([channel])))
     end)
   end
 end
@@ -101,7 +105,7 @@ defmodule YourAdapter do
   defp authenticate(client, state) do
     # Re-authenticate with stored credentials
     auth_msg = build_auth_message(state.client_id, state.client_secret)
-    Client.send_message(client, auth_msg)
+    Client.send_message(client, Jason.encode!(auth_msg))
     # ... handle response
   end
 end
@@ -394,11 +398,14 @@ end
 
 ### 3. Alerting Rules
 
-Set up alerts for:
-- Connection failure rate > 10% over 5 minutes
-- Average reconnection time > 30 seconds
-- Process count growth > 1000 per hour
-- Memory usage growth > 100MB per hour
+The thresholds below are **illustrative starting points**, not measured values
+for this library — replace them with numbers taken from your own baseline before
+they page anyone. Alert on:
+
+- Connection failure rate over a rolling window
+- Average reconnection time
+- Process count growth
+- Memory usage growth
 
 ## Testing Reconnection Scenarios
 
@@ -426,22 +433,43 @@ end
 
 ```elixir
 defmodule LoadTest do
+  # Sequential, monitor-driven: each cycle waits for the actual :DOWN and for
+  # the adapter to hand back a new client pid. No sleeps — a sleep either
+  # under-waits (flaky) or over-waits (slow), and never proves anything.
   def stress_reconnection(adapter, iterations) do
-    for i <- 1..iterations do
-      Task.start(fn ->
-        # Force disconnection
-        state = :sys.get_state(adapter)
-        Process.exit(state.client.server_pid, :kill)
-        
-        # Wait for reconnection
-        :timer.sleep(1000)
-        
-        # Verify reconnected
-        new_state = :sys.get_state(adapter)
-        assert new_state.connected
-      end)
-      
-      :timer.sleep(100)  # Stagger disconnections
+    Enum.each(1..iterations, fn _ ->
+      old_pid = :sys.get_state(adapter).client.server_pid
+      ref = Process.monitor(old_pid)
+
+      Process.exit(old_pid, :kill)
+
+      receive do
+        {:DOWN, ^ref, :process, ^old_pid, _reason} -> :ok
+      after
+        5_000 -> raise "client process never went down"
+      end
+
+      await_new_client(adapter, old_pid, System.monotonic_time(:millisecond) + 10_000)
+    end)
+  end
+
+  defp await_new_client(adapter, old_pid, deadline) do
+    # Snapshot the state once: two separate :sys.get_state/1 calls can observe
+    # different states (the adapter clears `client` before it reconnects), and
+    # evaluating `.server_pid` against a state where `client` is nil crashes.
+    state = :sys.get_state(adapter)
+    pid = state.client && state.client.server_pid
+
+    cond do
+      is_pid(pid) and pid != old_pid and Process.alive?(pid) ->
+        :ok
+
+      System.monotonic_time(:millisecond) > deadline ->
+        raise "adapter did not reconnect within 10s"
+
+      true ->
+        Process.sleep(50)
+        await_new_client(adapter, old_pid, deadline)
     end
   end
 end

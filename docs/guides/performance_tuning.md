@@ -12,7 +12,13 @@ This guide covers performance tuning for ZenWebsocket connections. Each paramete
 |-----------|---------|-------------|
 | `timeout` | 5000ms | Connection establishment timeout |
 | `request_timeout` | 30000ms | Timeout for correlated request/response |
-| `heartbeat_interval` | 30000ms | Interval between heartbeat pings |
+| `heartbeat_config` | `:disabled` | Heartbeat mode; no heartbeat is sent until you set it |
+| `heartbeat_interval` | 30000ms | Fallback interval used when `heartbeat_config` omits `:interval` |
+
+Heartbeats are off by default: `heartbeat_interval` alone starts no timer, so every
+snippet below sets `heartbeat_config` to enable one. See the
+[README heartbeat section](../../README.md#heartbeat-configuration) for the available
+`:type` values.
 
 **Tuning guidance:**
 
@@ -21,14 +27,14 @@ This guide covers performance tuning for ZenWebsocket connections. Each paramete
 {:ok, client} = Client.connect(url,
   timeout: 3000,           # Fail fast on connection issues
   request_timeout: 5000,   # Don't wait long for responses
-  heartbeat_interval: 10_000  # Detect disconnects quickly
+  heartbeat_config: %{type: :ping_pong, interval: 10_000}  # Detect disconnects quickly
 )
 
 # High-latency networks (more tolerance)
 {:ok, client} = Client.connect(url,
   timeout: 15_000,          # Allow for slow networks
   request_timeout: 60_000,  # Accommodate slow API responses
-  heartbeat_interval: 60_000  # Reduce overhead
+  heartbeat_config: %{type: :ping_pong, interval: 60_000}  # Reduce overhead
 )
 ```
 
@@ -47,10 +53,15 @@ This guide covers performance tuning for ZenWebsocket connections. Each paramete
 ```
 delay = min(retry_delay * 2^attempt, max_backoff)
 
-Attempt 0: 1000ms
-Attempt 1: 2000ms
-Attempt 2: 4000ms
-Attempt 3: 8000ms (capped at 30000ms if max_backoff: 30_000)
+With retry_delay: 1000, max_backoff: 30_000
+
+Attempt 0:  1000ms
+Attempt 1:  2000ms
+Attempt 2:  4000ms
+Attempt 3:  8000ms
+Attempt 4: 16000ms
+Attempt 5: 30000ms  <- 32000 uncapped, clamped to max_backoff
+Attempt 6: 30000ms  <- every later attempt stays at the cap
 ```
 
 **Tuning guidance:**
@@ -79,7 +90,13 @@ Attempt 3: 8000ms (capped at 30000ms if max_backoff: 30_000)
 
 The `LatencyStats` module maintains a circular buffer of request latencies for p50/p99 calculations.
 
-**Memory impact:** Each latency sample stores a microsecond integer (~8 bytes for the raw value). With Erlang term overhead, actual memory usage is higher—expect ~16-24 bytes per sample in practice. For 100 samples, budget ~2 KB per connection.
+**Structure:** `LatencyStats` holds samples as small non-negative integers in an
+Erlang `:queue`, bounded by `latency_buffer_size` — insertion is O(1) with the
+oldest sample evicted at capacity, and percentile calculation sorts the bounded
+list. Memory is therefore proportional to `latency_buffer_size` and stops
+growing once the buffer is full. This repo publishes no measured per-sample
+figure; measure your own with `Client.get_state_metrics/1` (see below) rather
+than budgeting from a guess.
 
 ```elixir
 # High-precision latency tracking
@@ -122,37 +139,105 @@ config = %{
 
 Different exchanges use different rate limit models:
 
+The bucket sizes below are **illustrative** — they are scaled to the built-in
+cost functions' own relative units, not to any exchange's published credit
+values. Size your bucket against the venue's current published limits.
+
 ```elixir
-# Deribit: Credit-based (methods have different costs)
+# Deribit: credit-based (methods have different costs)
 config = %{
-  tokens: 10_000,           # Deribit gives 10k credits
-  refill_rate: 1000,        # Refills 1000/second
+  tokens: 10_000,           # illustrative capacity in deribit_cost/1 units
+  refill_rate: 1000,        # illustrative refill per interval
   refill_interval: 1000,
   request_cost: &RateLimiter.deribit_cost/1
 }
 
-# Built-in cost function:
-# - public/* methods: 1 credit
-# - private/get_* methods: 5 credits
-# - private/set_* methods: 10 credits
-# - private/buy, private/sell: 15 credits
+# Built-in cost function — a relative scale, NOT Deribit's published credits:
+# - public/* methods: 1
+# - private/get_* methods: 5
+# - private/set_* methods: 10
+# - private/buy, private/sell: 15
+# - anything else: 5
 
-# Binance: Weight-based
+# Binance: weight-based
 config = %{
-  tokens: 1200,             # 1200 weight per minute
-  refill_rate: 20,          # Refill 20 per second
+  tokens: 1200,             # illustrative capacity in binance_cost/1 units
+  refill_rate: 20,
   refill_interval: 1000,
   request_cost: &RateLimiter.binance_cost/1
 }
 
 # Simple fixed-rate (Coinbase, etc.)
 config = %{
-  tokens: 10,               # 10 requests
-  refill_rate: 10,          # Full refill
-  refill_interval: 1000,    # Per second
+  tokens: 10,               # illustrative: 10 requests
+  refill_rate: 10,
+  refill_interval: 1000,    # per second
   request_cost: &RateLimiter.simple_cost/1
 }
 ```
+
+**Deribit's published limits**, from
+<https://docs.deribit.com/articles/rate-limits.md> (retrieved 2026-08-22), for
+mapping the illustrative numbers onto reality:
+
+- Non-matching-engine requests: 500 credits per request against a 50,000-credit
+  maximum pool, refilled at 10,000 credits/second — "Credits are refilled at a
+  rate that allows up to 20 requests per second (10,000 credits per second)",
+  with burst up to 100 requests.
+- Matching-engine requests are tier-based on 7-day volume, recalculated hourly:
+  Tier 1 (>$25M) 30 req/s sustained / 100 burst, down to Tier 4 (up to $1M)
+  5 req/s / 20 burst.
+- `private/move_positions` is special-cased at 100,000 credits per request
+  against a 600,000-credit pool.
+- Exhausting credits returns `too_many_requests` (code `10028`) and terminates
+  the session.
+
+### Refill Timers Are Delivered to the Calling Process
+
+`RateLimiter.init/2` schedules refills with `Process.send_after/3` **addressed to
+whichever process called `init/2`**. That process must handle `{:refill, name}`
+and call `RateLimiter.refill/1`, which reschedules the next timer. Miss the
+clause and refills stop permanently after the first tick — the bucket drains
+once and never recovers.
+
+```elixir
+defmodule MyApp.Trader do
+  use GenServer
+
+  alias ZenWebsocket.RateLimiter
+
+  @impl true
+  def init(_opts) do
+    {:ok, :my_limiter} =
+      RateLimiter.init(:my_limiter, %{
+        tokens: 100,
+        refill_rate: 10,
+        refill_interval: 1000,
+        request_cost: &RateLimiter.simple_cost/1
+      })
+
+    {:ok, %{}}
+  end
+
+  # REQUIRED — without this clause refills stop after the first timer fires.
+  @impl true
+  def handle_info({:refill, name}, state) do
+    RateLimiter.refill(name)
+    {:noreply, state}
+  end
+
+  @impl true
+  def terminate(_reason, _state) do
+    # ETS tables are not cleaned up on process exit.
+    RateLimiter.shutdown(:my_limiter)
+  end
+end
+```
+
+**The limiter is caller-driven.** `ZenWebsocket.Client` never consults
+`RateLimiter` — nothing in the send path checks a bucket. You call
+`RateLimiter.consume/2` yourself before `Client.send_message/2`, or requests go
+out unthrottled.
 
 ### Allow/Deny and Retry
 
@@ -248,25 +333,41 @@ end
 
 ## Memory Characteristics
 
-### Per-Connection Baseline
+### Measure, Don't Estimate
 
-| Component | Memory |
-|-----------|--------|
-| Client GenServer state | ~1-2 KB |
-| Gun connection | ~2-3 KB |
-| LatencyStats buffer (100 samples) | ~2 KB |
-| SubscriptionManager (10 channels) | ~500 bytes |
-| RequestCorrelator (empty) | ~200 bytes |
-| **Total idle connection** | **~6-8 KB** |
+This repo ships no memory benchmark, so it publishes no per-connection byte
+figures. Measure the connections you actually run:
 
-### Variable Memory Components
+```elixir
+metrics = Client.get_state_metrics(client)
+# %{
+#   connection_state: :connected,
+#   active_heartbeats_size: 1,
+#   subscriptions_size: 12,
+#   pending_requests_size: 5,
+#   state_memory: 1024,        # :erts_debug.size(term) of the state term, in WORDS
+#   heartbeat_failures: 0,
+#   last_heartbeat_at: 123_456,
+#   heartbeat_timer_active: true,
+#   message_queue_len: 0,
+#   memory: 21_000,            # :erlang.process_info(:memory), in bytes
+#   reductions: 98_765
+# }
+```
 
-| Component | Growth Factor |
-|-----------|--------------|
-| RequestCorrelator | ~200 bytes per pending request |
-| RateLimiter ETS table | config map + token counter |
-| SubscriptionManager | ~50 bytes per subscription |
-| LatencyStats | 8 bytes per sample up to buffer_size |
+`state_memory` is `:erts_debug.size(term)` — a **word** count for the state term
+(multiply by `:erlang.system_info(:wordsize)` for bytes), while `memory` is the
+GenServer process's own byte total from `Process.info/2`. The Gun connection is a
+separate process; size it with `Process.info(client.gun_pid, :memory)`.
+
+### What Grows With What
+
+| Component | Grows with |
+|-----------|------------|
+| `RequestCorrelator` | number of in-flight correlated requests (bounded by how many you issue before `request_timeout`) |
+| `SubscriptionManager` | number of tracked subscription channels |
+| `LatencyStats` | number of retained samples, hard-capped at `latency_buffer_size` |
+| `RateLimiter` ETS table | fixed: one config map (~200 bytes) plus one token counter (8 bytes), per `ZenWebsocket.RateLimiter`'s "Memory Characteristics" — and **not** freed on process exit; call `RateLimiter.shutdown/1` |
 
 ### Memory Optimization
 
@@ -296,7 +397,7 @@ Optimize for lowest latency, fast failure detection:
 {:ok, client} = Client.connect(url,
   timeout: 2000,
   request_timeout: 3000,
-  heartbeat_interval: 5000,
+  heartbeat_config: %{type: :ping_pong, interval: 5000},
   retry_count: 3,
   retry_delay: 100,
   max_backoff: 1000,
@@ -312,7 +413,7 @@ Optimize for reliability, handle reconnection gracefully:
 {:ok, client} = Client.connect(url,
   timeout: 10_000,
   request_timeout: 30_000,
-  heartbeat_interval: 30_000,
+  heartbeat_config: %{type: :ping_pong, interval: 30_000},
   retry_count: 20,
   retry_delay: 1000,
   max_backoff: 60_000,
@@ -326,9 +427,9 @@ Minimize memory and CPU overhead:
 
 ```elixir
 {:ok, client} = Client.connect(url,
-  heartbeat_interval: 60_000,   # Less frequent heartbeats
-  latency_buffer_size: 10,      # Minimal latency tracking
-  retry_count: 3                # Limited retries
+  heartbeat_config: %{type: :ping_pong, interval: 60_000},  # Less frequent heartbeats
+  latency_buffer_size: 10,                                  # Minimal latency tracking
+  retry_count: 3                                            # Limited retries
 )
 ```
 
@@ -353,10 +454,20 @@ state = Client.get_state(client)
 stats = Client.get_latency_stats(client)
 # => %{p50: 45, p99: 120, last: 52, count: 100}
 
-# Heartbeat health
+# Heartbeat health - five keys
 health = Client.get_heartbeat_health(client)
-# => %{failure_count: 0, last_heartbeat_at: -576460748, config: :disabled, timer_active: false}
-# Note: last_heartbeat_at is System.monotonic_time(:millisecond), not a wall-clock DateTime
+# => %{
+#      active_heartbeats: [],      # list of heartbeat types that have been acknowledged
+#      last_heartbeat_at: nil,
+#      failure_count: 0,
+#      config: :disabled,
+#      timer_active: false
+#    }
+#
+# last_heartbeat_at is System.monotonic_time(:millisecond) once a heartbeat has
+# been acknowledged - a large negative integer on a freshly booted node, never a
+# wall-clock DateTime. It stays nil until then, which is always the case with
+# config: :disabled.
 
 # Connection metrics
 metrics = Client.get_state_metrics(client)
@@ -375,7 +486,7 @@ IO.inspect(status)
 
 | Goal | Key Parameters |
 |------|----------------|
-| Lower latency | Reduce `timeout`, `request_timeout`, `heartbeat_interval` |
+| Lower latency | Reduce `timeout`, `request_timeout`, and the `:interval` in `heartbeat_config` |
 | Higher reliability | Increase `retry_count`, `max_backoff` |
 | Less memory | Reduce `latency_buffer_size` |
 | Better observability | Attach telemetry handlers, enable `debug: true` |
@@ -384,4 +495,6 @@ IO.inspect(status)
 ## Related Guides
 
 - [Building Exchange Adapters](building_adapters.md) - Build production adapters with reconnection and state restoration
+- [Troubleshooting Reconnection](troubleshooting_reconnection.md) - Diagnose duplicate reconnects, lost subscriptions, and Gun process leaks
+- [Deployment Considerations](deployment_considerations.md) - Supervision, pooling, and production trade-offs
 

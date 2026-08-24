@@ -69,11 +69,15 @@ end
 Then create supervised connections:
 
 ```elixir
-# Basic supervised connection
-{:ok, client} = ZenWebsocket.ClientSupervisor.start_client("wss://example.com")
+# Basic supervised connection. `handler:` is required on this path — without it
+# incoming frames hit MessageHandler.default_handler/1 and are discarded.
+{:ok, client} = ZenWebsocket.ClientSupervisor.start_client("wss://example.com",
+  handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end
+)
 
 # With configuration
 {:ok, client} = ZenWebsocket.ClientSupervisor.start_client("wss://example.com",
+  handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end,
   retry_count: 10,
   heartbeat_config: %{type: :deribit, interval: 30_000}
 )

@@ -24,6 +24,99 @@ Need automatic reconnection?
              └─ Yes → GenServer Adapter (recommended for production)
 ```
 
+## Receiving Messages
+
+Sending is only half of an adapter. Inbound frames reach you through the
+`:handler` function passed to `Client.connect/2` — nothing is delivered
+automatically.
+
+**`Client.connect/2` installs a default handler only when you omit `:handler`.**
+It is added by `ZenWebsocket.Client.CallFacade.with_default_handler/2`, and it
+targets **the process that called `connect/2`**. For a GenServer adapter that is
+the adapter process itself, provided the adapter calls `Client.connect/2` from
+inside one of its own callbacks. The shapes it sends:
+
+| Message | Sent when | Payload |
+|---------|-----------|---------|
+| `{:websocket_message, data}` | a text **or** binary frame arrived and was not intercepted (see below) — both collapse to this tag | decoded map for a JSON text frame; raw binary for a non-JSON text frame or a binary frame |
+| `{:websocket_unmatched_response, response}` | a JSON-RPC response arrived whose `"id"` matched no pending request | decoded map |
+| `{:websocket_protocol_error, reason}` | a frame could not be decoded (fatal — the client stops) | reason term |
+
+**The client decodes JSON for you on the inbound path**, so do not call
+`Jason.decode/1` on `data` — for a valid JSON text frame it is already a map.
+
+**Two classes of text frame never reach your handler at all**, so do not write
+clauses for them:
+
+- **JSON-RPC replies carrying an `"id"`** are correlated and returned as the
+  `{:ok, response}` reply to the `Client.send_message/2` that issued them. Only
+  uncorrelated replies surface, as `{:websocket_unmatched_response, _}`.
+- **Frames whose decoded body matches `%{"method" => "heartbeat"}`** are routed
+  straight to `ZenWebsocket.HeartbeatManager.handle_message/2` by
+  `ZenWebsocket.Client.Frames.route_data_frame/2`. The client answers them
+  itself; a `handle_info({:websocket_message, %{"method" => "heartbeat"}}, _)`
+  clause in your adapter can never fire. Observe heartbeat health through
+  `Client.get_heartbeat_health/1` instead.
+
+Market-data notifications (`%{"method" => "subscription"}`) *are* delivered
+normally, as are any other decoded maps and non-JSON text frames.
+
+Handle them in the adapter's `handle_info/2`:
+
+```elixir
+@impl true
+def handle_info({:websocket_message, %{"method" => "subscription", "params" => params}}, state) do
+  {:noreply, dispatch_market_data(state, params)}
+end
+
+def handle_info({:websocket_message, %{} = msg}, state) do
+  Logger.debug("Unhandled JSON message: #{inspect(msg)}")
+  {:noreply, state}
+end
+
+def handle_info({:websocket_message, text}, state) when is_binary(text) do
+  # Text frame that was not valid JSON, or a binary frame
+  {:noreply, handle_raw_frame(state, text)}
+end
+
+def handle_info({:websocket_unmatched_response, response}, state) do
+  # Usually a late reply after RequestCorrelator already timed the request out.
+  Logger.warning("Unmatched response: #{inspect(response)}")
+  {:noreply, state}
+end
+
+def handle_info({:websocket_protocol_error, reason}, state) do
+  Logger.error("Protocol error: #{inspect(reason)}")
+  {:noreply, state}
+end
+```
+
+**Supervised clients must pass `:handler` explicitly.**
+`ClientSupervisor.start_client/2` starts the client through
+`DynamicSupervisor.start_child/2` → `Client.start_link/2`, which never runs
+`with_default_handler/2`. With no `:handler` in the options the client falls
+back to `ZenWebsocket.MessageHandler.default_handler/1`, which accepts and
+**discards** every message — a supervised adapter that forgets `:handler` sees a
+healthy connection and no data.
+
+```elixir
+adapter = self()
+
+{:ok, client} =
+  ClientSupervisor.start_client(url,
+    handler: fn
+      {:message, data} -> send(adapter, {:websocket_message, data})
+      {:binary, data} -> send(adapter, {:websocket_message, data})
+      {:unmatched_response, r} -> send(adapter, {:websocket_unmatched_response, r})
+      {:protocol_error, reason} -> send(adapter, {:websocket_protocol_error, reason})
+      _other -> :ok
+    end
+  )
+```
+
+The complete set of tuple shapes a custom handler receives is documented in
+`USAGE_RULES.md`, section **"Handler Message Reference"**.
+
 ## Adapter Template
 
 Here's a minimal template for building an exchange adapter:
@@ -88,7 +181,8 @@ defmodule YourExchange.Adapter do
     connect_opts = [
       reconnect_on_error: false,  # Adapter handles reconnection
       heartbeat_config: %{
-        type: :custom,  # or :deribit, :standard
+        # Valid types: :deribit, :ping_pong, :binance, :disabled (see table below)
+        type: :ping_pong,
         interval: 30_000
       }
     ]
@@ -126,7 +220,7 @@ defmodule YourExchange.Adapter do
     # Exchange-specific authentication
     auth_msg = build_auth_message(state.api_key, state.api_secret)
     
-    case Client.send_message(state.client, auth_msg) do
+    case Client.send_message(state.client, Jason.encode!(auth_msg)) do
       :ok ->
         # Wait for auth response (simplified)
         {:ok, %{state | authenticated: true}}
@@ -139,7 +233,7 @@ defmodule YourExchange.Adapter do
     unless Enum.empty?(subs) do
       Enum.each(subs, fn channel ->
         sub_msg = build_subscription_message(channel)
-        Client.send_message(state.client, sub_msg)
+        Client.send_message(state.client, Jason.encode!(sub_msg))
       end)
     end
 
@@ -150,7 +244,7 @@ defmodule YourExchange.Adapter do
   
   @impl true
   def handle_info({:DOWN, ref, :process, _pid, reason}, %{client_ref: ref} = state) do
-    Logger.warn("Client process down: #{inspect(reason)}, initiating reconnection")
+    Logger.warning("Client process down: #{inspect(reason)}, initiating reconnection")
     
     new_state = %{state | 
       client: nil, 
@@ -255,15 +349,33 @@ def handle_info({:DOWN, ref, :process, _pid, reason}, %{client_ref: ref} = state
 end
 ```
 
+### 4. Encode Payloads Yourself
+
+`Client.send_message/2` takes a `binary()` and writes it to the socket as a
+text frame unchanged — there is no JSON encoding step in the send path. Passing
+a map raises inside Gun. Encode before sending:
+
+```elixir
+Client.send_message(client, Jason.encode!(%{"method" => "subscribe"}))
+```
+
+Correlation reads the JSON-RPC `"id"` out of that binary, so a request you want
+correlated must be valid JSON carrying an `"id"`.
+
 ## Heartbeat Configuration
 
-ZenWebsocket supports different heartbeat types via `heartbeat_config`:
+ZenWebsocket supports these heartbeat types via `heartbeat_config`. **The list is
+closed:** `heartbeat_config` is stored on the client state without validation
+(`ZenWebsocket.Client.Connection`), and `HeartbeatManager.send_heartbeat/1`
+falls through to a no-op clause for anything it does not recognize — so an
+invented type such as `:custom` produces a timer that fires and sends nothing,
+with no error.
 
 | Type | Description | Use Case |
 |------|-------------|----------|
 | `:deribit` | JSON-RPC test_request/heartbeat | Deribit API |
 | `:ping_pong` | WebSocket ping/pong frames | Standard WebSocket |
-| `:binance` | Frame-level pings (handled by Gun) | Binance APIs |
+| `:binance` | Inbound-only: no outbound send clause exists, so the timer sends nothing. Binance's server-initiated pings are answered by Gun at frame level | Binance APIs |
 | `:disabled` | No heartbeats | Custom handling |
 
 ### Configuring Heartbeats
@@ -318,7 +430,7 @@ defmodule MyExchange.Adapter do
   def handle_info(:send_heartbeat, state) do
     # Exchange-specific heartbeat format
     heartbeat_msg = %{"op" => "ping", "ts" => System.system_time(:millisecond)}
-    Client.send_message(state.client, heartbeat_msg)
+    Client.send_message(state.client, Jason.encode!(heartbeat_msg))
 
     timer = Process.send_after(self(), :send_heartbeat, @heartbeat_interval)
     {:noreply, %{state | heartbeat_timer: timer}}
@@ -415,7 +527,7 @@ defp authenticate(state) do
     "id" => generate_id()
   }
 
-  case Client.send_message(state.client, auth_params) do
+  case Client.send_message(state.client, Jason.encode!(auth_params)) do
     :ok ->
       {:ok, %{state | authenticating: true}}
     error ->
@@ -444,7 +556,7 @@ defp authenticate(state) do
     }
   }
 
-  Client.send_message(state.client, auth_msg)
+  Client.send_message(state.client, Jason.encode!(auth_msg))
 end
 ```
 
@@ -459,7 +571,7 @@ defp authenticate(state) do
         "type" => "auth",
         "token" => access_token
       }
-      Client.send_message(state.client, auth_msg)
+      Client.send_message(state.client, Jason.encode!(auth_msg))
       {:ok, %{state | access_token: access_token}}
 
     {:error, reason} ->
@@ -495,7 +607,7 @@ end
 defp restore_subscriptions(state) do
   Enum.each(state.subscriptions, fn channel ->
     subscribe_message = build_subscribe_message(channel)
-    Client.send_message(state.client, subscribe_message)
+    Client.send_message(state.client, Jason.encode!(subscribe_message))
   end)
   
   {:ok, state}
@@ -517,10 +629,8 @@ end
 
 ## Example: Binance Spot Adapter
 
-Binance uses a different pattern than Deribit:
-- No JSON-RPC (plain JSON messages)
-- HMAC signature authentication
-- Combined streams via stream names
+The connect / monitor / reconnect scaffolding is identical to the template
+above — only the exchange-specific pieces differ. Those pieces:
 
 ```elixir
 defmodule Binance.SpotAdapter do
@@ -531,56 +641,20 @@ defmodule Binance.SpotAdapter do
 
   @base_url "wss://stream.binance.com:9443/ws"
 
-  def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, name: opts[:name])
-  end
+  # Binance answers server-initiated pings at the WebSocket frame level,
+  # so :ping_pong is the right heartbeat type.
+  @connect_opts [
+    heartbeat_config: %{type: :ping_pong, interval: 30_000},
+    reconnect_on_error: false
+  ]
 
-  def subscribe(adapter, streams) when is_list(streams) do
-    GenServer.call(adapter, {:subscribe, streams})
-  end
-
-  @impl true
-  def init(opts) do
-    state = %{
-      api_key: opts[:api_key],
-      api_secret: opts[:api_secret],
-      client: nil,
-      client_ref: nil,
-      subscriptions: MapSet.new(),
-      request_id: 1
-    }
-    {:ok, state}
-  end
-
-  @impl true
-  def handle_call(:connect, _from, state) do
-    # Binance uses ping/pong frames at WebSocket level
-    connect_opts = [
-      heartbeat_config: %{type: :ping_pong, interval: 30_000},
-      reconnect_on_error: false
-    ]
-
-    case Client.connect(@base_url, connect_opts) do
-      {:ok, client} ->
-        ref = Process.monitor(client.server_pid)
-        new_state = %{state | client: client, client_ref: ref}
-        {:reply, :ok, new_state}
-
-      {:error, reason} ->
-        {:reply, {:error, reason}, state}
-    end
-  end
-
+  # Plain JSON, not JSON-RPC: a "method"/"params"/"id" envelope where
+  # params is a flat list of stream names.
   @impl true
   def handle_call({:subscribe, streams}, _from, state) do
-    # Binance subscription format (no JSON-RPC)
-    msg = %{
-      "method" => "SUBSCRIBE",
-      "params" => streams,
-      "id" => state.request_id
-    }
+    msg = %{"method" => "SUBSCRIBE", "params" => streams, "id" => state.request_id}
 
-    case Client.send_message(state.client, msg) do
+    case Client.send_message(state.client, Jason.encode!(msg)) do
       :ok ->
         new_subs = Enum.reduce(streams, state.subscriptions, &MapSet.put(&2, &1))
         {:reply, :ok, %{state | subscriptions: new_subs, request_id: state.request_id + 1}}
@@ -590,70 +664,12 @@ defmodule Binance.SpotAdapter do
     end
   end
 
-  # Signed request for user data stream
-  def create_listen_key(adapter) do
-    GenServer.call(adapter, :create_listen_key)
-  end
-
-  @impl true
-  def handle_call(:create_listen_key, _from, state) do
-    timestamp = System.system_time(:millisecond)
-    query = "timestamp=#{timestamp}"
-
-    signature =
-      :crypto.mac(:hmac, :sha256, state.api_secret, query)
-      |> Base.encode16(case: :lower)
-
-    # Note: Listen key creation is via REST API, not WebSocket
-    # This shows the HMAC pattern used by Binance
-    {:reply, {:ok, signature}, state}
-  end
-
-  @impl true
-  def handle_info({:DOWN, ref, :process, _pid, reason}, %{client_ref: ref} = state) do
-    Logger.warning("Binance client down: #{inspect(reason)}")
-
-    new_state = %{state | client: nil, client_ref: nil}
-    Process.send_after(self(), :reconnect, 5_000)
-    {:noreply, new_state}
-  end
-
-  @impl true
-  def handle_info(:reconnect, state) do
-    case do_connect(state) do
-      {:ok, connected_state} ->
-        restore_subscriptions(connected_state)
-      {:error, _} ->
-        Process.send_after(self(), :reconnect, 10_000)
-        {:noreply, state}
-    end
-  end
-
-  defp do_connect(state) do
-    connect_opts = [
-      heartbeat_config: %{type: :ping_pong, interval: 30_000},
-      reconnect_on_error: false
-    ]
-
-    case Client.connect(@base_url, connect_opts) do
-      {:ok, client} ->
-        ref = Process.monitor(client.server_pid)
-        {:ok, %{state | client: client, client_ref: ref}}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp restore_subscriptions(state) do
-    streams = MapSet.to_list(state.subscriptions)
-
-    if streams != [] do
-      msg = %{"method" => "SUBSCRIBE", "params" => streams, "id" => state.request_id}
-      Client.send_message(state.client, msg)
-    end
-
-    {:noreply, %{state | request_id: state.request_id + 1}}
+  # HMAC-SHA256 over the query string. Binance uses this for REST endpoints
+  # (listen-key creation for the user data stream), not for WebSocket frames.
+  def sign(secret, query) do
+    :hmac
+    |> :crypto.mac(:sha256, secret, query)
+    |> Base.encode16(case: :lower)
   end
 end
 ```
@@ -666,83 +682,99 @@ end
 
 ## Testing Your Adapter
 
+Test against a real socket. `ZenWebsocket.Testing` starts an in-process
+cowboy/websock mock server, so no exchange behavior is stubbed. Synchronize on
+messages and process monitors — this repo bans `:timer.sleep/1` as a
+synchronization primitive.
+
+| Helper | Signature | Purpose |
+|--------|-----------|---------|
+| `start_mock_server/1` | `(keyword()) :: {:ok, server}` | `server` is `%{pid:, port:, url:, message_agent:}`; `port: 0` (default) picks a free port |
+| `stop_server/1` | `(server) :: :ok` | Teardown; call from `on_exit/1` |
+| `inject_message/2` | `(server, binary()) :: :ok` | Push a text frame to every connected client |
+| `assert_message_sent/3` | `(server, expected, timeout_ms) :: boolean()` | Poll captured client→server messages; `expected` may be a string, regex, map, or 1-arity function |
+| `simulate_disconnect/2` | `(server, :normal \| :going_away \| {:code, n}) :: :ok` | Close from the server side |
+
 ### Unit Tests
+
 ```elixir
 defmodule YourExchange.AdapterTest do
-  use ExUnit.Case
-  
+  use ExUnit.Case, async: false
+
   alias YourExchange.Adapter
-  
-  describe "reconnection handling" do
-    test "reconnects on client process death" do
-      {:ok, adapter} = Adapter.start_link(url: "wss://test.exchange.com")
-      
-      # Connect
-      assert :ok = Adapter.connect(adapter)
-      
-      # Get client process
-      state = :sys.get_state(adapter)
-      client_pid = state.client.server_pid
-      
-      # Kill client process
-      Process.exit(client_pid, :kill)
-      
-      # Adapter should reconnect
-      :timer.sleep(100)
-      
-      new_state = :sys.get_state(adapter)
-      assert new_state.client != nil
-      assert new_state.client.server_pid != client_pid
-    end
+  alias ZenWebsocket.Testing
+
+  setup do
+    {:ok, server} = Testing.start_mock_server()
+    on_exit(fn -> Testing.stop_server(server) end)
+    {:ok, server: server}
+  end
+
+  @tag :integration
+  @tag :local_network
+  test "reconnects on client process death", %{server: server} do
+    {:ok, adapter} = start_supervised({Adapter, url: server.url})
+    assert :ok = Adapter.connect(adapter)
+
+    client_pid = :sys.get_state(adapter).client.server_pid
+    ref = Process.monitor(client_pid)
+
+    Process.exit(client_pid, :kill)
+    assert_receive {:DOWN, ^ref, :process, ^client_pid, :killed}, 1_000
+
+    # The adapter re-subscribes on reconnect; the mock server sees that frame.
+    assert Testing.assert_message_sent(server, ~r/"subscribe"/, 2_000)
+
+    refute :sys.get_state(adapter).client.server_pid == client_pid
+  end
+
+  @tag :integration
+  @tag :local_network
+  test "routes injected messages into adapter state", %{server: server} do
+    {:ok, adapter} = start_supervised({Adapter, url: server.url})
+    assert :ok = Adapter.connect(adapter)
+
+    Testing.inject_message(server, ~s({"method":"subscription","params":{"channel":"trades"}}))
+
+    # Adapter forwards market data to its caller; assert on that, not on a sleep.
+    assert_receive {:market_data, %{"channel" => "trades"}}, 1_000
   end
 end
 ```
 
 ### Integration Tests
+
 ```elixir
 @tag :integration
-test "maintains subscriptions across reconnection" do
-  {:ok, adapter} = Adapter.start_link(
-    url: "wss://test.exchange.com",
-    api_key: "test_key",
-    api_secret: "test_secret"
-  )
-  
-  # Connect and subscribe
+@tag :local_network
+test "maintains subscriptions across a server-side disconnect", %{server: server} do
+  {:ok, adapter} = start_supervised({Adapter, url: server.url})
   :ok = Adapter.connect(adapter)
   :ok = Adapter.subscribe(adapter, ["trades.BTC-USD"])
-  
-  # Force disconnection
-  state = :sys.get_state(adapter)
-  Process.exit(state.client.server_pid, :kill)
-  
-  # Wait for reconnection
-  :timer.sleep(1000)
-  
-  # Verify subscription restored
-  assert subscription_active?(adapter, "trades.BTC-USD")
+
+  assert Testing.assert_message_sent(server, ~r/trades\.BTC-USD/, 1_000)
+
+  client_pid = :sys.get_state(adapter).client.server_pid
+  ref = Process.monitor(client_pid)
+
+  Testing.simulate_disconnect(server, :going_away)
+  assert_receive {:DOWN, ^ref, :process, ^client_pid, _reason}, 2_000
+
+  # Subscription is resent after the adapter reconnects.
+  assert Testing.assert_message_sent(server, ~r/trades\.BTC-USD/, 5_000)
 end
 ```
 
+Tests that open a socket must carry `@tag :integration` (plus `:local_network`
+for mock-server tests) — default `mix test` excludes them.
+
 ## Troubleshooting
 
-### Common Issues
-
-1. **Duplicate Reconnection Attempts**
-   - Symptom: Multiple connection attempts, resource exhaustion
-   - Solution: Ensure `reconnect_on_error: false` is set
-
-2. **Lost Subscriptions**
-   - Symptom: No data after reconnection
-   - Solution: Track subscriptions in adapter state, restore after auth
-
-3. **Authentication Failures**
-   - Symptom: Can't restore authenticated state
-   - Solution: Store credentials securely, handle auth errors gracefully
-
-4. **Memory Leaks**
-   - Symptom: Growing process count
-   - Solution: Ensure old monitors are cleaned up, Gun processes terminate
+Adapter reconnection problems — duplicate reconnection attempts, lost
+subscriptions, authentication that does not survive a reconnect, and Gun
+processes that leak — are diagnosed in
+[Troubleshooting Reconnection](troubleshooting_reconnection.md), with symptoms,
+root causes, and fixes for each.
 
 ## Best Practices
 
@@ -765,4 +797,6 @@ Follow the patterns in this guide and study the Deribit adapter example for a pr
 
 ## Related Guides
 
+- [Troubleshooting Reconnection](troubleshooting_reconnection.md) - Diagnose duplicate reconnects, lost subscriptions, auth loss, and Gun process leaks
 - [Performance Tuning Guide](performance_tuning.md) - Optimize timeouts, reconnection, rate limiting, and memory usage
+- [Deployment Considerations](deployment_considerations.md) - Supervision, pooling, and production trade-offs for adapters
