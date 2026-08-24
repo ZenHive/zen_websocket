@@ -4,6 +4,9 @@ defmodule ZenWebsocket.HeartbeatManager do
 
   Pure functional module - state ownership stays with Client GenServer.
   Timer ownership stays with Client (Process.send_after needs self()).
+
+  Internal to ZenWebsocket: not listed in `ZenWebsocket.describe/0`. Consumers
+  use `Client.connect/2` with `heartbeat_config` and `Client.get_heartbeat_health/1`.
   """
 
   use Descripex, namespace: "/heartbeat"
@@ -38,7 +41,7 @@ defmodule ZenWebsocket.HeartbeatManager do
         }
 
   api(:start_timer, "Start heartbeat timer if configured. Call on connection upgrade.",
-    params: [state: [kind: :value, description: "Client state map with heartbeat config"]],
+    params: [state: [kind: :exchange_data, description: "Client state map with heartbeat config"]],
     returns: %{type: "state()", description: "Updated state with timer reference"}
   )
 
@@ -59,7 +62,7 @@ defmodule ZenWebsocket.HeartbeatManager do
   def start_timer(state), do: state
 
   api(:cancel_timer, "Cancel active heartbeat timer. Call on disconnect/error.",
-    params: [state: [kind: :value, description: "Client state map with active timer"]],
+    params: [state: [kind: :exchange_data, description: "Client state map with active timer"]],
     returns: %{type: "state()", description: "Updated state with timer and failure count reset"}
   )
 
@@ -83,8 +86,8 @@ defmodule ZenWebsocket.HeartbeatManager do
 
   api(:handle_message, "Route incoming heartbeat message to platform-specific handler.",
     params: [
-      msg: [kind: :value, description: "Incoming heartbeat message or pong frame"],
-      state: [kind: :value, description: "Client state map with heartbeat config"]
+      msg: [kind: :exchange_data, description: "Incoming heartbeat message or pong frame"],
+      state: [kind: :exchange_data, description: "Client state map with heartbeat config"]
     ],
     returns: %{type: "state()", description: "Updated state after processing heartbeat"}
   )
@@ -114,7 +117,7 @@ defmodule ZenWebsocket.HeartbeatManager do
   end
 
   api(:send_heartbeat, "Send platform-specific heartbeat message.",
-    params: [state: [kind: :value, description: "Client state map with heartbeat config and gun connection"]],
+    params: [state: [kind: :exchange_data, description: "Client state map with heartbeat config and gun connection"]],
     returns: %{type: "state()", description: "Updated state with outbound heartbeat tracking"}
   )
 
@@ -147,7 +150,7 @@ defmodule ZenWebsocket.HeartbeatManager do
   end
 
   api(:get_health, "Return heartbeat health metrics.",
-    params: [state: [kind: :value, description: "Client state map with heartbeat fields"]],
+    params: [state: [kind: :exchange_data, description: "Client state map with heartbeat fields"]],
     returns: %{
       type: "health()",
       description: "Health metrics including active heartbeats, failure count, and timer status"

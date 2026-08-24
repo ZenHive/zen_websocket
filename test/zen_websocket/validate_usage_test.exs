@@ -65,6 +65,20 @@ defmodule ZenWebsocket.ValidateUsageTest do
     assert Enum.any?(issues, &(&1.type == :invalid_api))
   end
 
+  test "allowed_functions is derived from Client.__api__ plus extras" do
+    api_names = MapSet.new(Enum.map(ZenWebsocket.Client.__api__(), & &1.name))
+    allowed = MapSet.new(ValidateUsage.allowed_functions())
+    extras = MapSet.new([:t, :build_client_struct])
+    supervision = MapSet.new(ValidateUsage.supervision_functions())
+
+    assert MapSet.subset?(supervision, api_names)
+
+    assert MapSet.equal?(
+             allowed,
+             api_names |> MapSet.union(extras) |> MapSet.union(supervision)
+           )
+  end
+
   test "allowed_functions matches Client's non-callback public exports" do
     shipped =
       :functions

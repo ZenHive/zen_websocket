@@ -48,10 +48,11 @@ defmodule ZenWebsocket.Client do
   - get_state/1 - Get connection state
   - close/1 - Close connection
   - reconnect/1 - Close and re-establish the connection
-  - get_heartbeat_health/1, get_state_metrics/1, get_latency_stats/1 - Monitoring
+  - get_heartbeat_health/1 - Heartbeat health
+  - get_state_metrics/1 - Internal state metrics
+  - get_latency_stats/1 - Request/response latency
   - start_link/2 - Start the Client GenServer under a supervisor
   - child_spec/1 - Child specification for a supervision tree
-  - build_client_struct/2 - Internal client struct assembly (`@doc false`; ClientSupervisor)
 
   ## Configuration Options
 
@@ -156,6 +157,13 @@ defmodule ZenWebsocket.Client do
         }
 
   # Public API
+  api(:child_spec, "Return a child specification for starting a Client under a supervisor.",
+    params: [
+      opts: [kind: :value, description: "Keyword list; requires :url, optional :id and connect options"]
+    ],
+    returns: %{type: "Supervisor.child_spec()", description: "Child spec with restart: :permanent"}
+  )
+
   @doc """
   Returns a child specification for starting a Client under a supervisor.
 
@@ -187,6 +195,15 @@ defmodule ZenWebsocket.Client do
       restart: :permanent
     }
   end
+
+  api(:start_link, "Start a Client GenServer under a supervisor.",
+    params: [
+      url_or_config: [kind: :value, description: "WebSocket URL string or Config struct"],
+      opts: [kind: :value, description: "Connection options keyword list", default: []]
+    ],
+    returns: %{type: "{:ok, pid()} | {:error, term()}", description: "Server pid or error"},
+    errors: [:timeout, :invalid_url, :connection_refused]
+  )
 
   @doc """
   Starts a Client GenServer under a supervisor.

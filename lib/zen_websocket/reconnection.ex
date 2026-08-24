@@ -19,7 +19,9 @@ defmodule ZenWebsocket.Reconnection do
 
   This module is internal to ZenWebsocket. External code should use
   `ZenWebsocket.Client.connect/2` which handles initial connection attempts
-  and automatic reconnection.
+  and automatic reconnection. It is not listed in `ZenWebsocket.describe/0`;
+  the functions here run inside the Client GenServer to keep Gun message
+  ownership.
   """
   use Descripex, namespace: "/reconnection"
 

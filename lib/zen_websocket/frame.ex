@@ -58,7 +58,7 @@ defmodule ZenWebsocket.Frame do
   end
 
   api(:decode, "Decode an incoming WebSocket frame from Gun or direct format.",
-    params: [frame: [kind: :value, description: "Raw frame tuple ({:ws, type, data} or {type, data})"]],
+    params: [frame: [kind: :exchange_data, description: "Raw frame tuple ({:ws, type, data} or {type, data})"]],
     returns: %{type: "{:ok, frame()} | {:error, String.t()}", description: "Decoded frame or error"},
     errors: [:unknown_frame_type]
   )

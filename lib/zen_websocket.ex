@@ -53,13 +53,15 @@ defmodule ZenWebsocket do
   * `ZenWebsocket.Config` — connection configuration and validation
 
   ### Infrastructure
-  * `ZenWebsocket.Reconnection` — exponential backoff retry logic
-  * `ZenWebsocket.HeartbeatManager` — keepalive lifecycle management
-  * `ZenWebsocket.SubscriptionManager` — subscription tracking and restoration
-  * `ZenWebsocket.RequestCorrelator` — JSON-RPC request/response correlation
   * `ZenWebsocket.RateLimiter` — token bucket rate limiting
   * `ZenWebsocket.PoolRouter` — health-based connection routing
   * `ZenWebsocket.ConnectionRegistry` — opt-in ETS connection lookup utility
+
+  ### Internal (not in `describe/0`)
+  * `ZenWebsocket.Reconnection` — exponential backoff; called only from the Client GenServer
+  * `ZenWebsocket.HeartbeatManager` — keepalive lifecycle; operates on Client-owned state
+  * `ZenWebsocket.SubscriptionManager` — subscription tracking; operates on Client-owned state
+  * `ZenWebsocket.RequestCorrelator` — JSON-RPC correlation; operates on Client-owned state
 
   ### Observability
   * `ZenWebsocket.ErrorHandler` — error categorization with `explain/1`
@@ -97,10 +99,6 @@ defmodule ZenWebsocket do
       ZenWebsocket.Config,
       ZenWebsocket.ClientSupervisor,
       # Infrastructure
-      ZenWebsocket.Reconnection,
-      ZenWebsocket.HeartbeatManager,
-      ZenWebsocket.SubscriptionManager,
-      ZenWebsocket.RequestCorrelator,
       ZenWebsocket.RateLimiter,
       ZenWebsocket.PoolRouter,
       ZenWebsocket.ConnectionRegistry,

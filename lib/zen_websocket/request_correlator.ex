@@ -5,6 +5,9 @@ defmodule ZenWebsocket.RequestCorrelator do
   Pure functional module - state ownership stays with Client GenServer.
   Tracks pending requests with timeouts and matches responses by ID.
 
+  Internal to ZenWebsocket: not listed in `ZenWebsocket.describe/0`. Consumers
+  get correlation from `Client.send_message/2` when the payload carries an `id`.
+
   ## Telemetry Events
 
   The following telemetry events are emitted:
@@ -36,7 +39,7 @@ defmodule ZenWebsocket.RequestCorrelator do
         }
 
   api(:extract_id, "Extract the request ID from a JSON message.",
-    params: [message: [kind: :value, description: "Raw JSON binary message"]],
+    params: [message: [kind: :exchange_data, description: "Inbound JSON binary message"]],
     returns: %{type: "{:ok, term()} | :no_id", description: "Extracted ID or :no_id if absent/invalid"}
   )
 
@@ -59,7 +62,7 @@ defmodule ZenWebsocket.RequestCorrelator do
 
   api(:track, "Track a pending request with a timeout timer.",
     params: [
-      state: [kind: :value, description: "Client state containing pending_requests"],
+      state: [kind: :exchange_data, description: "Client state containing pending_requests"],
       id: [kind: :value, description: "Request ID to track"],
       from: [kind: :value, description: "GenServer caller reference"],
       timeout_ms: [kind: :value, description: "Timeout in milliseconds"]
@@ -104,7 +107,7 @@ defmodule ZenWebsocket.RequestCorrelator do
 
   api(:resolve, "Resolve a pending request by ID, returning the caller info.",
     params: [
-      state: [kind: :value, description: "Client state containing pending_requests"],
+      state: [kind: :exchange_data, description: "Client state containing pending_requests"],
       id: [kind: :value, description: "Request ID to resolve"]
     ],
     returns: %{
@@ -141,7 +144,7 @@ defmodule ZenWebsocket.RequestCorrelator do
 
   api(:timeout, "Handle a timeout for a pending request.",
     params: [
-      state: [kind: :value, description: "Client state containing pending_requests"],
+      state: [kind: :exchange_data, description: "Client state containing pending_requests"],
       id: [kind: :value, description: "Request ID that timed out"]
     ],
     returns: %{
@@ -175,7 +178,7 @@ defmodule ZenWebsocket.RequestCorrelator do
 
   api(:fail_all, "Fail every pending request with the given reason.",
     params: [
-      state: [kind: :value, description: "Client state containing pending_requests"],
+      state: [kind: :exchange_data, description: "Client state containing pending_requests"],
       reason: [kind: :value, description: "Error reason delivered to each caller (e.g., :disconnected)"]
     ],
     returns: %{type: "state()", description: "State with pending_requests cleared"}
@@ -205,7 +208,7 @@ defmodule ZenWebsocket.RequestCorrelator do
   end
 
   api(:pending_count, "Return the count of pending requests.",
-    params: [state: [kind: :value, description: "Client state containing pending_requests"]],
+    params: [state: [kind: :exchange_data, description: "Client state containing pending_requests"]],
     returns: %{type: "non_neg_integer()", description: "Number of requests awaiting response"}
   )
 

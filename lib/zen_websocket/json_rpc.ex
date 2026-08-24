@@ -86,7 +86,7 @@ defmodule ZenWebsocket.JsonRpc do
 
   api(:match_response, "Match a JSON-RPC response as result, error, or notification.",
     params: [
-      response: [kind: :value, description: "Decoded JSON-RPC response map"]
+      response: [kind: :exchange_data, description: "Decoded JSON-RPC response map"]
     ],
     returns: %{
       type: "{:ok, term()} | {:error, {integer(), String.t()}} | {:notification, String.t(), map()}",

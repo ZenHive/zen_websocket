@@ -14,7 +14,7 @@ defmodule ZenWebsocket.MessageHandler do
 
   api(:handle_message, "Handle incoming Gun messages and WebSocket frames.",
     params: [
-      message: [kind: :value, description: "Gun message tuple to handle"],
+      message: [kind: :exchange_data, description: "Gun message tuple to handle"],
       handler_fun: [kind: :value, description: "Callback function for routed messages"]
     ],
     returns: %{
@@ -77,7 +77,7 @@ defmodule ZenWebsocket.MessageHandler do
 
   api(:decode_and_handle_control, "Decode a WebSocket frame and handle control frames automatically.",
     params: [
-      frame_tuple: [kind: :value, description: "Gun WebSocket frame tuple"]
+      frame_tuple: [kind: :exchange_data, description: "Gun WebSocket frame tuple"]
     ],
     returns: %{type: "{:ok, term()} | {:error, term()}", description: "Decoded data frame or control frame result"}
   )
@@ -109,7 +109,7 @@ defmodule ZenWebsocket.MessageHandler do
 
   api(:handle_control_frame, "Handle WebSocket control frames automatically.",
     params: [
-      decoded_frame: [kind: :value, description: "Decoded WebSocket frame tuple"],
+      decoded_frame: [kind: :exchange_data, description: "Decoded WebSocket frame tuple"],
       conn_pid: [kind: :value, description: "Gun connection PID"],
       stream_ref: [kind: :value, description: "Gun stream reference"]
     ],

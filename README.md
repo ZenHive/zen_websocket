@@ -248,14 +248,14 @@ ZenWebsocket follows a modular architecture with clear separation of concerns:
 ZenWebsocket.Client              # Main client interface
 ZenWebsocket.Config              # Configuration management
 ZenWebsocket.Frame               # WebSocket frame handling
-ZenWebsocket.Reconnection        # Automatic reconnection logic
+ZenWebsocket.Reconnection        # Internal reconnection helper (not in describe/0)
 ZenWebsocket.MessageHandler      # Message parsing and routing
 ZenWebsocket.ErrorHandler        # Error categorization
 ZenWebsocket.RateLimiter         # API rate limiting
 ZenWebsocket.JsonRpc             # JSON-RPC 2.0 protocol
-ZenWebsocket.HeartbeatManager    # Heartbeat lifecycle management
-ZenWebsocket.SubscriptionManager # Subscription tracking and restoration
-ZenWebsocket.RequestCorrelator   # Request/response correlation tracking
+ZenWebsocket.HeartbeatManager    # Internal heartbeat manager (not in describe/0)
+ZenWebsocket.SubscriptionManager # Internal subscription tracking (not in describe/0)
+ZenWebsocket.RequestCorrelator   # Internal request correlation (not in describe/0)
 ZenWebsocket.Recorder            # Session recording (pure functions)
 ZenWebsocket.RecorderServer      # Async file I/O for recording
 ZenWebsocket.PoolRouter          # Health-based connection pool routing

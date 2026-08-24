@@ -13,6 +13,10 @@ defmodule ZenWebsocket.SubscriptionManager do
 
   Pure functional module — state ownership stays with Client GenServer.
 
+  Internal to ZenWebsocket: not listed in `ZenWebsocket.describe/0`. Consumers
+  use `Client.subscribe/2` (and id-carrying `public/subscribe` via
+  `Client.send_message/2`); this module only mutates Client-owned state.
+
   ## Telemetry Events
 
   The following telemetry events are emitted:
@@ -43,7 +47,7 @@ defmodule ZenWebsocket.SubscriptionManager do
 
   api(:add, "Add a channel to the tracked subscription set.",
     params: [
-      state: [kind: :value, description: "Client state map containing subscription fields"],
+      state: [kind: :exchange_data, description: "Client state map containing subscription fields"],
       channel: [kind: :value, description: "Channel name to subscribe to"]
     ],
     returns: %{type: "state()", description: "Updated state with channel added to subscriptions"}
@@ -69,7 +73,7 @@ defmodule ZenWebsocket.SubscriptionManager do
 
   api(:remove, "Remove a channel from the tracked subscription set.",
     params: [
-      state: [kind: :value, description: "Client state map containing subscription fields"],
+      state: [kind: :exchange_data, description: "Client state map containing subscription fields"],
       channel: [kind: :value, description: "Channel name to unsubscribe from"]
     ],
     returns: %{type: "state()", description: "Updated state with channel removed from subscriptions"}
@@ -95,7 +99,7 @@ defmodule ZenWebsocket.SubscriptionManager do
 
   api(:list, "List all currently tracked subscriptions.",
     params: [
-      state: [kind: :value, description: "Client state map containing subscription fields"]
+      state: [kind: :exchange_data, description: "Client state map containing subscription fields"]
     ],
     returns: %{type: "[String.t()]", description: "List of subscribed channel names"}
   )
@@ -110,7 +114,7 @@ defmodule ZenWebsocket.SubscriptionManager do
 
   api(:build_restore_message, "Build a restore message for reconnection.",
     params: [
-      state: [kind: :value, description: "Client state map containing subscription fields and config"]
+      state: [kind: :exchange_data, description: "Client state map containing subscription fields and config"]
     ],
     returns: %{type: "binary() | nil", description: "JSON-encoded subscribe message, or nil if no restore needed"}
   )
@@ -147,8 +151,11 @@ defmodule ZenWebsocket.SubscriptionManager do
 
   api(:handle_message, "Track Deribit public/subscribe and public/unsubscribe requests and confirmations.",
     params: [
-      msg: [kind: :value, description: "Parsed Deribit subscribe/unsubscribe request, confirmation, or error map"],
-      state: [kind: :value, description: "Client state map containing subscription fields"]
+      msg: [
+        kind: :exchange_data,
+        description: "Inbound Deribit subscribe/unsubscribe request, confirmation, or error map"
+      ],
+      state: [kind: :exchange_data, description: "Client state map containing subscription fields"]
     ],
     returns: %{type: "state()", description: "Updated pending or confirmed subscription state"}
   )

@@ -23,10 +23,6 @@ defmodule ZenWebsocket.DiscoverableTest do
       assert ZenWebsocket.ClientSupervisor in module_names
 
       # Infrastructure modules
-      assert ZenWebsocket.Reconnection in module_names
-      assert ZenWebsocket.HeartbeatManager in module_names
-      assert ZenWebsocket.SubscriptionManager in module_names
-      assert ZenWebsocket.RequestCorrelator in module_names
       assert ZenWebsocket.RateLimiter in module_names
       assert ZenWebsocket.PoolRouter in module_names
       assert ZenWebsocket.ConnectionRegistry in module_names
@@ -43,6 +39,15 @@ defmodule ZenWebsocket.DiscoverableTest do
       assert ZenWebsocket.JsonRpc in module_names
       assert ZenWebsocket.MessageHandler in module_names
     end
+
+    test "does not list Client-owned internal managers" do
+      module_names = Enum.map(ZenWebsocket.describe(), & &1.module)
+
+      refute ZenWebsocket.Reconnection in module_names
+      refute ZenWebsocket.HeartbeatManager in module_names
+      refute ZenWebsocket.SubscriptionManager in module_names
+      refute ZenWebsocket.RequestCorrelator in module_names
+    end
   end
 
   describe "describe/1 — module function list" do
@@ -54,12 +59,8 @@ defmodule ZenWebsocket.DiscoverableTest do
       function_names = Enum.map(result, & &1.name)
       assert :connect in function_names
       assert :send_message in function_names
-    end
-
-    test "returns basic listing for non-descripex infrastructure module" do
-      result = ZenWebsocket.describe(:reconnection)
-      assert is_list(result)
-      assert result != []
+      assert :start_link in function_names
+      assert :child_spec in function_names
     end
 
     test "returns the standalone connection registry API" do

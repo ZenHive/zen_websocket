@@ -221,7 +221,7 @@ defmodule ZenWebsocket.RateLimiter do
 
   api(:deribit_cost, "Calculate token cost for a Deribit API request using credit-based pricing.",
     params: [
-      request: [kind: :value, description: "Request map with a \"method\" key"]
+      request: [kind: :exchange_data, description: "Request map with a \"method\" key"]
     ],
     returns: %{type: "pos_integer()", description: "Token cost (1 public, 5 read, 10 write, 15 trade)"}
   )
@@ -243,7 +243,7 @@ defmodule ZenWebsocket.RateLimiter do
 
   api(:binance_cost, "Calculate token cost for a Binance API request using weight-based pricing.",
     params: [
-      request: [kind: :value, description: "Request map with a \"method\" key"]
+      request: [kind: :exchange_data, description: "Request map with a \"method\" key"]
     ],
     returns: %{type: "pos_integer()", description: "Token cost (2 for klines, 1 for most others)"}
   )
@@ -264,7 +264,7 @@ defmodule ZenWebsocket.RateLimiter do
 
   api(:simple_cost, "Fixed cost function returning 1 for every request.",
     params: [
-      request: [kind: :value, description: "Any request term (ignored)"]
+      request: [kind: :exchange_data, description: "Any request term (ignored)"]
     ],
     returns: %{type: "pos_integer()", description: "Always returns 1"}
   )

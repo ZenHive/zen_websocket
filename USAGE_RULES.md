@@ -655,11 +655,15 @@ ZenWebsocket.describe("rate_limiter")
 ZenWebsocket.describe("rate_limiter", :consume)
 ```
 
-Available short names: `client`, `config`, `client_supervisor`, `reconnection`,
-`heartbeat_manager`, `subscription_manager`, `request_correlator`,
+Available short names: `client`, `config`, `client_supervisor`,
 `rate_limiter`, `pool_router`, `connection_registry`, `error_handler`,
 `latency_stats`, `recorder`, `recorder_server`, `testing`, `frame`, `json_rpc`,
 `message_handler`.
+
+`Reconnection`, `HeartbeatManager`, `SubscriptionManager`, and
+`RequestCorrelator` are internal (Client-owned state). They are not in
+`describe/0`. `describe(:client)` includes `start_link/2` and `child_spec/1`
+for supervised usage. Params an agent cannot construct are `kind: :exchange_data`.
 
 ## Common Mistakes to Avoid
 

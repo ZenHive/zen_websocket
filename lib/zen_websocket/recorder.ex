@@ -104,7 +104,7 @@ defmodule ZenWebsocket.Recorder do
 
   api(:parse_entry, "Parse a JSONL line back into an entry map.",
     params: [
-      line: [kind: :value, description: "JSONL-formatted line to parse"]
+      line: [kind: :exchange_data, description: "JSONL-formatted line to parse"]
     ],
     returns: %{type: "{:ok, entry()} | {:error, term()}", description: "Parsed entry or error"},
     errors: [:invalid_direction, :invalid_type, :json_decode_error]
