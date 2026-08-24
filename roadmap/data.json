@@ -1204,7 +1204,7 @@
       },
       "eff": 1.1,
       "dep_layer": 0,
-      "unlocks": 0,
+      "unlocks": 1,
       "markers": [],
       "depends_on": [],
       "assignee": "cursor",
@@ -1238,6 +1238,95 @@
       "verified": true,
       "verified_by": "grok",
       "verification_ref": "harness-run:run-1787576547157-e6a627c8",
+      "cross_repo": []
+    },
+    {
+      "id": "20",
+      "phase": 1,
+      "bundle": "hygiene",
+      "status": "pending",
+      "title": "Replace stale echo-service assumptions in the shipped subscription examples",
+      "scores": {
+        "d": 4,
+        "b": 7,
+        "u": 6
+      },
+      "eff": 1.63,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "assignee": "codex",
+      "model": "gpt-5.6-sol",
+      "acceptance_criteria": [
+        "No shipped example or test references echo.websocket.org or assumes an arbitrary text frame is echoed back",
+        "Generic WebSocket transport behavior is pinned against the local real Cowboy/WebSock stack with :integration and :local_network tags, without API-response or exchange-behavior fixtures",
+        "Deribit subscription semantics are pinned by an :integration plus :external_network test that observes one provider-valid public/subscribe success and the relevant unauthorized error for a raw channel; assertions cover the domain result/error, not only response shape",
+        "The live success and error calls are re-observed before implementation against test.deribit.com and checked against Deribit's official public/subscribe and channel documentation",
+        "Every test has one exact expected outcome; timeout, partial-message, and catch-all error branches do not count as alternate passes",
+        "The shipped subscription example uses a working, documented contract and its public signature or return-shape migration is recorded under CHANGELOG.md Unreleased if it changes",
+        "mix precommit.full passes, and the focused local and external integration tests pass"
+      ],
+      "out_of_scope": [
+        "Changing ZenWebsocket.Client runtime behavior or its public API",
+        "Simulating Deribit responses, authentication, or exchange behavior",
+        "Adding credentialed or private-channel coverage"
+      ],
+      "files_to_modify": [
+        "lib/zen_websocket/examples/docs/subscription_management.ex",
+        "lib/zen_websocket/examples/supervised_client.ex",
+        "test/zen_websocket/examples/subscription_management_test.exs",
+        "CHANGELOG.md"
+      ],
+      "touches": [
+        "lib/zen_websocket/examples/docs/subscription_management.ex",
+        "lib/zen_websocket/examples/supervised_client.ex",
+        "test/zen_websocket/examples/subscription_management_test.exs",
+        "CHANGELOG.md"
+      ],
+      "body": "Remove the remaining echo-service assumptions from the shipped example surface and its tests. Keep generic transport assertions on the repository's local real WebSocket stack, and use Deribit testnet only for semantics Deribit owns.\n\nEvidence captured by the post-merge audit on 2026-08-24: the running project connected to wss://echo.websocket.org, but sending \"audit-echo-probe\" returned \"Request served by 4d896d95b55478\" rather than the payload. The current subscription example and its external tests assume exact echo behavior, including raw text, malformed JSON, subscribe/unsubscribe maps, and multi-message loops. Those tests therefore no longer prove their named behavior. The repository had already migrated most tests away from this service in commit 52775eb, but these references remained.\n\nProvider-owned evidence captured in the same audit: Deribit testnet accepted an id-carrying public/subscribe for ticker.BTC-PERPETUAL.100ms and returned that channel in result; the same method with ticker.BTC-PERPETUAL.raw returned error code 13778, raw_subscriptions_not_available_for_unauthorized. Deribit's official docs identify 100ms as public and raw as authorized-only. Re-observe both at implementation time and pin them in the live test rather than preserving the audit's output as a fixture.\n\nThis is one task because the shipped example contract and the tests that claim to verify it must move together. Preserve the project's real-boundary policy: pure mechanics locally, provider meaning live, and no mocked exchange semantics.\n",
+      "created_at": "2026-08-24",
+      "scored_at": "2026-08-24",
+      "cross_repo": []
+    },
+    {
+      "id": "21",
+      "phase": 1,
+      "bundle": "hygiene",
+      "status": "pending",
+      "title": "Extend the doc-example contract from @moduledoc to public @doc examples",
+      "scores": {
+        "d": 3,
+        "b": 6,
+        "u": 3
+      },
+      "eff": 1.5,
+      "dep_layer": 1,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [
+        19
+      ],
+      "assignee": "grok",
+      "model": "grok-4.6",
+      "acceptance_criteria": [
+        "The walker collects code fences from public @doc attributes on shipped lib/ modules in addition to the @moduledoc fences it already reads, using the same illustrative opt-out mechanism task 19 established and the same file/fence-line/symbol failure message",
+        "A fixture that puts a nonexistent function into a @doc example makes the contract test fail, and the failure names the module, the fence line and the offending symbol",
+        "Zero false positives on the tree as landed: the test passes with no per-file exclusion added to make it pass",
+        "The test stays untagged and network-free so the default mix test.json run and mix precommit.full both execute it",
+        "mix precommit.full is green with core coverage at or above the 90 floor"
+      ],
+      "out_of_scope": [
+        "Re-auditing the documentation by hand. The two handler-less @doc examples that exposed this gap were already corrected during the task 19 review; this task closes the guard, it does not repeat the sweep",
+        "Executing the examples or checking link targets. The symbol-and-option contract from task 19 is unchanged; only the set of scanned attributes grows",
+        "Widening the scan to @typedoc, @deprecated or any other attribute"
+      ],
+      "touches": [
+        "test/zen_websocket/docs_examples_test.exs"
+      ],
+      "body": "DISCOVERED 2026-08-24 by the cross-family reviewer while gating task 19, and recorded in that run's verdict. The doc-example contract landed in task 19 walks fences in README.md, USAGE_RULES.md, docs/** and every shipped @moduledoc. It does not walk @doc, because collect_moduledocs matches only :moduledoc.\n\nTHE EVIDENCE THAT THIS IS A REAL HOLE AND NOT AN EXTENSION WISH. Grepping for the Client child-spec tuple during the review turned up two @doc examples that omit :handler and therefore discard every inbound frame - Client.child_spec/1 and UsagePatterns.supervised_client_spec/0. Those are exactly the defect class the nine 0.7.1 findings were made of, they are copy-pasteable, and the newly landed guard was blind to them. The reviewer fixed both by hand. The next @doc drift will not be caught.\n\nWHY THIS IS A SEPARATE TASK RATHER THAN A TASK 19 DEFECT. Task 19's written acceptance criteria named the @moduledoc of shipped modules, and the implementer delivered exactly that. The scope was too narrow; the delivery was not. Filing the correction against the landed invariant keeps the record honest rather than reopening a shipped task.\n\nWHY U IS 3. Both known instances are already corrected, so nothing is currently wrong in the tree. The guard prevents the next drift in a surface that has now demonstrably drifted twice.\n",
+      "created_at": "2026-08-24",
+      "scored_at": "2026-08-24",
       "cross_repo": []
     }
   ]
