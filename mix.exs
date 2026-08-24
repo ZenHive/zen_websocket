@@ -44,6 +44,7 @@ defmodule ZenWebsocket.MixProject do
         extras: [
           "README.md",
           "CHANGELOG.md",
+          "CHANGELOG-archive.md",
           "USAGE_RULES.md",
           "docs/Architecture.md",
           "docs/Examples.md",
@@ -56,7 +57,13 @@ defmodule ZenWebsocket.MixProject do
           "docs/supervision_strategy.md"
         ],
         groups_for_extras: [
-          "Getting Started": ["README.md", "USAGE_RULES.md", "CHANGELOG.md", "docs/Examples.md"],
+          "Getting Started": [
+            "README.md",
+            "USAGE_RULES.md",
+            "CHANGELOG.md",
+            "CHANGELOG-archive.md",
+            "docs/Examples.md"
+          ],
           Guides: [
             "docs/guides/building_adapters.md",
             "docs/guides/performance_tuning.md",
