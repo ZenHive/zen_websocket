@@ -12,9 +12,11 @@ defmodule ZenWebsocket.Recorder do
   caller's `DateTime`), `dir`, `type`, and `data`. Binary frames base64-encode `data`
   and add `"binary":true`; close frames carry a nested JSON object as `data`.
 
-      {"data":"hello","type":"text","dir":"out","ts":"2026-01-20T15:30:45.123456Z"}
-      {"binary":true,"data":"AQID","type":"binary","dir":"in","ts":"2026-01-20T15:30:45Z"}
-      {"data":"{\\"code\\":1000,\\"reason\\":\\"bye\\"}","type":"close","dir":"in","ts":"2026-01-20T15:30:46Z"}
+  ```json
+  {"data":"hello","type":"text","dir":"out","ts":"2026-01-20T15:30:45.123456Z"}
+  {"binary":true,"data":"AQID","type":"binary","dir":"in","ts":"2026-01-20T15:30:45Z"}
+  {"data":"{\\"code\\":1000,\\"reason\\":\\"bye\\"}","type":"close","dir":"in","ts":"2026-01-20T15:30:46Z"}
+  ```
 
   ## Usage
 

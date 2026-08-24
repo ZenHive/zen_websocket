@@ -294,6 +294,10 @@ Comprehensive guides are available in the `docs/guides/` directory:
 
 See the full [HexDocs documentation](https://hexdocs.pm/zen_websocket) for API reference and module documentation.
 
+Shipped `elixir` / `iex` fences are checked against the public API. Mark a
+deliberately incomplete fragment `elixir illustrative`, or start it with
+`# illustrative`, so the checker leaves it alone.
+
 ## Configuration Options
 
 | Option | Description | Default |

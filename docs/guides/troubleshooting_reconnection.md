@@ -329,7 +329,6 @@ defmodule ResourceMonitor do
     %{
       process_count: :erlang.system_info(:process_count),
       memory: :erlang.memory(:total),
-      gun_connections: length(:gun.info()),
       ets_tables: length(:ets.all())
     }
   end
@@ -339,10 +338,6 @@ defmodule ResourceMonitor do
     
     if resources.process_count > 10_000 do
       Logger.error("High process count: #{resources.process_count}")
-    end
-    
-    if resources.gun_connections > 100 do
-      Logger.error("High Gun connection count: #{resources.gun_connections}")
     end
   end
 end
@@ -490,8 +485,8 @@ When experiencing reconnection issues:
 
 3. **Check Gun Processes**
    ```elixir
-   # How many Gun connections exist?
-   IO.inspect(length(:gun.info()))
+   # Gun exposes :gun.info/1 for a connection pid, not a process list.
+   IO.inspect(:gun.info(client.gun_pid))
    ```
 
 4. **Review Logs**

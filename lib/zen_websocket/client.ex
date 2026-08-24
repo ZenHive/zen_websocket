@@ -171,10 +171,14 @@ defmodule ZenWebsocket.Client do
 
       # In your application's supervision tree
       children = [
-        {ZenWebsocket.Client, url: "wss://example.com", id: :my_client},
+        {ZenWebsocket.Client,
+         url: "wss://example.com",
+         id: :my_client,
+         handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end},
         # Or with full configuration
         {ZenWebsocket.Client, [
           url: "wss://example.com",
+          handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end,
           heartbeat_config: %{type: :deribit, interval: 30_000},
           retry_count: 10
         ]}

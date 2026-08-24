@@ -97,11 +97,13 @@ defmodule MyApp.Application do
       {ZenWebsocket.Client, [
         url: "wss://exchange1.com",
         id: :exchange1_client,
+        handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end,
         heartbeat_config: %{type: :deribit, interval: 30_000}
       ]},
       {ZenWebsocket.Client, [
-        url: "wss://exchange2.com", 
-        id: :exchange2_client
+        url: "wss://exchange2.com",
+        id: :exchange2_client,
+        handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end
       ]},
       # Your other children...
     ]
@@ -128,7 +130,9 @@ a supervision tree is restarted on **every** exit, including a clean
 `Client.close/1`. If you want transient semantics here, override it yourself:
 
 ```elixir
-Supervisor.child_spec({ZenWebsocket.Client, url: "wss://exchange1.com"},
+Supervisor.child_spec(
+  {ZenWebsocket.Client,
+   url: "wss://exchange1.com", handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end},
   restart: :transient
 )
 ```

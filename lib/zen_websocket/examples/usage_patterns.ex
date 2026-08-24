@@ -86,6 +86,7 @@ defmodule ZenWebsocket.Examples.UsagePatterns do
         {ZenWebsocket.Client, [
           url: "wss://test.deribit.com/ws/api/v2",
           id: :deribit_client,
+          handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end,
           heartbeat_config: %{type: :deribit, interval: 30_000}
         ]}
       ]

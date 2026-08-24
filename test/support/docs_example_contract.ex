@@ -8,6 +8,8 @@ defmodule ZenWebsocket.Test.Support.DocsExampleContract do
   @elixir_langs MapSet.new(["elixir", "iex"])
   @illustrative "illustrative"
   @connect_funs MapSet.new([:connect, :start_link, :child_spec])
+  # CommonMark allows a fence to be indented 0–3 spaces (list items).
+  @fence ~r/^ {0,3}```(.*)$/
   @skip_funs MapSet.new([
                :alias,
                :case,
@@ -87,19 +89,27 @@ defmodule ZenWebsocket.Test.Support.DocsExampleContract do
   end
 
   defp fence_line(raw, n, :idle, acc) do
-    if String.starts_with?(raw, "```") do
-      {n + 1, {:fence, n, String.trim_leading(raw, "```"), []}, acc}
-    else
-      {n + 1, :idle, acc}
+    case fence_info(raw) do
+      {:ok, info} -> {n + 1, {:fence, n, info, []}, acc}
+      :none -> {n + 1, :idle, acc}
     end
   end
 
   defp fence_line(raw, n, {:fence, start, info, buf}, acc) do
-    if String.starts_with?(raw, "```") do
-      code = buf |> Enum.reverse() |> Enum.join("\n")
-      {n + 1, :idle, [{start, String.trim(info), code} | acc]}
-    else
-      {n + 1, {:fence, start, info, [raw | buf]}, acc}
+    case fence_info(raw) do
+      {:ok, _} ->
+        code = buf |> Enum.reverse() |> Enum.join("\n")
+        {n + 1, :idle, [{start, info, code} | acc]}
+
+      :none ->
+        {n + 1, {:fence, start, info, [raw | buf]}, acc}
+    end
+  end
+
+  defp fence_info(raw) do
+    case Regex.run(@fence, raw) do
+      [_, info] -> {:ok, String.trim(info)}
+      nil -> :none
     end
   end
 
@@ -295,9 +305,10 @@ defmodule ZenWebsocket.Test.Support.DocsExampleContract do
     if keyword_literal?(value), do: Map.put(acc, name, keyword_keys(value)), else: acc
   end
 
-  defp collect_call({:|>, _, [left, {{:., _, [mod, fun]}, _, args}]}, acc, aliases, bindings)
+  defp collect_call({:|>, meta, [left, {{:., _, [mod, fun]}, call_meta, args}]}, acc, aliases, bindings)
        when is_atom(fun) and is_list(args) do
-    {left, [{:call, resolve_mod(mod, aliases), fun, length(args) + 1, option_keys(args, bindings)} | acc]}
+    acc = [{:call, resolve_mod(mod, aliases), fun, length(args) + 1, option_keys(args, bindings)} | acc]
+    {{:|>, meta, [left, {:__piped__, call_meta, args}]}, acc}
   end
 
   defp collect_call({:&, _, [{:/, _, [{{:., _, [mod, fun]}, _, []}, arity]}]}, acc, aliases, _bindings)
@@ -382,17 +393,30 @@ defmodule ZenWebsocket.Test.Support.DocsExampleContract do
 
   defp load_module(mod) do
     cond do
+      app_module?(mod) -> {:ok, mod}
       zen = zen_submodule(mod) -> {:ok, zen}
-      Code.ensure_loaded?(mod) -> {:ok, mod}
       suffix = unique_zen_suffix(mod) -> {:ok, suffix}
+      match?({:module, _}, Code.ensure_loaded(mod)) -> {:ok, mod}
       true -> :skip
     end
   end
 
+  defp app_module?(mod) do
+    match?("Elixir.ZenWebsocket" <> _, Atom.to_string(mod)) and match?({:module, _}, Code.ensure_loaded(mod))
+  end
+
   defp zen_submodule(mod) do
-    last = elixir_last_segment(mod)
-    candidate = last && Module.concat(ZenWebsocket, last)
-    if (candidate && candidate != mod) and Code.ensure_loaded?(candidate), do: candidate
+    case elixir_last_segment(mod) do
+      nil ->
+        nil
+
+      last ->
+        candidate = Module.concat(ZenWebsocket, last)
+
+        if candidate != mod and match?({:module, _}, Code.ensure_loaded(candidate)) do
+          candidate
+        end
+    end
   end
 
   defp unique_zen_suffix(mod) do
@@ -443,7 +467,8 @@ defmodule ZenWebsocket.Test.Support.DocsExampleContract do
   end
 
   defp exported?(mod, fun, arity) do
-    Code.ensure_loaded?(mod) and (function_exported?(mod, fun, arity) or macro_exported?(mod, fun, arity))
+    match?({:module, _}, Code.ensure_loaded(mod)) and
+      (function_exported?(mod, fun, arity) or macro_exported?(mod, fun, arity))
   end
 
   defp option_violations(block, mod, fun, arity, keys) do
@@ -486,20 +511,22 @@ defmodule ZenWebsocket.Test.Support.DocsExampleContract do
   defp heartbeat_vs(_block, _mod, _fun, _keys), do: []
 
   defp handler_vs(block, ZenWebsocket.ClientSupervisor, :start_client, keys) do
-    if :handler in keys do
-      []
-    else
-      [
-        violation(
-          block,
-          :handler,
-          "ClientSupervisor.start_client/2 requires :handler or frames are discarded"
-        )
-      ]
-    end
+    missing_handler(block, keys, "ClientSupervisor.start_client/2 requires :handler or frames are discarded")
+  end
+
+  defp handler_vs(block, ZenWebsocket.Client, fun, keys) when fun in [:start_link, :child_spec] do
+    missing_handler(block, keys, "Client.#{fun} requires :handler or frames are discarded")
   end
 
   defp handler_vs(_block, _mod, _fun, _keys), do: []
+
+  defp missing_handler(block, keys, message) do
+    if :handler in keys do
+      []
+    else
+      [violation(block, :handler, message)]
+    end
+  end
 
   defp accepted_keys(ZenWebsocket.Client, fun) when fun in [:connect, :start_link, :child_spec] do
     connect_keys()
