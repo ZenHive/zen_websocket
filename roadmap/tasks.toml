@@ -869,7 +869,7 @@ shipped_in = "04074aaef9563b3d775bbe3853bdb7f8a3c30143"
 id = "18"
 phase = 1
 bundle = "correctness"
-status = "in_progress"
+status = "done"
 title = "Make the descripex agent surface describe the real public API, from one source of truth"
 scores = { d = 5, b = 7, u = 5 }
 acceptance_criteria = ["Every param that an agent cannot construct from its own reasoning is marked kind: :exchange_data, not :value. At minimum this covers wire-derived params (Frame.decode/1, JsonRpc.match_response/1, MessageHandler.handle_message/2, RequestCorrelator.extract_id/1, SubscriptionManager.handle_message/2, HeartbeatManager.handle_message/2, Recorder.parse_entry/1, the RateLimiter cost functions) and the Client-owned state maps passed to the pure managers. A test asserts the count of :exchange_data params is greater than zero and that no param whose description names an inbound message, frame, line, or Client state map is marked :value", "The set of modules reachable through ZenWebsocket.describe/0 matches what the library actually offers a consumer. A module whose own @moduledoc declares it internal is either removed from the Discoverable list or moved to a namespace that marks it internal - it may not sit in the same flat namespace as Client and Config with no signal. Reconnection, HeartbeatManager, SubscriptionManager and RequestCorrelator are the four to decide on; record the decision in each moduledoc", "Client.start_link/2 and Client.child_spec/1 appear in Client.__api__() with param hints, so an agent calling describe(:client) can discover supervised usage. Today describe(:client) returns nine functions and neither of these is among them", "There is exactly one source of truth for the Client public-API list. Mix.Tasks.ZenWebsocket.ValidateUsage no longer hardcodes @allowed_functions as a second copy - it derives the list from Client.__api__() plus an explicitly named supervision set. A test fails if the two ever disagree again", "The Public API section of the Client @moduledoc is either generated from or asserted equal to Client.__api__(); a test pins that the moduledoc list and the annotated list name the same functions", "mix zen_websocket.validate_usage still passes on the repo's own examples, and mix precommit.full is green with core coverage at or above the 90 floor"]
@@ -894,9 +894,16 @@ WHY B=7 AND NOT HIGHER. Nothing is broken for a human consumer, and no shipped c
 
 WHY U=5. No downstream consumer is blocked - bourse and onchain do not read describe/0. This should be settled before the agent surface gets quoted at anyone as a feature, not this week.
 """
+implemented = "Landed by grok via merge-train; reviewer-approved (run run-1787573892619-6cf3a5c7, e0480e778c82d9925ce2d3878e54f8188bca26dd)."
+delivered_by = "grok"
+verified = true
+verified_by = "cursor"
+verification_ref = "harness-run:run-1787573892619-6cf3a5c7"
 created_at = "2026-08-22"
 started_at = "2026-08-24"
 scored_at = "2026-08-22"
+done_at = "2026-08-24"
+shipped_in = "e0480e778c82d9925ce2d3878e54f8188bca26dd"
 
 [[task]]
 id = "19"
