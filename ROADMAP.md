@@ -49,9 +49,9 @@
 > Managed by `rmap` — source of truth is `roadmap/tasks.toml`. Run `rmap show <id>` for full task detail, `rmap next` to pick the next task.
 
 <!-- FOCUS:BEGIN -->
-**Focus phase:** 1 — Post-v0.6.1 Backlog (22 of 24 done · 0 in progress)
+**Focus phase:** 1 — Post-v0.6.1 Backlog (23 of 24 done · 0 in progress)
 
-**Last shipped:** Task 18 — Make the descripex agent surface describe the real public API, from one source of truth on 2026-08-24
+**Last shipped:** Task 18 — Make the descripex agent surface describe the real public API, from one source of truth, Task 19 — Encode the doc-example contract as a test so the next audit does not find it by hand on 2026-08-24
 
 **Up next:** none — focus phase complete or all blocked
 <!-- FOCUS:END -->
@@ -82,7 +82,7 @@
 | Task 16 | ✅ | 🎁 **hygiene** · Make the 0.7.0 release record correct: four undocumented removals, one false claim, six breaks filed under Fixed [D:4/B:7/U:6 → Eff:1.62] 🚀 |
 | Task 17 | ✅ | 🎁 **correctness** · Decide whether SubscriptionManager's narrowing to Deribit's JSON-RPC dialect is intended, and make the result explicit [D:4/B:6/U:4 → Eff:1.25] 📋 |
 | Task 18 | ✅ | 🎁 **correctness** · Make the descripex agent surface describe the real public API, from one source of truth [D:5/B:7/U:5 → Eff:1.2] 📋 |
-| Task 19 | 🔶 | 🎁 **hygiene** · Encode the doc-example contract as a test so the next audit does not find it by hand [D:5/B:7/U:4 → Eff:1.1] 📋 ⛔ land conflict retained for repair (task 19, run run-1787576547157-e6a627c8, branch harness/run-1787576547157-e6a627c8); resolver already attempted and the branch still conflicted. resolver witness: agent spawned: grok model=grok-4.6; rebase continue failed: "Recorded resolution for 'USAGE_RULES.md'.\n[detached HEAD 22b7e15] harness: agent delivery — task 19 Encode the doc-example contract as a test so the next audit does not find it by hand (run run-1787576547157-e6a627c8)\n Author: harness <harness@localhost>\n 7 files changed, 594 insertions(+), 8 deletions(-)\n create mode 100644 test/fixtures/docs_example_contract/heartbeat_interval_only.md\n create mode 100644 test/support/docs_example_contract.ex\n create mode 100644 test/zen_websocket/docs_examples_test.exs\nRebasing (2/3)\rAuto-merging README.md\nAuto-merging docs/supervision_strategy.md\nCONFLICT (content): Merge conflict in docs/supervision_strategy.md\nerror: could not apply ab3c927... test: close remaining holes in the doc-example contract\nhint: Resolve all conflicts manually, mark them as resolved with\nhint: \"git add/rm <conflicted_files>\", then run \"git rebase --continue\".\nhint: You can instead skip this commit: run \"git rebase --skip\".\nhint: To abort and get back to the state before \"git rebase\", run \"git rebase --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"\nRecorded preimage for 'docs/supervision_strategy.md'\nCould not apply ab3c927... # test: close remaining holes in the doc-example contract\n". Repair: rebase the retained branch onto the target branch, resolve all conflict markers while keeping both reviewed intents, commit the resolved branch, move harness/run-1787576547157-e6a627c8 to that commit if you used a scratch branch, then run dispatch-reland run-1787576547157-e6a627c8. |
+| Task 19 | ✅ | 🎁 **hygiene** · Encode the doc-example contract as a test so the next audit does not find it by hand [D:5/B:7/U:4 → Eff:1.1] 📋 |
 <!-- TASKS:END -->
 
 ### Quick Commands
