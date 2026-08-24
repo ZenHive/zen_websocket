@@ -49,11 +49,11 @@
 > Managed by `rmap` — source of truth is `roadmap/tasks.toml`. Run `rmap show <id>` for full task detail, `rmap next` to pick the next task.
 
 <!-- FOCUS:BEGIN -->
-**Focus phase:** 1 — Post-v0.6.1 Backlog (21 of 22 done · 0 in progress)
+**Focus phase:** 1 — Post-v0.6.1 Backlog (21 of 24 done · 0 in progress)
 
 **Last shipped:** Task R051 — Decompose Reconnection.establish_connection/1 (dominator depth 39), Task R055 — Extract duplicated Gun connect/reconnect log block in Client, Task R056 — Make CI coverage gate measure core library only, Task 1 — Widen JsonRpc.build_request/2 params spec to accept list params, Task 2 — Fix the reconnect state machine and its supervisor-side fallout, Task 3 — Fix RateLimiter token race and the queue that discards requests, Task 4 — Fix always-true guard, silent auth pass-through, subscription re-add, and recorder data loss, Task 5 — Make heartbeat and pool health metrics report reality instead of a constant, Task 6 — Remove tests that pass on every outcome and tag the untagged network tests, Task 7 — Make CLAUDE.md, README and the docs describe the library that actually ships, Task 8 — Resolve three places where stated policy and shipped code disagree, Task 9 — Extract three cross-module duplications that ex_dna does not catch, Task 10 — Give pool health a real pressure signal or drop the dead penalty, Task 11 — Split mixed internet/mock-server suites so :external_network and :local_network can both be accurate, Task 12 — Finish dual-tagging the suites task 11 left mixed or :integration-only, Task 13 — Close remaining NetworkTagGuard holes: over-tagging and local sockets that are not MockWebSockServer, Task 14 — Decompose Client into responsibility-scoped modules (1227 lines, 3.3x the next-largest module), Task 15 — Un-break Client module namespacing by fixing the validate_usage regex that forced flat names, Task 16 — Make the 0.7.0 release record correct: four undocumented removals, one false claim, six breaks filed under Fixed, Task 17 — Decide whether SubscriptionManager's narrowing to Deribit's JSON-RPC dialect is intended, and make the result explicit on 2026-08-21
 
-**Up next:** none — focus phase complete or all blocked
+**Up next:** Task 18 — Make the descripex agent surface describe the real public API, from one source of truth [D:5/B:7/U:5 → Eff:1.2] 📋
 <!-- FOCUS:END -->
 
 <!-- TASKS:BEGIN phase=1 -->
@@ -81,6 +81,8 @@
 | Task 15 | ✅ | 🎁 **code-quality** · Un-break Client module namespacing by fixing the validate_usage regex that forced flat names [D:3/B:6/U:5 → Eff:1.83] 🚀 |
 | Task 16 | ✅ | 🎁 **hygiene** · Make the 0.7.0 release record correct: four undocumented removals, one false claim, six breaks filed under Fixed [D:4/B:7/U:6 → Eff:1.62] 🚀 |
 | Task 17 | ✅ | 🎁 **correctness** · Decide whether SubscriptionManager's narrowing to Deribit's JSON-RPC dialect is intended, and make the result explicit [D:4/B:6/U:4 → Eff:1.25] 📋 |
+| Task 18 | ⬜ | 🎁 **correctness** · Make the descripex agent surface describe the real public API, from one source of truth [D:5/B:7/U:5 → Eff:1.2] 📋 |
+| Task 19 | ⬜ | 🎁 **hygiene** · Encode the doc-example contract as a test so the next audit does not find it by hand [D:5/B:7/U:4 → Eff:1.1] 📋 |
 <!-- TASKS:END -->
 
 ### Quick Commands
