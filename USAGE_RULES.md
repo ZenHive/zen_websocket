@@ -6,7 +6,7 @@
 
 1. **Start Simple**: Use direct connection for development, add supervision for production
 2. **Public Client API**: connection lifecycle (`connect`, `send_message`, `subscribe`, `get_state`, `close`, `reconnect`) plus monitoring (`get_latency_stats`, `get_heartbeat_health`, `get_state_metrics`). `build_client_struct/2` is public but `@doc false` (ClientSupervisor).
-3. **Real API Testing**: Always test against real endpoints, never mock WebSocket behavior
+3. **Real-Boundary Testing**: Use pure unit tests, the local real WebSocket stack, and opt-in live-provider tests; never simulate exchange behavior
 
 ## Quick Start Pattern
 
@@ -69,7 +69,7 @@ children = [
   # ... other children
 ]
 
-# Start connections dynamically. Supervised clients MUST pass `:handler`.
+# Start connections dynamically. Supply `:handler` to receive unsolicited frames.
 {:ok, client} =
   ZenWebsocket.ClientSupervisor.start_client(url,
     handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end
@@ -89,13 +89,14 @@ children = [
 ]
 ```
 
-**Handler rule (Patterns 2 and 3):** always pass `:handler`. The
-parent-forwarding default that emits `{:websocket_message, _}` is installed
-**only** by `ZenWebsocket.Client.connect/2`. Every other start path
+**Handler rule (Patterns 2 and 3):** pass `:handler` whenever user code needs
+unsolicited inbound frames. The parent-forwarding default that emits
+`{:websocket_message, _}` is installed **only** by
+`ZenWebsocket.Client.connect/2`. Every other start path
 (`ClientSupervisor.start_client/2`, a `child_spec` entry, `Client.start_link/2`)
-defaults to `ZenWebsocket.MessageHandler.default_handler/1`, which returns `:ok`
-and discards the frame — a supervised client without `:handler` silently drops
-every inbound message.
+defaults to `ZenWebsocket.MessageHandler.default_handler/1`. Internal heartbeat
+and pending JSON-RPC response handling still run, but other inbound frames are
+discarded.
 
 ## Configuration Options
 
@@ -174,6 +175,7 @@ end
 
 # Start clients with pg callbacks
 {:ok, _} = ZenWebsocket.ClientSupervisor.start_client(url,
+  handler: &MyApp.Consumer.handle_ws/1,
   on_connect: &MyApp.WSCallbacks.on_connect/1,
   on_disconnect: &MyApp.WSCallbacks.on_disconnect/1
 )
@@ -189,6 +191,7 @@ ZenWebsocket.ClientSupervisor.send_balanced(msg,
 ```elixir
 # With Horde for distributed process registry
 {:ok, _} = ZenWebsocket.ClientSupervisor.start_client(url,
+  handler: &MyApp.Consumer.handle_ws/1,
   on_connect: fn pid ->
     Horde.Registry.register(MyApp.WSRegistry, {:ws_client, pid}, pid)
   end,
@@ -486,6 +489,7 @@ end
 ```elixir
 # For integration tests against real endpoints
 @tag :integration
+@tag :external_network
 test "real WebSocket behavior" do
   {:ok, client} = ZenWebsocket.Client.connect("wss://test.deribit.com/ws/api/v2")
   # Test against real API...
@@ -495,7 +499,7 @@ end
 ## DO NOT
 
 1. **Don't create wrapper modules** - Use the Client functions directly
-2. **Don't mock WebSocket behavior** - Test against real endpoints or use Testing module
+2. **Don't simulate exchange behavior** - Use a live endpoint or the real-stack Testing module
 3. **Don't add custom reconnection** - Use built-in retry options
 4. **Don't transform errors** - Handle raw Gun/WebSocket errors
 5. **Don't avoid GenServers** - Client uses GenServer appropriately for state
@@ -506,7 +510,7 @@ end
 - **GenServer State**: Client maintains connection state in GenServer
 - **ETS Registry**: Fast connection lookups via ETS
 - **Exponential Backoff**: Smart reconnection with backoff
-- **Real API Testing**: All tests use real APIs or Testing module (no mocks)
+- **Real-Boundary Testing**: Pure unit tests plus real-stack local and live-provider integration tests
 
 ## Monitoring and Observability
 

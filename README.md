@@ -12,7 +12,7 @@ A robust WebSocket client library for Elixir, built on Gun transport for product
 - **Automatic Reconnection** - Exponential backoff with state preservation
 - **Financial-Grade Reliability** - Built for high-frequency trading systems
 - **Platform Adapters** - Ready-to-use Deribit integration, extensible for others
-- **Real API Testing** - No mocks, tested against live systems
+- **Real WebSocket Testing** - Local real-stack servers plus opt-in live endpoint checks
 - **Simple API** - connect, send, subscribe, monitor, and reconnect
 - **Comprehensive Error Handling** - Categorized errors with recovery strategies
 - **Rate Limiting** - Standalone token bucket you drive from your own code
@@ -138,7 +138,7 @@ Route messages to the healthiest connection in a pool:
 {:ok, _} = ZenWebsocket.ClientSupervisor.start_link([])
 
 # Create multiple supervised connections
-# `handler:` is required on this path — without it frames are silently dropped
+# Supply `handler:` when user code needs unsolicited inbound frames
 opts = [handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end]
 
 {:ok, _client1} = ZenWebsocket.ClientSupervisor.start_client("wss://api.example.com/ws", opts)
@@ -413,7 +413,9 @@ end
 
 ## Testing Philosophy
 
-This library uses **real API testing exclusively**. No mocks or stubs - every test runs against actual WebSocket endpoints or local test servers. This ensures the library handles real-world conditions including network latency, connection drops, and API quirks.
+Pure logic is unit-tested without sockets. Integration tests exercise either the
+local real WebSocket stack or opt-in live provider endpoints; exchange responses,
+authentication, and provider behavior are never simulated.
 
 ```bash
 # Quick test health check
@@ -430,7 +432,7 @@ mix test --include integration
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Write tests using real APIs (no mocks)
+3. Write unit tests and real-stack integration tests; do not simulate exchange behavior
 4. Ensure the verification workflow passes (see Development Commands below)
 5. Commit your changes
 6. Push to the branch

@@ -27,12 +27,15 @@ defmodule ZenWebsocket.DescribeSurfaceTest do
       assert param_kind(ZenWebsocket.SubscriptionManager, :handle_message, :msg) == :exchange_data
       assert param_kind(ZenWebsocket.HeartbeatManager, :handle_message, :msg) == :exchange_data
       assert param_kind(ZenWebsocket.Recorder, :parse_entry, :line) == :exchange_data
-      assert param_kind(ZenWebsocket.RateLimiter, :deribit_cost, :request) == :exchange_data
-      assert param_kind(ZenWebsocket.RateLimiter, :binance_cost, :request) == :exchange_data
-      assert param_kind(ZenWebsocket.RateLimiter, :simple_cost, :request) == :exchange_data
       assert param_kind(ZenWebsocket.HeartbeatManager, :start_timer, :state) == :exchange_data
       assert param_kind(ZenWebsocket.SubscriptionManager, :add, :state) == :exchange_data
       assert param_kind(ZenWebsocket.RequestCorrelator, :track, :state) == :exchange_data
+    end
+
+    test "marks caller-created rate-limit requests as :value" do
+      assert param_kind(ZenWebsocket.RateLimiter, :deribit_cost, :request) == :value
+      assert param_kind(ZenWebsocket.RateLimiter, :binance_cost, :request) == :value
+      assert param_kind(ZenWebsocket.RateLimiter, :simple_cost, :request) == :value
     end
 
     test "no inbound message, frame, line, or Client state map is kind :value" do

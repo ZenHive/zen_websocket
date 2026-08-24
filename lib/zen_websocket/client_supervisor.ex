@@ -2,8 +2,8 @@ defmodule ZenWebsocket.ClientSupervisor do
   @moduledoc """
   Optional supervisor for WebSocket client connections.
 
-  Provides supervised client connections with automatic restart on failure.
-  Each client runs under its own supervisor for isolation.
+  Provides client connections as children of one `DynamicSupervisor`, with
+  automatic restart after abnormal termination.
 
   ## Restart Policy
 
@@ -25,12 +25,13 @@ defmodule ZenWebsocket.ClientSupervisor do
 
       # After supervisor is started, create supervised connections
       {:ok, client} = ClientSupervisor.start_client("wss://example.com",
+        handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end,
         retry_count: 5,
         heartbeat_config: %{type: :deribit, interval: 30_000}
       )
 
-      # The client will be automatically restarted on crashes
-      # with exponential backoff between restarts
+      # Abnormal exits are restarted subject to the supervisor intensity limit;
+      # transport reconnects use the Client's configured exponential backoff.
   """
 
   use Descripex, namespace: "/supervisor"
@@ -87,7 +88,7 @@ defmodule ZenWebsocket.ClientSupervisor do
 
   ## Examples
 
-      # Basic usage. `handler:` is required — this path does not install one.
+      # Supply `handler:` when user code needs unsolicited inbound frames.
       {:ok, client} =
         ClientSupervisor.start_client("wss://example.com",
           handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end

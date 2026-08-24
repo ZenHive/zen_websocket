@@ -22,11 +22,12 @@ produced runtime errors rather than merely misleading prose.
   `heartbeat_config` (default `:disabled`); the documented `heartbeat_interval:`
   had no effect. Corrected in `README.md` and `USAGE_RULES.md`, along with the
   invented `:custom` / `:standard` heartbeat types.
-- **`:handler` is mandatory on every start path except `Client.connect/2`.**
-  Only `connect/2` installs a default handler (via
-  `Client.CallFacade.with_default_handler/2`, targeting the calling process).
-  The supervised patterns in `USAGE_RULES.md` omitted `:handler` and therefore
-  discarded every inbound frame silently.
+- **Supervised start paths need `:handler` to deliver unsolicited frames.**
+  Only `Client.connect/2` installs a parent-forwarding handler (via
+  `Client.CallFacade.with_default_handler/2`). Other start paths use a discard
+  handler by default; internal heartbeat and pending JSON-RPC response handling
+  still work, but user-deliverable frames are dropped unless a handler is
+  supplied.
 - **Frames matching `%{"method" => "heartbeat"}` never reach the user handler**
   — documented in `docs/guides/building_adapters.md`, which previously implied
   all text frames are delivered.
@@ -42,6 +43,16 @@ produced runtime errors rather than merely misleading prose.
 - Doctest corrections in `Recorder` (wrong JSON key order and a
   non-existent microsecond padding) and `LatencyStats.percentile/2`
   (`percentile(1..100, 50)` returns `51`, not `50`).
+
+### Changed — self-describing API
+
+- `ZenWebsocket.describe/0` now omits the four Client-owned internal managers,
+  while `describe(:client)` includes the supervised `start_link/2` and
+  `child_spec/1` entry points. Wire-derived inputs and opaque Client-owned state
+  are marked as non-caller-supplied `:exchange_data`; caller-created rate-limit
+  requests remain ordinary `:value` inputs.
+- `mix zen_websocket.validate_usage` derives the allowed Client calls from the
+  same Descripex declarations, eliminating a second hand-maintained API list.
 
 ### Added
 
@@ -156,6 +167,9 @@ produced runtime errors rather than merely misleading prose.
 
 ### Fixed
 
+- `mix zen_websocket.validate_usage` recognizes nested
+  `ZenWebsocket.Client.*` module references instead of reporting the module
+  segment as an unknown Client function.
 - Client-owned Gun attempts use one retry state machine with Gun's independent
   retry disabled and attempt-specific timers, preventing duplicate reconnects
   and stale timeouts from terminating a later attempt.
@@ -256,8 +270,8 @@ not integration."
   status (mirego/mix_audit#61), so a database that can no longer sync still
   prints "No vulnerabilities found" and exits 0.
 - **`agents.check`** fails when `AGENTS.md` has drifted from `CLAUDE.md`.
-- **CI invokes `mix ci`** instead of a hand-maintained check list, so the alias
-  and the workflow can no longer drift apart.
+- **`mix ci` is the canonical repository gate.** The GitHub Actions workflows
+  were removed, so no check runs automatically on push.
 - **MCP config mirrored to all four agent families** (`.cursor/`, `.codex/`,
   `.grok/`) — a server declared only in `.mcp.json` is invisible to cross-family
   agents.

@@ -253,11 +253,12 @@ defmodule ZenWebsocket.MixProject do
         # `@core_cover_threshold`.
         #
         # NO `--summary-only` here, deliberately — unlike the fast `precommit`
-        # alias above. This is the alias CI runs, and `--summary-only` omits the
-        # failure entries from the emitted JSON: run 30740941359 reported
+        # alias above. The full gate needs diagnostics, and `--summary-only`
+        # omits the failure entries from the emitted JSON: run 30740941359
+        # reported
         # `"failed": 1` and nothing whatsoever about WHICH test, leaving the only
         # route to the identity "edit the alias and push again". The flag saves
-        # nothing in CI (the log is machine-read, not human-scrolled) and costs
+        # nothing in a captured machine-readable log and costs
         # the entire diagnosis. Locally the hooks already print per-file detail,
         # so `precommit` keeps it.
         "cmd env MIX_ENV=test mix test.json --quiet --cover --cover-threshold #{@core_cover_threshold} --exclude integration --include local_network",
@@ -323,12 +324,10 @@ defmodule ZenWebsocket.MixProject do
   # Both gates below shell out to scripts that live OUTSIDE this repo, on the
   # developer host: the AGENTS.md renderer needs the claude-marketplace
   # checkout plus ~/.claude/includes, and the advisory-freshness prover needs
-  # the local mix_audit mirror. Neither exists on a CI runner, and `mix cmd`
-  # with an absent path exits non-zero — which aborted the whole `mix ci`
-  # alias, and since these steps precede test.json/dialyzer it took the test,
-  # coverage and dialyzer signal down with it. Skip loudly when the script is
-  # absent so CI keeps running the checks it CAN run; the developer host and
-  # the harness reviewer still get the full gate.
+  # the local mix_audit mirror. A portable checkout may lack either path, and
+  # `mix cmd` with an absent path would abort the whole `mix ci` alias before
+  # test.json or dialyzer can run. Skip loudly when a host-only script is absent;
+  # the developer host and harness reviewer still get the full gate.
   @spec agents_check([String.t()]) :: :ok
   defp agents_check(_args) do
     host_script(
@@ -389,7 +388,7 @@ defmodule ZenWebsocket.MixProject do
         Mix.raise("#{label} failed (#{expanded} exited #{status})")
       end
     else
-      Mix.shell().info("[skip] #{label}: #{expanded} not found (developer-host script, absent in CI).")
+      Mix.shell().info("[skip] #{label}: #{expanded} not found (developer-host script unavailable).")
     end
 
     :ok

@@ -57,12 +57,16 @@ When your change affects user guidance, update the relevant docs in the same pul
 
 ## Testing Policy
 
-**IMPORTANT**: This project uses real API testing exclusively. We do not use mocks.
+Tests pin behavior at the narrowest real boundary that proves it:
 
-- All tests must run against real WebSocket endpoints
-- Use `test.deribit.com` for Deribit-specific tests
-- For general WebSocket tests, use publicly available echo servers
-- If credentials are required, they must be provided via environment variables
+- Pure logic uses unit tests without network access.
+- WebSocket integration tests use the local `MockWebSockServer`, which runs a
+  real Cowboy/WebSock stack, and carry `:integration` plus `:local_network`.
+- Provider semantics use opt-in `:external_network` tests against endpoints
+  such as `test.deribit.com`; credentialed tests fail with setup instructions
+  when their environment variables are absent.
+- Do not stub API responses, authentication, or exchange behavior. The two
+  narrow test-double exceptions are documented in `AGENTS.md`.
 
 ## Code Style
 
@@ -76,7 +80,7 @@ When your change affects user guidance, update the relevant docs in the same pul
 
 This project values simplicity:
 
-- Maximum 5 functions per module
+- New modules have a maximum of 5 functions
 - Maximum 15 lines per function
 - No unnecessary abstractions
 - Direct Gun API usage (no wrapper layers)

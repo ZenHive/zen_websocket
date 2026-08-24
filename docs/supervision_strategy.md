@@ -69,8 +69,8 @@ end
 Then create supervised connections:
 
 ```elixir
-# Basic supervised connection. `handler:` is required on this path — without it
-# incoming frames hit MessageHandler.default_handler/1 and are discarded.
+# Supply `handler:` when user code needs unsolicited inbound frames; otherwise
+# user-deliverable frames hit MessageHandler.default_handler/1 and are discarded.
 {:ok, client} = ZenWebsocket.ClientSupervisor.start_client("wss://example.com",
   handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end
 )
@@ -239,13 +239,6 @@ defmodule TradingSystem.DeribitConnection do
     ])
     
     {:ok, %{adapter: adapter}}
-  end
-  
-  # Handle reconnection events
-  def handle_info({:gun_down, _, _, _, _}, state) do
-    # Log disconnection
-    Logger.warn("Deribit connection lost, supervisor will restart")
-    {:noreply, state}
   end
 end
 ```

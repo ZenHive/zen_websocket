@@ -108,11 +108,10 @@ defmodule ZenWebsocket.ValidateUsageTest do
            ]
   end
 
-  test "library Client calls are not invalid_api" do
+  test "library usage scan has no diagnostics" do
     issues = json_issues(run_task(["--format", "json", "lib", "test"]))
-    invalid = Enum.filter(issues, &(&1["type"] == "invalid_api"))
 
-    assert invalid == [], inspect(invalid)
+    assert issues == [], inspect(issues)
   end
 
   test "allows Client.t typespec references" do

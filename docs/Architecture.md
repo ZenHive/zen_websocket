@@ -7,7 +7,8 @@ ZenWebsocket is a production-grade WebSocket client library built on top of Gun.
 ## Core Design Principles
 
 1. **Simplicity First** - Target 5 functions per new module, 15 lines per function (existing core modules may exceed this)
-2. **Real-World Testing** - No mocks, only real API testing
+2. **Real-Boundary Testing** - Pure unit tests plus local real-stack and opt-in
+   live-provider integration tests
 3. **Financial-Grade Reliability** - Built for high-frequency trading systems
 4. **Minimal Abstraction** - Direct Gun API usage, no unnecessary wrappers
 

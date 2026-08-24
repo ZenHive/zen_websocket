@@ -31,8 +31,8 @@ defmodule ZenWebsocket do
       # Start the supervisor (add to your application supervision tree)
       ZenWebsocket.ClientSupervisor.start_link([])
 
-      # Start managed connections. `handler:` is required here — the supervised
-      # path has no default that forwards frames to the caller.
+      # Supply `handler:` when user code needs unsolicited inbound frames; the
+      # supervised path has no parent-forwarding default.
       {:ok, client} =
         ZenWebsocket.ClientSupervisor.start_client("wss://example.com/ws",
           handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end

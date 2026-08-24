@@ -59,10 +59,10 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
     [
       {~r/defmodule.*use\s+WebSockex/, "Don't create wrapper modules - use Client directly"},
       {~r/Process\.spawn.*Client\.connect/, "Use supervision patterns instead of manual spawning"},
-      {~r/:meck|:mock|Mock\./, "Never mock WebSocket connections - use real endpoints"},
+      {~r/:meck\.|:mock\./, "Don't stub WebSocket dependencies - use real transport endpoints"},
       {~r/try\s+do.*Client\.connect.*rescue/, "Don't rescue connection errors - handle {:error, reason}"},
       {~r/Client\.\w+!\(/, "ZenWebsocket doesn't have bang functions - use pattern matching"},
-      {~r/defstruct.*websocket.*state/, "Don't maintain custom WebSocket state - use Client.get_state/1"},
+      {~r/^\s*defstruct[^\n]*websocket[^\n]*state/m, "Don't maintain custom WebSocket state - use Client.get_state/1"},
       {~r/GenServer\.call.*timeout:\s*:infinity/, "Always specify timeouts for WebSocket operations"}
     ]
   end
