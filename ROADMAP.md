@@ -53,7 +53,7 @@
 
 **Last shipped:** Task 18 — Make the descripex agent surface describe the real public API, from one source of truth, Task 19 — Encode the doc-example contract as a test so the next audit does not find it by hand on 2026-08-24
 
-**Up next:** Task 20 — Replace stale echo-service assumptions in the shipped subscription examples [D:4/B:7/U:6 → Eff:1.62] 🚀
+**Up next:** Task 21 — Extend the doc-example contract from @moduledoc to public @doc examples [D:3/B:6/U:3 → Eff:1.5] 🚀
 <!-- FOCUS:END -->
 
 <!-- TASKS:BEGIN phase=1 -->
@@ -83,7 +83,7 @@
 | Task 17 | ✅ | 🎁 **correctness** · Decide whether SubscriptionManager's narrowing to Deribit's JSON-RPC dialect is intended, and make the result explicit [D:4/B:6/U:4 → Eff:1.25] 📋 |
 | Task 18 | ✅ | 🎁 **correctness** · Make the descripex agent surface describe the real public API, from one source of truth [D:5/B:7/U:5 → Eff:1.2] 📋 |
 | Task 19 | ✅ | 🎁 **hygiene** · Encode the doc-example contract as a test so the next audit does not find it by hand [D:5/B:7/U:4 → Eff:1.1] 📋 |
-| Task 20 | ⬜ | 🎁 **hygiene** · Replace stale echo-service assumptions in the shipped subscription examples [D:4/B:7/U:6 → Eff:1.62] 🚀 |
+| Task 20 | ⛔ | 🎁 **hygiene** · Replace stale echo-service assumptions in the shipped subscription examples [D:4/B:7/U:6 → Eff:1.62] 🚀 |
 | Task 21 | ⬜ | 🎁 **hygiene** · Extend the doc-example contract from @moduledoc to public @doc examples [D:3/B:6/U:3 → Eff:1.5] 🚀 |
 <!-- TASKS:END -->
 
