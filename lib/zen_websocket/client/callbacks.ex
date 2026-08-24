@@ -2,9 +2,11 @@ defmodule ZenWebsocket.Client.Callbacks do
   @moduledoc """
   `handle_call/3` and `handle_info/2` clause bodies for `ZenWebsocket.Client`.
 
-  The GenServer callbacks stay on Client so supervision and message ownership
-  do not change; this module holds the pattern-matched routing those callbacks
-  previously inlined.
+  The GenServer callbacks are defined on `ZenWebsocket.Client` so supervision and
+  Gun message ownership stay with that process; this module holds the
+  pattern-matched routing bodies those callbacks delegate to. Every function here
+  takes and returns Client GenServer state and must not assume it runs in any
+  other process.
   """
 
   alias ZenWebsocket.Client.Connection, as: Connection

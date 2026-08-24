@@ -1,6 +1,10 @@
 defmodule ZenWebsocket.Examples.Docs.SubscriptionManagement do
   @moduledoc """
-  Examples of subscription management with WebSocket connections.
+  Channel subscription flows over a WebSocket connection.
+
+  Sends multi-channel subscribe payloads with `Client.send_message/2` and consumes the
+  resulting `{:websocket_message, _}` frames the default handler forwards to the
+  calling process, both one at a time and in a collect-N loop.
   """
 
   alias ZenWebsocket.Client

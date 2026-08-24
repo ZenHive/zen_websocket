@@ -18,7 +18,7 @@ defmodule ZenWebsocket.Testing do
         end
 
         test "handles messages", %{server: server} do
-          {:ok, client} = ZenWebsocket.Client.connect(server.url)
+          {:ok, _client} = ZenWebsocket.Client.connect(server.url)
 
           # Inject a message from server to client
           Testing.inject_message(server, ~s({"type": "hello"}))
@@ -28,12 +28,16 @@ defmodule ZenWebsocket.Testing do
         end
 
         test "handles disconnection", %{server: server} do
-          {:ok, client} = ZenWebsocket.Client.connect(server.url)
+          # Auto-reconnect is on by default; disable it so the close is terminal
+          {:ok, client} = ZenWebsocket.Client.connect(server.url, reconnect_on_error: false)
+          ref = Process.monitor(client.server_pid)
 
           # Simulate server disconnect
           Testing.simulate_disconnect(server, :going_away)
 
-          assert ZenWebsocket.Client.get_state(client) == :disconnected
+          # The client GenServer stops; wait for its DOWN message rather than
+          # reading get_state/1, which races the disconnect
+          assert_receive {:DOWN, ^ref, :process, _pid, _reason}, 1_000
         end
       end
 

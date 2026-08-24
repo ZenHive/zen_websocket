@@ -29,7 +29,7 @@ defmodule ZenWebsocket.Examples.AdapterSupervisor do
           ]
         ]}
       ]
-      
+
       Supervisor.start_link(children, strategy: :one_for_one)
   """
 

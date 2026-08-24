@@ -9,7 +9,8 @@ defmodule ZenWebsocket.Config do
   - `:timeout` - Connection timeout in milliseconds (default: 5000)
   - `:retry_count` - Maximum reconnection attempts (default: 3)
   - `:retry_delay` - Base delay for exponential backoff in ms (default: 1000)
-  - `:heartbeat_interval` - Interval for heartbeat messages in ms (default: 30000)
+  - `:heartbeat_interval` - Fallback heartbeat interval in ms, used only when `heartbeat_config`
+    is a map that omits `:interval` (default: 30000)
   - `:max_backoff` - Maximum delay between reconnection attempts in ms (default: 30000)
   - `:reconnect_on_error` - Whether to auto-reconnect on connection errors (default: true)
   - `:restore_subscriptions` - Whether to restore subscriptions after reconnect (default: true)
@@ -17,6 +18,11 @@ defmodule ZenWebsocket.Config do
   - `:debug` - Enable verbose debug logging (default: false)
   - `:latency_buffer_size` - Size of circular buffer for latency stats (default: 100)
   - `:record_to` - Path to JSONL file for session recording (default: nil, disabled)
+
+  `:heartbeat_config` is not a field of this struct. It is a `ZenWebsocket.Client.connect/2`
+  option that defaults to `:disabled`, and no heartbeat timer is started until it is set to a
+  map with a `:type` (see `ZenWebsocket.HeartbeatManager`). Setting `:heartbeat_interval` on
+  its own sends nothing.
 
   ## Examples
 

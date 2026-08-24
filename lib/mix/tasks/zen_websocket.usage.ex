@@ -10,24 +10,24 @@ defmodule Mix.Tasks.ZenWebsocket.Usage do
   ## Usage
 
       mix zen_websocket.usage
-      
+
   ## Options
 
     * `--format` - Output format: `markdown` (default) or `json`
     * `--output` - Output file path (defaults to stdout)
     * `--sections` - Comma-separated list of sections to include
-    
+
   ## Examples
 
       # Output to stdout
       mix zen_websocket.usage
-      
+
       # Save to file
       mix zen_websocket.usage --output my_rules.md
-      
+
       # Export specific sections
       mix zen_websocket.usage --sections "quick_start_pattern,common_patterns,error_handling"
-      
+
       # Export as JSON for programmatic use
       mix zen_websocket.usage --format json --output rules.json
   """

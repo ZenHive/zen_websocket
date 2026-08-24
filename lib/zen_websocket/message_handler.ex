@@ -3,7 +3,7 @@ defmodule ZenWebsocket.MessageHandler do
   Message handling utilities for WebSocket connections.
 
   - Parse incoming WebSocket frames and Gun messages
-  - Route messages to user-provided handler functions  
+  - Route messages to user-provided handler functions
   - Handle control frames (ping/pong) automatically
   - Process WebSocket upgrade responses
   """
@@ -150,7 +150,13 @@ defmodule ZenWebsocket.MessageHandler do
   )
 
   @doc """
-  Default message handler that simply logs messages.
+  Default message handler that accepts a message and discards it, returning `:ok`.
+
+  This is the fallback handler everywhere a handler is not supplied — except
+  `ZenWebsocket.Client.connect/2`, which installs a parent-forwarding handler via
+  `ZenWebsocket.Client.CallFacade.with_default_handler/2`. Any other path that falls
+  back to this function silently drops every inbound message, so supply your own
+  handler when you need to observe traffic.
   """
   @spec default_handler(term()) :: :ok
   def default_handler(_message) do

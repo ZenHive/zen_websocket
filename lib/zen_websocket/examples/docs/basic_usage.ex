@@ -1,7 +1,10 @@
 defmodule ZenWebsocket.Examples.Docs.BasicUsage do
   @moduledoc """
-  Basic usage examples from the documentation.
-  These examples demonstrate simple WebSocket connections and message handling.
+  Minimal connect-send-receive flows against a live endpoint.
+
+  Exercises `Client.connect/2` (with a URL and with a `ZenWebsocket.Config` carrying
+  custom headers), `Client.send_message/2` for a correlated JSON-RPC request, and
+  `Client.close/1`.
   """
 
   alias ZenWebsocket.Client

@@ -18,17 +18,17 @@ defmodule ZenWebsocket.ClientSupervisor do
         ZenWebsocket.ClientSupervisor,
         # Your other children...
       ]
-      
+
       Supervisor.start_link(children, strategy: :one_for_one)
 
   ## Usage
 
       # After supervisor is started, create supervised connections
-      {:ok, client} = ClientSupervisor.start_client("wss://example.com", 
+      {:ok, client} = ClientSupervisor.start_client("wss://example.com",
         retry_count: 5,
         heartbeat_config: %{type: :deribit, interval: 30_000}
       )
-      
+
       # The client will be automatically restarted on crashes
       # with exponential backoff between restarts
   """
@@ -87,11 +87,15 @@ defmodule ZenWebsocket.ClientSupervisor do
 
   ## Examples
 
-      # Basic usage
-      {:ok, client} = ClientSupervisor.start_client("wss://example.com")
+      # Basic usage. `handler:` is required — this path does not install one.
+      {:ok, client} =
+        ClientSupervisor.start_client("wss://example.com",
+          handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end
+        )
 
       # With lifecycle callbacks for distributed registry
       {:ok, client} = ClientSupervisor.start_client("wss://example.com",
+        handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end,
         on_connect: fn pid -> :pg.join(:ws_pool, pid) end,
         on_disconnect: fn pid -> :pg.leave(:ws_pool, pid) end
       )

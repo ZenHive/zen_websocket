@@ -104,14 +104,16 @@ defmodule ZenWebsocket.LatencyStats do
   @doc """
   Calculates the specified percentile from buffered samples.
 
-  Returns `nil` if the buffer is empty.
+  Uses the nearest-rank index `round(percentile / 100 * (count - 1))` into the
+  sorted buffer, so `0` yields the minimum and `100` the maximum. Returns `nil`
+  if the buffer is empty.
 
   ## Examples
 
       iex> stats = ZenWebsocket.LatencyStats.new()
       iex> stats = Enum.reduce(1..100, stats, &ZenWebsocket.LatencyStats.add(&2, &1))
       iex> ZenWebsocket.LatencyStats.percentile(stats, 50)
-      50
+      51
 
       iex> ZenWebsocket.LatencyStats.percentile(ZenWebsocket.LatencyStats.new(), 50)
       nil

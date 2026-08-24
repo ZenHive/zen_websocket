@@ -160,11 +160,13 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
     @describetag :integration
     @describetag :local_network
 
-    test "handles websocket_error messages" do
+    test "handles unmatched JSON-RPC responses forwarded by the default handler" do
       {:ok, server, port} = MockWebSockServer.start_link()
 
+      orphan_response = Jason.encode!(%{"jsonrpc" => "2.0", "id" => 77_777, "result" => "orphan"})
+
       MockWebSockServer.set_handler(server, fn
-        {:text, msg} -> {:reply, {:text, msg}}
+        {:text, _msg} -> {:reply, {:text, orphan_response}}
       end)
 
       mock_url = "ws://localhost:#{port}/ws"
@@ -177,15 +179,17 @@ defmodule ZenWebsocket.Examples.ErrorHandlingTest do
             # Wait for connection
             assert {:ok, _state} = wait_for_connection()
 
-            # Send error message directly to the GenServer
-            send(pid, {:websocket_error, :connection_timeout})
+            # The reply carries an id no pending request owns, so the default handler
+            # forwards it as {:websocket_unmatched_response, _}.
+            :ok = ErrorHandling.send_message("trigger")
 
             Process.sleep(100)
 
             GenServer.stop(pid)
           end)
 
-        assert log =~ "WebSocket error: :connection_timeout"
+        assert log =~ "Unmatched response:"
+        assert log =~ ~s("id" => 77777)
       after
         MockWebSockServer.stop(server)
       end

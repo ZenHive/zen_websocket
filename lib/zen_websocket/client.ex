@@ -8,14 +8,14 @@ defmodule ZenWebsocket.Client do
   Gun sends all WebSocket messages to the process that opens the connection, so the
   Client GenServer owns the Gun connection to receive these messages directly.
 
-  ## Public API
+  ## Struct-Based Responses
 
-  Despite being a GenServer internally, the public API returns struct-based responses
-  for backward compatibility:
+  Despite being a GenServer internally, the public API hands back a `t:t/0` struct
+  rather than a bare pid:
 
       {:ok, client} = Client.connect("wss://example.com")
       # client is a struct with gun_pid, stream_ref, and server_pid fields
-      
+
       :ok = Client.send_message(client, "hello")
       Client.close(client)
 
@@ -23,7 +23,7 @@ defmodule ZenWebsocket.Client do
 
   ### Initial Connection
   When you call `connect/2`, a new Client GenServer is started which:
-  1. Opens a Gun connection from within the GenServer 
+  1. Opens a Gun connection from within the GenServer
   2. Receives all Gun messages (gun_ws, gun_up, gun_down, etc.)
   3. Returns a client struct containing the GenServer PID
 
@@ -49,6 +49,8 @@ defmodule ZenWebsocket.Client do
   - close/1 - Close connection
   - reconnect/1 - Close and re-establish the connection
   - get_heartbeat_health/1, get_state_metrics/1, get_latency_stats/1 - Monitoring
+  - start_link/2 - Start the Client GenServer under a supervisor
+  - child_spec/1 - Child specification for a supervision tree
   - build_client_struct/2 - Internal client struct assembly (`@doc false`; ClientSupervisor)
 
   ## Configuration Options
@@ -169,7 +171,7 @@ defmodule ZenWebsocket.Client do
           retry_count: 10
         ]}
       ]
-      
+
       Supervisor.start_link(children, strategy: :one_for_one)
   """
 

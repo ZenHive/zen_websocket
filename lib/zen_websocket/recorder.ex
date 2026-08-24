@@ -8,9 +8,13 @@ defmodule ZenWebsocket.Recorder do
 
   ## JSONL Format
 
-      {"ts":"2026-01-20T15:30:45.123456Z","dir":"out","type":"text","data":"..."}
-      {"ts":"2026-01-20T15:30:45.234567Z","dir":"in","type":"text","data":"..."}
-      {"ts":"2026-01-20T15:30:46.000000Z","dir":"in","type":"binary","data":"base64...","binary":true}
+  Each line is a JSON object carrying `ts` (ISO 8601, precision as supplied by the
+  caller's `DateTime`), `dir`, `type`, and `data`. Binary frames base64-encode `data`
+  and add `"binary":true`; close frames carry a nested JSON object as `data`.
+
+      {"data":"hello","type":"text","dir":"out","ts":"2026-01-20T15:30:45.123456Z"}
+      {"binary":true,"data":"AQID","type":"binary","dir":"in","ts":"2026-01-20T15:30:45Z"}
+      {"data":"{\\"code\\":1000,\\"reason\\":\\"bye\\"}","type":"close","dir":"in","ts":"2026-01-20T15:30:46Z"}
 
   ## Usage
 
@@ -64,11 +68,13 @@ defmodule ZenWebsocket.Recorder do
 
   ## Examples
 
-      iex> line = Recorder.format_entry(:out, {:text, "hello"}, ~U[2026-01-20 15:30:45.123456Z])
-      ~s({"ts":"2026-01-20T15:30:45.123456Z","dir":"out","type":"text","data":"hello"})
+      iex> Recorder.format_entry(:out, {:text, "hello"}, ~U[2026-01-20 15:30:45.123456Z])
+      ...> |> Jason.decode!()
+      %{"data" => "hello", "type" => "text", "dir" => "out", "ts" => "2026-01-20T15:30:45.123456Z"}
 
-      iex> line = Recorder.format_entry(:in, {:binary, <<1, 2, 3>>}, ~U[2026-01-20 15:30:45Z])
-      ~s({"ts":"2026-01-20T15:30:45.000000Z","dir":"in","type":"binary","data":"AQID","binary":true})
+      iex> Recorder.format_entry(:in, {:binary, <<1, 2, 3>>}, ~U[2026-01-20 15:30:45Z])
+      ...> |> Jason.decode!()
+      %{"binary" => true, "data" => "AQID", "type" => "binary", "dir" => "in", "ts" => "2026-01-20T15:30:45Z"}
   """
   @spec format_entry(direction(), frame(), DateTime.t()) :: binary()
   def format_entry(direction, frame, timestamp \\ DateTime.utc_now())

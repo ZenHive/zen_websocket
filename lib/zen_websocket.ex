@@ -31,8 +31,12 @@ defmodule ZenWebsocket do
       # Start the supervisor (add to your application supervision tree)
       ZenWebsocket.ClientSupervisor.start_link([])
 
-      # Start managed connections
-      {:ok, client} = ZenWebsocket.ClientSupervisor.start_client("wss://example.com/ws")
+      # Start managed connections. `handler:` is required here — the supervised
+      # path has no default that forwards frames to the caller.
+      {:ok, client} =
+        ZenWebsocket.ClientSupervisor.start_client("wss://example.com/ws",
+          handler: fn msg -> send(MyApp.Consumer, {:ws, msg}) end
+        )
 
       # Route to healthiest connection
       :ok = ZenWebsocket.ClientSupervisor.send_balanced(message)
@@ -60,8 +64,10 @@ defmodule ZenWebsocket do
   ### Observability
   * `ZenWebsocket.ErrorHandler` — error categorization with `explain/1`
   * `ZenWebsocket.LatencyStats` — connection latency tracking (p50/p99)
-  * `ZenWebsocket.Recorder` — session recording for debugging (JSONL format)
-  * `ZenWebsocket.Testing` — test utilities with `MockWebSockServer` helpers
+  * `ZenWebsocket.Recorder` — pure JSONL session recording/replay functions
+  * `ZenWebsocket.RecorderServer` — async file I/O behind `Recorder` recordings
+  * `ZenWebsocket.Testing` — mock-server test helpers for consumers
+    (`start_mock_server/1`, `simulate_disconnect/2`, `inject_message/2`)
 
   ### Protocol
   * `ZenWebsocket.Frame` — WebSocket frame encoding/decoding
@@ -70,8 +76,10 @@ defmodule ZenWebsocket do
 
   ## Platform Examples
 
-  See `ZenWebsocket.Examples.DeribitAdapter` for a production-ready adapter
-  demonstrating authentication, subscription management, and heartbeat handling.
+  See `ZenWebsocket.Examples.DeribitGenServerAdapter` for a production-ready
+  supervised adapter demonstrating authentication, subscription management, and
+  monitored auto-reconnect. For a simpler unsupervised example, see
+  `ZenWebsocket.Examples.DeribitAdapter`.
 
   ## Self-Describing API
 

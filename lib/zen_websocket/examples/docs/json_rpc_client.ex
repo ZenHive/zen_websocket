@@ -1,10 +1,10 @@
 defmodule ZenWebsocket.Examples.Docs.JsonRpcClient do
   @moduledoc """
-  JSON-RPC client example from documentation.
+  JSON-RPC 2.0 calls over a WebSocket connection.
 
-  Demonstrates how to make JSON-RPC calls over WebSocket connections.
-  The ZenWebsocket.Client automatically handles request/response 
-  correlation for JSON-RPC messages - no manual correlation needed!
+  Defines methods with `defrpc/3` from `ZenWebsocket.JsonRpc` and issues them through
+  `Client.send_message/2`, which correlates any message carrying an `"id"` with its
+  response — no caller-side correlation bookkeeping is needed.
   """
 
   use ZenWebsocket.JsonRpc

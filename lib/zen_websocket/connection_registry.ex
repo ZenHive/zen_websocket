@@ -1,9 +1,24 @@
 defmodule ZenWebsocket.ConnectionRegistry do
   @moduledoc """
-  ETS-based connection tracking without GenServer.
+  Opt-in ETS connection tracking, without a GenServer.
+
+  Maps a caller-chosen connection id to a Gun pid in a public named ETS table
+  (`:zen_websocket_connections`), monitoring each pid so dead connections can be
+  swept. The table is created lazily by `init/0` and every other function assumes
+  it exists — call `init/0` once (typically from your application start) before
+  registering.
+
+  `ZenWebsocket.Client` does not use this registry; it is a utility for consumers
+  that want to look connections up by a stable id.
   """
 
+  use Descripex, namespace: "/registry"
+
   @table_name :zen_websocket_connections
+
+  api(:init, "Create the connection registry ETS table if it does not exist.",
+    returns: %{type: ":ok", description: "Always succeeds, idempotent"}
+  )
 
   @doc """
   Initialize the connection registry ETS table.
@@ -20,6 +35,14 @@ defmodule ZenWebsocket.ConnectionRegistry do
     end
   end
 
+  api(:register, "Register a connection id against a Gun pid and monitor the pid.",
+    params: [
+      connection_id: [kind: :value, description: "Caller-chosen connection identifier string"],
+      gun_pid: [kind: :value, description: "Gun connection pid to track"]
+    ],
+    returns: %{type: ":ok", description: "Always succeeds"}
+  )
+
   @doc """
   Register a connection with monitoring.
   """
@@ -29,6 +52,13 @@ defmodule ZenWebsocket.ConnectionRegistry do
     :ets.insert(@table_name, {connection_id, gun_pid, monitor_ref})
     :ok
   end
+
+  api(:deregister, "Remove a connection by id and drop its monitor.",
+    params: [
+      connection_id: [kind: :value, description: "Connection identifier to remove"]
+    ],
+    returns: %{type: ":ok", description: "Always succeeds, even when the id is unknown"}
+  )
 
   @doc """
   Deregister a connection by ID.
@@ -47,6 +77,14 @@ defmodule ZenWebsocket.ConnectionRegistry do
     :ok
   end
 
+  api(:get, "Look up the Gun pid registered for a connection id.",
+    params: [
+      connection_id: [kind: :value, description: "Connection identifier to look up"]
+    ],
+    returns: %{type: "{:ok, pid()} | {:error, :not_found}", description: "Registered Gun pid or error"},
+    errors: [:not_found]
+  )
+
   @doc """
   Get connection info by ID.
   """
@@ -57,6 +95,13 @@ defmodule ZenWebsocket.ConnectionRegistry do
       [] -> {:error, :not_found}
     end
   end
+
+  api(:cleanup_dead, "Remove every registration pointing at a dead Gun pid.",
+    params: [
+      gun_pid: [kind: :value, description: "Gun pid whose registrations should be swept"]
+    ],
+    returns: %{type: ":ok", description: "Always succeeds"}
+  )
 
   @doc """
   Cleanup dead connection by PID.
@@ -72,6 +117,10 @@ defmodule ZenWebsocket.ConnectionRegistry do
 
     :ok
   end
+
+  api(:shutdown, "Drop all monitors and delete the registry ETS table.",
+    returns: %{type: ":ok", description: "Always succeeds, even when the table is absent"}
+  )
 
   @doc """
   Cleanup all connections and destroy table.
@@ -89,8 +138,6 @@ defmodule ZenWebsocket.ConnectionRegistry do
     end
   end
 
-  # Demonitors all tracked connections before table deletion
-  @doc false
   @spec demonitor_all() :: :ok
   defp demonitor_all do
     @table_name

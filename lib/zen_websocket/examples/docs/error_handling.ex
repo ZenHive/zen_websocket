@@ -1,6 +1,14 @@
 defmodule ZenWebsocket.Examples.Docs.ErrorHandling do
   @moduledoc """
-  Error handling and retry patterns from Examples.md
+  A GenServer that owns a connection and retries it with backoff.
+
+  Demonstrates owning a `Client.connect/2` result in GenServer state, rescheduling
+  `Client.connect/2` on failure while counting attempts, and handling the
+  `{:websocket_message, _}`, `{:websocket_unmatched_response, _}` and
+  `{:websocket_protocol_error, _}` messages the default handler forwards to the owning
+  process. Those three are the only messages `ZenWebsocket.Client.CallFacade` sends; a
+  transport error surfaces as a `{:error, reason}` return from `Client.connect/2` or
+  `Client.send_message/2`, never as a mailbox message.
   """
 
   use GenServer
@@ -66,13 +74,13 @@ defmodule ZenWebsocket.Examples.Docs.ErrorHandling do
     {:noreply, state}
   end
 
-  def handle_info({:websocket_protocol_error, error}, state) do
-    Logger.error("WebSocket protocol error: #{inspect(error)}")
+  def handle_info({:websocket_unmatched_response, response}, state) do
+    Logger.warning("Unmatched response: #{inspect(response)}")
     {:noreply, state}
   end
 
-  def handle_info({:websocket_error, error}, state) do
-    Logger.error("WebSocket error: #{inspect(error)}")
+  def handle_info({:websocket_protocol_error, error}, state) do
+    Logger.error("WebSocket protocol error: #{inspect(error)}")
     {:noreply, state}
   end
 

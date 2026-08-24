@@ -10,24 +10,24 @@ defmodule Mix.Tasks.ZenWebsocket.ValidateUsage do
   ## Usage
 
       mix zen_websocket.validate_usage [files_or_paths]
-      
+
   ## Options
 
     * `--strict` - Enable strict mode (fail on warnings)
     * `--fix` - Retained for compatibility; no automatic rewrites are performed
     * `--format` - Output format: `human` (default), `json`, or `github`
-    
+
   ## Examples
 
       # Validate all Elixir files
       mix zen_websocket.validate_usage
-      
+
       # Validate specific file
       mix zen_websocket.validate_usage lib/my_websocket.ex
-      
+
       # Strict validation with GitHub Actions format
       mix zen_websocket.validate_usage --strict --format github
-      
+
       # --fix is a no-op; it never rewrites files
       mix zen_websocket.validate_usage --fix
   """

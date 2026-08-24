@@ -59,6 +59,10 @@ defmodule ZenWebsocket.JsonRpc do
   @doc """
   Generates RPC method functions with automatic request building.
 
+  Each generated function is public, takes an optional params list/map (default
+  `%{}`), and returns `{:ok, request}` from `build_request/2`. A `@doc` and a
+  `@spec` are generated alongside it.
+
   ## Examples
       defmodule MyApi do
         use ZenWebsocket.JsonRpc
@@ -73,6 +77,7 @@ defmodule ZenWebsocket.JsonRpc do
 
     quote do
       @doc unquote(doc)
+      @spec unquote(name)(list() | map() | nil) :: {:ok, map()}
       def unquote(name)(params \\ %{}) do
         ZenWebsocket.JsonRpc.build_request(unquote(method), params)
       end

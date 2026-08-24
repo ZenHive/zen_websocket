@@ -1,6 +1,4 @@
 defmodule ZenWebsocket.Reconnection do
-  # Default maximum delay between reconnection attempts (30 seconds).
-  # Prevents exponential backoff from growing unbounded.
   @moduledoc """
   Internal reconnection helper for Client GenServer.
 
@@ -28,6 +26,8 @@ defmodule ZenWebsocket.Reconnection do
   alias ZenWebsocket.Config
   alias ZenWebsocket.Debug
 
+  # Default maximum delay between reconnection attempts (30 seconds), so
+  # exponential backoff cannot grow unbounded.
   @default_max_backoff_ms 30_000
   @websocket_opts %{silence_pings: false}
 
@@ -112,7 +112,7 @@ defmodule ZenWebsocket.Reconnection do
 
   @spec cleanup_failed_transport(Config.t(), pid(), reference(), term()) :: {:error, term()}
   defp cleanup_failed_transport(config, gun_pid, monitor_ref, reason) do
-    Debug.log(config, "   ❌ Gun await_up failed: #{inspect(reason)}")
+    Debug.log(config, "   ❌ Gun transport wait failed: #{inspect(reason)}")
     Debug.log(config, "   🧹 Cleaning up monitor and closing Gun...")
     Process.demonitor(monitor_ref, [:flush])
     :gun.close(gun_pid)
@@ -171,16 +171,20 @@ defmodule ZenWebsocket.Reconnection do
   @doc """
   Calculate exponential backoff delay for reconnection attempts.
 
+  The delay is `base_delay * 2 ** attempt`, capped at `max_backoff`.
+
   ## Examples
 
-      iex> calculate_backoff(0, 1000)
+      iex> ZenWebsocket.Reconnection.calculate_backoff(0, 1000)
       1000
 
-      iex> calculate_backoff(1, 1000)
+      iex> ZenWebsocket.Reconnection.calculate_backoff(1, 1000)
       2000
 
-      iex> calculate_backoff(5, 1000, 30000)
-      30000  # Capped at max_backoff
+      Capped at max_backoff:
+
+      iex> ZenWebsocket.Reconnection.calculate_backoff(5, 1000, 30000)
+      30000
   """
   @spec calculate_backoff(
           attempt :: non_neg_integer(),
@@ -234,7 +238,7 @@ defmodule ZenWebsocket.Reconnection do
     if query, do: base <> "?" <> query, else: base
   end
 
-  # Waits for Gun to come up, matching connection-level errors that :gun.await_up/2
+  # Waits for Gun to come up, matching connection-level errors that :gun.await_up/1,2,3
   # does not surface (e.g. :nxdomain delivered as {:gun_error, pid, reason}).
   defp await_gun_up(gun_pid, timeout) do
     receive do

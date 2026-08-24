@@ -78,11 +78,11 @@ defmodule ZenWebsocket.PoolRouter do
 
   ## Examples
 
-      iex> PoolRouter.select_connection([pid1, pid2, pid3])
-      {:ok, pid2}
+      PoolRouter.select_connection([pid1, pid2, pid3])
+      #=> {:ok, pid2}
 
-      iex> PoolRouter.select_connection([])
-      {:error, :no_connections}
+      PoolRouter.select_connection([])
+      #=> {:error, :no_connections}
   """
   @spec select_connection([pid()]) :: {:ok, pid()} | {:error, :no_connections}
   def select_connection([]), do: {:error, :no_connections}
@@ -155,7 +155,7 @@ defmodule ZenWebsocket.PoolRouter do
     max(0, round(score))
   end
 
-  api(:record_error, "Record an error for a connection (decays after 60s).",
+  api(:record_error, "Record an error for a connection (decays after the error window, 60s by default).",
     params: [
       pid: [kind: :value, description: "Client PID that experienced an error"]
     ],
@@ -165,7 +165,8 @@ defmodule ZenWebsocket.PoolRouter do
   @doc """
   Records an error for a connection, incrementing the error count.
 
-  Error counts decay after 60 seconds of no new errors.
+  Error counts decay after the configured error window (`:error_decay_ms`,
+  60 seconds by default) with no new errors.
   """
   @spec record_error(pid()) :: :ok
   def record_error(pid) when is_pid(pid) do
