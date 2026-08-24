@@ -252,11 +252,8 @@ if state.client do
   IO.inspect(client_state, label: "Client state")
 end
 
-# List all Gun connections
-:gun.info()
-|> Enum.each(fn {pid, info} ->
-  IO.inspect({pid, info}, label: "Gun connection")
-end)
+# Gun connection details for a tracked pid (`:gun.info/1`)
+IO.inspect(:gun.info(client.gun_pid), label: "Gun connection")
 ```
 
 ## Performance Considerations

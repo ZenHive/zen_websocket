@@ -214,6 +214,7 @@ defmodule TradingSystem.DeribitConnection do
     # Start supervised connection
     url = "wss://test.deribit.com/ws/api/v2"
     config = [
+      handler: fn msg -> send(self(), {:ws, msg}) end,
       heartbeat_config: %{type: :deribit, interval: 30_000},
       retry_count: 10,
       retry_delay: 1000

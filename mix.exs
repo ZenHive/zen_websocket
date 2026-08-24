@@ -359,6 +359,7 @@ defmodule ZenWebsocket.MixProject do
       ~r/^Mix\.Tasks\./,
       Mix.Tasks.ZenWebsocket.Usage,
       Mix.Tasks.ZenWebsocket.ValidateUsage,
+      ZenWebsocket.Test.Support.DocsExampleContract,
       ZenWebsocket.Examples.AdapterSupervisor,
       ZenWebsocket.Examples.BatchSubscriptionManager,
       ZenWebsocket.Examples.DeribitAdapter,
