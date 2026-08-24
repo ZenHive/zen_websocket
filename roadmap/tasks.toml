@@ -909,7 +909,7 @@ shipped_in = "e0480e778c82d9925ce2d3878e54f8188bca26dd"
 id = "19"
 phase = 1
 bundle = "hygiene"
-status = "pending"
+status = "in_progress"
 title = "Encode the doc-example contract as a test so the next audit does not find it by hand"
 scores = { d = 5, b = 7, u = 4 }
 acceptance_criteria = ["A test walks every Elixir code block in the shipped documentation set and fails when a block names a public function that does not exist at the stated arity, or passes an option keyword that the receiving function never reads. The set is at minimum README.md, USAGE_RULES.md, every file under docs/, and the @moduledoc of every module under lib/ that ships in the Hex package", "The test distinguishes checkable blocks from illustrative ones by an explicit, documented rule rather than by heuristic guessing, and the rule is stated in the test module's @moduledoc. Blocks that are deliberately partial are opted out by a mechanism visible in the source document, not by a hardcoded skip list inside the test", "The test fails on a deliberately introduced regression and the failure message names the file, the line of the code block, and the offending symbol. Demonstrate this by temporarily reintroducing one of the nine defects listed in the body and showing the test catches it", "The false-positive rate is zero against the current tree: with the audit fixes in place the test passes without any per-file exclusion added to make it pass. If a document legitimately cannot satisfy the rule, the document is changed, not the test's exclusion set", "The test runs in the default mix test.json run without network access and is wired into mix precommit.full, so the gate catches drift rather than a later reviewer", "mix precommit.full is green with core coverage at or above the 90 floor"]
@@ -933,4 +933,5 @@ WHY B IS 7. Nothing is broken at runtime and no shipped code changes behavior. T
 WHY U IS 4. The nine defects are fixed, so nothing is currently wrong in the docs; the guard prevents the next drift rather than repairing present damage. It should land before the next release adds documentation on top of a rule nothing enforces.
 """
 created_at = "2026-08-23"
+started_at = "2026-08-24"
 scored_at = "2026-08-23"
