@@ -62,7 +62,7 @@ defmodule ZenWebsocket.Test.Support.DocsExampleContract do
   @spec blocks(String.t(), String.t()) :: [block()]
   def blocks(path, source) do
     if String.ends_with?(path, ".ex") do
-      moduledoc_blocks(path, source)
+      elixir_doc_blocks(path, source)
     else
       fence_blocks(path, source)
     end
@@ -136,11 +136,11 @@ defmodule ZenWebsocket.Test.Support.DocsExampleContract do
     end
   end
 
-  defp moduledoc_blocks(path, source) do
+  defp elixir_doc_blocks(path, source) do
     case Code.string_to_quoted(source) do
       {:ok, ast} ->
         ast
-        |> collect_moduledocs([])
+        |> collect_docs([])
         |> Enum.flat_map(fn {attr_line, doc} ->
           doc
           |> numbered_fences()
@@ -162,10 +162,11 @@ defmodule ZenWebsocket.Test.Support.DocsExampleContract do
     end
   end
 
-  defp collect_moduledocs(ast, acc) do
+  defp collect_docs(ast, acc) do
     {_, docs} =
       Macro.prewalk(ast, acc, fn
-        {:@, meta, [{:moduledoc, _, [doc]}]} = node, docs when is_binary(doc) ->
+        {:@, meta, [{kind, _, [doc]}]} = node, docs
+        when kind in [:moduledoc, :doc] and is_binary(doc) ->
           {node, [{meta[:line] || 1, doc} | docs]}
 
         node, docs ->

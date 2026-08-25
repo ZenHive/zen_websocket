@@ -6,9 +6,9 @@ defmodule ZenWebsocket.DocsExamplesTest do
   ## Checkable vs illustrative
 
   Every fenced `elixir` or `iex` block in README.md, USAGE_RULES.md, `docs/**`,
-  and every `@moduledoc` under `lib/` is **checkable** unless the source
-  document opts it out. Fences indented 0–3 spaces (CommonMark list items)
-  are included.
+  and every `@moduledoc` and public `@doc` under `lib/` is **checkable** unless
+  the source document opts it out. Fences indented 0–3 spaces (CommonMark list
+  items) are included.
 
   Opt out by putting the token `illustrative` on the fence (`elixir illustrative`)
   or as the first comment of the block (`# illustrative`). That marker lives in
@@ -36,6 +36,7 @@ defmodule ZenWebsocket.DocsExamplesTest do
   alias ZenWebsocket.Test.Support.DocsExampleContract
 
   @fixture "test/fixtures/docs_example_contract/heartbeat_interval_only.md"
+  @doc_fixture "test/fixtures/docs_example_contract/unknown_function_in_doc.ex"
 
   test "every checkable shipped example names a real function and readable options" do
     assert DocsExampleContract.violations() == []
@@ -149,5 +150,29 @@ defmodule ZenWebsocket.DocsExamplesTest do
     """
 
     assert DocsExampleContract.check("skip-comment.md", source) == []
+  end
+
+  test "nonexistent function in a @doc example names the module, fence line, and symbol" do
+    source = File.read!(@doc_fixture)
+    [violation] = DocsExampleContract.check(@doc_fixture, source)
+
+    assert violation.file == @doc_fixture
+    assert violation.line == 10
+    assert violation.symbol == "ZenWebsocket.Config.not_a_real_function/0"
+  end
+
+  test "illustrative fence token opts a @doc example out" do
+    source = """
+    defmodule SkipDocExample do
+      @doc \"\"\"
+      ```elixir illustrative
+      ZenWebsocket.Config.not_a_real_function()
+      ```
+      \"\"\"
+      def example, do: :ok
+    end
+    """
+
+    assert DocsExampleContract.check("skip_doc.ex", source) == []
   end
 end
