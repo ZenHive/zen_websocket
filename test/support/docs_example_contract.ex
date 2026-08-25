@@ -36,7 +36,13 @@ defmodule ZenWebsocket.Test.Support.DocsExampleContract do
              ])
 
   @type violation :: %{file: String.t(), line: pos_integer(), symbol: term(), message: String.t()}
-  @type block :: %{file: String.t(), line: pos_integer(), code: String.t(), illustrative?: boolean()}
+  @type block :: %{
+          file: String.t(),
+          line: pos_integer(),
+          code: String.t(),
+          illustrative?: boolean(),
+          fenced?: boolean()
+        }
 
   @spec shipped_files() :: [String.t()]
   def shipped_files do
@@ -146,6 +152,8 @@ defmodule ZenWebsocket.Test.Support.DocsExampleContract do
           |> numbered_fences()
           |> Enum.filter(&elixir_fence?/1)
           |> Enum.map(fn {line, info, code} ->
+            # attr_line is the `@doc`/`@moduledoc` line; heredoc content starts on the
+            # next source line, so content line n sits at source line attr_line + n.
             %{
               file: path,
               line: attr_line + line,
@@ -162,6 +170,8 @@ defmodule ZenWebsocket.Test.Support.DocsExampleContract do
     end
   end
 
+  # No visibility check needed: the compiler warns on and discards `@doc` before a
+  # defp, so every string @doc collected here documents a public definition.
   defp collect_docs(ast, acc) do
     {_, docs} =
       Macro.prewalk(ast, acc, fn
@@ -183,6 +193,7 @@ defmodule ZenWebsocket.Test.Support.DocsExampleContract do
     |> Enum.map(fn {line, code} ->
       %{
         file: path,
+        # same heredoc source-line arithmetic as elixir_doc_blocks/2
         line: attr_line + line,
         code: dedent(code),
         illustrative?: illustrative_comment?(code),

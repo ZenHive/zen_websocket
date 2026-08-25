@@ -182,6 +182,25 @@ defmodule ZenWebsocket.DocsExamplesTest do
     assert violation.symbol == "ZenWebsocket.Config.not_a_real_function/0"
   end
 
+  test "nonexistent function in an indented @doc block names the line and symbol" do
+    source = """
+    defmodule IndentedDocExample do
+      @doc \"\"\"
+      Example:
+
+          ZenWebsocket.Config.not_a_real_function()
+
+      \"\"\"
+      def example, do: :ok
+    end
+    """
+
+    [violation] = DocsExampleContract.check("indented_doc.ex", source)
+    assert violation.file == "indented_doc.ex"
+    assert violation.line == 5
+    assert violation.symbol == "ZenWebsocket.Config.not_a_real_function/0"
+  end
+
   test "illustrative fence token opts a @doc example out" do
     source = """
     defmodule SkipDocExample do
