@@ -974,7 +974,7 @@ scored_at = "2026-08-24"
 id = "21"
 phase = 1
 bundle = "hygiene"
-status = "in_progress"
+status = "done"
 title = "Extend the doc-example contract from @moduledoc to public @doc examples"
 scores = { d = 3, b = 6, u = 3 }
 depends_on = [19]
@@ -992,6 +992,13 @@ WHY THIS IS A SEPARATE TASK RATHER THAN A TASK 19 DEFECT. Task 19's written acce
 
 WHY U IS 3. Both known instances are already corrected, so nothing is currently wrong in the tree. The guard prevents the next drift in a surface that has now demonstrably drifted twice.
 """
+implemented = "Landed by grok via merge-train; reviewer-approved (run run-1787616359456-00648e78, d35767d1e3fda50f90f014d899c2793a16f24a4d)."
+delivered_by = "grok"
+verified = true
+verified_by = "cursor"
+verification_ref = "harness-run:run-1787616359456-00648e78"
 created_at = "2026-08-24"
 started_at = "2026-08-25"
 scored_at = "2026-08-24"
+done_at = "2026-08-25"
+shipped_in = "d35767d1e3fda50f90f014d899c2793a16f24a4d"

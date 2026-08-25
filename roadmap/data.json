@@ -1293,7 +1293,7 @@
       "id": "21",
       "phase": 1,
       "bundle": "hygiene",
-      "status": "in_progress",
+      "status": "done",
       "title": "Extend the doc-example contract from @moduledoc to public @doc examples",
       "scores": {
         "d": 3,
@@ -1324,10 +1324,17 @@
       "touches": [
         "test/zen_websocket/docs_examples_test.exs"
       ],
+      "shipped_in": "d35767d1e3fda50f90f014d899c2793a16f24a4d",
       "body": "DISCOVERED 2026-08-24 by the cross-family reviewer while gating task 19, and recorded in that run's verdict. The doc-example contract landed in task 19 walks fences in README.md, USAGE_RULES.md, docs/** and every shipped @moduledoc. It does not walk @doc, because collect_moduledocs matches only :moduledoc.\n\nTHE EVIDENCE THAT THIS IS A REAL HOLE AND NOT AN EXTENSION WISH. Grepping for the Client child-spec tuple during the review turned up two @doc examples that omit :handler and therefore discard every inbound frame - Client.child_spec/1 and UsagePatterns.supervised_client_spec/0. Those are exactly the defect class the nine 0.7.1 findings were made of, they are copy-pasteable, and the newly landed guard was blind to them. The reviewer fixed both by hand. The next @doc drift will not be caught.\n\nWHY THIS IS A SEPARATE TASK RATHER THAN A TASK 19 DEFECT. Task 19's written acceptance criteria named the @moduledoc of shipped modules, and the implementer delivered exactly that. The scope was too narrow; the delivery was not. Filing the correction against the landed invariant keeps the record honest rather than reopening a shipped task.\n\nWHY U IS 3. Both known instances are already corrected, so nothing is currently wrong in the tree. The guard prevents the next drift in a surface that has now demonstrably drifted twice.\n",
       "created_at": "2026-08-24",
       "started_at": "2026-08-25",
+      "done_at": "2026-08-25",
       "scored_at": "2026-08-24",
+      "implemented": "Landed by grok via merge-train; reviewer-approved (run run-1787616359456-00648e78, d35767d1e3fda50f90f014d899c2793a16f24a4d).",
+      "delivered_by": "grok",
+      "verified": true,
+      "verified_by": "cursor",
+      "verification_ref": "harness-run:run-1787616359456-00648e78",
       "cross_repo": []
     }
   ]
