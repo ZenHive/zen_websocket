@@ -101,10 +101,13 @@ defmodule ZenWebsocket.Examples.UsagePatterns do
      [
        url: "wss://test.deribit.com/ws/api/v2",
        id: :my_deribit_client,
+       handler: &log_message/1,
        heartbeat_config: %{type: :deribit, interval: 30_000},
        retry_count: 10
      ]}
   end
+
+  defp log_message(message), do: Logger.debug("WebSocket message: #{inspect(message)}")
 
   @spec jsonrpc_request(String.t(), term()) :: %{jsonrpc: String.t(), method: String.t(), params: term()}
   defp jsonrpc_request(method, params) do

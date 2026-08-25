@@ -79,6 +79,27 @@ defmodule ZenWebsocket.DocsExamplesTest do
     assert violation.symbol == "ZenWebsocket.Config.not_a_real_function/0"
   end
 
+  test "qualified missing application modules are ignored" do
+    source = """
+    ```elixir
+    MyApp.Config.not_a_real_function()
+    ```
+    """
+
+    assert DocsExampleContract.check("application.md", source) == []
+  end
+
+  test "unqualified library modules still resolve by their unique suffix" do
+    source = """
+    ```elixir
+    Config.not_a_real_function()
+    ```
+    """
+
+    [violation] = DocsExampleContract.check("short-name.md", source)
+    assert violation.symbol == "ZenWebsocket.Config.not_a_real_function/0"
+  end
+
   test "unknown option names the file, block line, and symbol" do
     source = """
     ```elixir

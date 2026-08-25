@@ -407,28 +407,30 @@ defmodule ZenWebsocket.Test.Support.DocsExampleContract do
   end
 
   defp zen_submodule(mod) do
-    case elixir_last_segment(mod) do
-      nil ->
-        nil
-
-      last ->
+    case elixir_module_parts(mod) do
+      [last] ->
         candidate = Module.concat(ZenWebsocket, last)
 
         if candidate != mod and match?({:module, _}, Code.ensure_loaded(candidate)) do
           candidate
         end
+
+      _ ->
+        nil
     end
   end
 
   defp unique_zen_suffix(mod) do
-    last = elixir_last_segment(mod)
-    if last, do: unique_suffix_match(last)
+    case elixir_module_parts(mod) do
+      [last] -> unique_suffix_match(last)
+      _ -> nil
+    end
   end
 
-  defp elixir_last_segment(mod) when is_atom(mod) do
+  defp elixir_module_parts(mod) when is_atom(mod) do
     case Atom.to_string(mod) do
-      "Elixir." <> _ = name -> name |> Module.split() |> List.last()
-      _ -> nil
+      "Elixir." <> _ = name -> Module.split(name)
+      _ -> []
     end
   end
 

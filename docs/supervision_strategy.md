@@ -217,8 +217,10 @@ defmodule TradingSystem.DeribitConnection do
   def init(opts) do
     # Start supervised connection
     url = "wss://test.deribit.com/ws/api/v2"
+    owner = self()
+
     config = [
-      handler: fn msg -> send(self(), {:ws, msg}) end,
+      handler: fn msg -> send(owner, {:ws, msg}) end,
       heartbeat_config: %{type: :deribit, interval: 30_000},
       retry_count: 10,
       retry_delay: 1000
@@ -242,8 +244,12 @@ defmodule TradingSystem.DeribitConnection do
       "trades.BTC-PERPETUAL.raw",
       "user.orders.BTC-PERPETUAL.raw"
     ])
-    
+
     {:ok, %{adapter: adapter}}
+  end
+
+  def handle_info({:ws, message}, state) do
+    {:noreply, Map.put(state, :last_message, message)}
   end
 end
 ```
