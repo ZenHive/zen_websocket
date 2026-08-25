@@ -49,11 +49,11 @@
 > Managed by `rmap` — source of truth is `roadmap/tasks.toml`. Run `rmap show <id>` for full task detail, `rmap next` to pick the next task.
 
 <!-- FOCUS:BEGIN -->
-**Focus phase:** 1 — Post-v0.6.1 Backlog (23 of 26 done · 0 in progress)
+**Focus phase:** 1 — Post-v0.6.1 Backlog (23 of 26 done · 1 in progress)
 
 **Last shipped:** Task 18 — Make the descripex agent surface describe the real public API, from one source of truth, Task 19 — Encode the doc-example contract as a test so the next audit does not find it by hand on 2026-08-24
 
-**Up next:** Task 21 — Extend the doc-example contract from @moduledoc to public @doc examples [D:3/B:6/U:3 → Eff:1.5] 🚀
+**Up next:** none — focus phase complete or all blocked
 <!-- FOCUS:END -->
 
 <!-- TASKS:BEGIN phase=1 -->
@@ -84,7 +84,7 @@
 | Task 18 | ✅ | 🎁 **correctness** · Make the descripex agent surface describe the real public API, from one source of truth [D:5/B:7/U:5 → Eff:1.2] 📋 |
 | Task 19 | ✅ | 🎁 **hygiene** · Encode the doc-example contract as a test so the next audit does not find it by hand [D:5/B:7/U:4 → Eff:1.1] 📋 |
 | Task 20 | ⛔ | 🎁 **hygiene** · Replace stale echo-service assumptions in the shipped subscription examples [D:4/B:7/U:6 → Eff:1.62] 🚀 |
-| Task 21 | ⬜ | 🎁 **hygiene** · Extend the doc-example contract from @moduledoc to public @doc examples [D:3/B:6/U:3 → Eff:1.5] 🚀 |
+| Task 21 | 🔄 | 🎁 **hygiene** · Extend the doc-example contract from @moduledoc to public @doc examples [D:3/B:6/U:3 → Eff:1.5] 🚀 |
 <!-- TASKS:END -->
 
 ### Quick Commands

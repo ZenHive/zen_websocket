@@ -974,7 +974,7 @@ scored_at = "2026-08-24"
 id = "21"
 phase = 1
 bundle = "hygiene"
-status = "pending"
+status = "in_progress"
 title = "Extend the doc-example contract from @moduledoc to public @doc examples"
 scores = { d = 3, b = 6, u = 3 }
 depends_on = [19]
@@ -993,4 +993,5 @@ WHY THIS IS A SEPARATE TASK RATHER THAN A TASK 19 DEFECT. Task 19's written acce
 WHY U IS 3. Both known instances are already corrected, so nothing is currently wrong in the tree. The guard prevents the next drift in a surface that has now demonstrably drifted twice.
 """
 created_at = "2026-08-24"
+started_at = "2026-08-25"
 scored_at = "2026-08-24"
