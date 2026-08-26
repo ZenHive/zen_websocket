@@ -1,7 +1,7 @@
 defmodule ZenWebsocket.MixProject do
   use Mix.Project
 
-  @version "0.8.0"
+  @version "0.9.0"
 
   # Core-only coverage floor. Measured 2026-08-21 via
   # `mix test.json --cover --exclude integration --include local_network`
@@ -147,7 +147,7 @@ defmodule ZenWebsocket.MixProject do
       # lands only through a deliberate `mix deps.update` behind `mix ci`. The
       # break-on-minor history that earned the cap (0.12.0 turned `short_name`
       # from atom to string) is being retired at descripex, not paid for here.
-      {:descripex, "~> 0.12"},
+      {:descripex, "~> 1.0"},
 
       # Documentation
       {:ex_doc, "~> 0.40", only: :dev, runtime: false},
