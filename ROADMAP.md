@@ -49,30 +49,30 @@
 > Managed by `rmap` — source of truth is `roadmap/tasks.toml`. Run `rmap show <id>` for full task detail, `rmap next` to pick the next task.
 
 <!-- FOCUS:BEGIN -->
-**Focus phase:** 1 — Post-v0.6.1 Backlog (24 of 26 done · 0 in progress)
+**Focus phase:** 1 — Post-v0.6.1 Backlog (24 of 28 done · 0 in progress)
 
-**Last shipped:** Task 21 — Extend the doc-example contract from @moduledoc to public @doc examples on 2026-08-25
+**Last shipped:** no recent shipments
 
-**Up next:** none — focus phase complete or all blocked
+**Up next:** Task 22 — Close MockWebSockServer's async handler and connection-registration race [D:3/B:6/U:6 → Eff:2.0] 🎯
 <!-- FOCUS:END -->
 
 <!-- TASKS:BEGIN phase=1 -->
 | Task | Status | Notes |
 |------|--------|-------|
-| Task R052 | ⛔ | 🎁 **code-quality** · Flatten Client.connect/2 control flow (dominator depth 22) [D:4/B:5/U:4 → Eff:1.12] 📋 |
-| Task R051 | ✅ | 🎁 **code-quality** · Decompose Reconnection.establish_connection/1 (dominator depth 39) [D:4/B:6/U:5 → Eff:1.38] 📋 |
-| Task R055 | ✅ | 🎁 **code-quality** · Extract duplicated Gun connect/reconnect log block in Client [D:2/B:3/U:2 → Eff:1.25] 📋 |
-| Task R056 | ✅ | 🎁 **ci** · Make CI coverage gate measure core library only [D:4/B:5/U:5 → Eff:1.25] 📋 |
+| Task R052 | ⛔ | 🎁 **code-quality** · Flatten Client.connect/2 control flow (dominator depth 22) [D:4/B:5/U:4 → Eff:1.12?] 📋 |
+| Task R051 | ✅ | 🎁 **code-quality** · Decompose Reconnection.establish_connection/1 (dominator depth 39) [D:4/B:6/U:5 → Eff:1.38?] 📋 |
+| Task R055 | ✅ | 🎁 **code-quality** · Extract duplicated Gun connect/reconnect log block in Client [D:2/B:3/U:2 → Eff:1.25?] 📋 |
+| Task R056 | ✅ | 🎁 **ci** · Make CI coverage gate measure core library only [D:4/B:5/U:5 → Eff:1.25?] 📋 |
 | Task R054 | ✅ | 🎁 **code-quality** · Deduplicate send_json_rpc/2 across the two Deribit adapters [D:2/B:4/U:4 → Eff:2.0?] 🎯 |
 | Task 1 | ✅ | 🎁 **code-quality** · Widen JsonRpc.build_request/2 params spec to accept list params [D:1/B:7/U:6 → Eff:6.5?] 🎯 |
-| Task 2 | ✅ | 🎁 **reconnect** · 🐛 Fix the reconnect state machine and its supervisor-side fallout [D:5/B:10/U:9 → Eff:1.9] 🚀 |
-| Task 3 | ✅ | 🎁 **correctness** · 🐛 Fix RateLimiter token race and the queue that discards requests [D:4/B:8/U:7 → Eff:1.88] 🚀 |
-| Task 4 | ✅ | 🎁 **correctness** · 🐛 Fix always-true guard, silent auth pass-through, subscription re-add, and recorder data loss [D:4/B:7/U:6 → Eff:1.62] 🚀 |
-| Task 5 | ✅ | 🎁 **correctness** · 🐛 Make heartbeat and pool health metrics report reality instead of a constant [D:3/B:7/U:6 → Eff:2.17] 🎯 |
-| Task 6 | ✅ | 🎁 **hygiene** · 🐛 Remove tests that pass on every outcome and tag the untagged network tests [D:3/B:8/U:7 → Eff:2.5] 🎯 |
-| Task 7 | ✅ | 🎁 **hygiene** · 📝 Make CLAUDE.md, README and the docs describe the library that actually ships [D:3/B:9/U:8 → Eff:2.83] 🎯 |
-| Task 8 | ✅ | 🎁 **hygiene** · Resolve three places where stated policy and shipped code disagree [D:3/B:6/U:5 → Eff:1.83] 🚀 |
-| Task 9 | ✅ | 🎁 **code-quality** · Extract three cross-module duplications that ex_dna does not catch [D:3/B:6/U:6 → Eff:2.0] 🎯 |
+| Task 2 | ✅ | 🎁 **reconnect** · 🐛 Fix the reconnect state machine and its supervisor-side fallout [D:5/B:10/U:9 → Eff:1.9?] 🚀 |
+| Task 3 | ✅ | 🎁 **correctness** · 🐛 Fix RateLimiter token race and the queue that discards requests [D:4/B:8/U:7 → Eff:1.88?] 🚀 |
+| Task 4 | ✅ | 🎁 **correctness** · 🐛 Fix always-true guard, silent auth pass-through, subscription re-add, and recorder data loss [D:4/B:7/U:6 → Eff:1.62?] 🚀 |
+| Task 5 | ✅ | 🎁 **correctness** · 🐛 Make heartbeat and pool health metrics report reality instead of a constant [D:3/B:7/U:6 → Eff:2.17?] 🎯 |
+| Task 6 | ✅ | 🎁 **hygiene** · 🐛 Remove tests that pass on every outcome and tag the untagged network tests [D:3/B:8/U:7 → Eff:2.5?] 🎯 |
+| Task 7 | ✅ | 🎁 **hygiene** · 📝 Make CLAUDE.md, README and the docs describe the library that actually ships [D:3/B:9/U:8 → Eff:2.83?] 🎯 |
+| Task 8 | ✅ | 🎁 **hygiene** · Resolve three places where stated policy and shipped code disagree [D:3/B:6/U:5 → Eff:1.83?] 🚀 |
+| Task 9 | ✅ | 🎁 **code-quality** · Extract three cross-module duplications that ex_dna does not catch [D:3/B:6/U:6 → Eff:2.0?] 🎯 |
 | Task 10 | ✅ | 🎁 **correctness** · 🐛 Give pool health a real pressure signal or drop the dead penalty [D:3/B:6/U:5 → Eff:1.83] 🚀 |
 | Task 11 | ✅ | 🎁 **hygiene** · Split mixed internet/mock-server suites so :external_network and :local_network can both be accurate [D:3/B:6/U:6 → Eff:2.0] 🎯 |
 | Task 12 | ✅ | 🎁 **hygiene** · Finish dual-tagging the suites task 11 left mixed or :integration-only [D:2/B:5/U:5 → Eff:2.5] 🎯 |
@@ -85,6 +85,8 @@
 | Task 19 | ✅ | 🎁 **hygiene** · Encode the doc-example contract as a test so the next audit does not find it by hand [D:5/B:7/U:4 → Eff:1.1] 📋 |
 | Task 20 | ⛔ | 🎁 **hygiene** · Replace stale echo-service assumptions in the shipped subscription examples [D:4/B:7/U:6 → Eff:1.62] 🚀 |
 | Task 21 | ✅ | 🎁 **hygiene** · Extend the doc-example contract from @moduledoc to public @doc examples [D:3/B:6/U:3 → Eff:1.5] 🚀 |
+| Task 22 | ⬜ | 🎁 **hygiene** · Close MockWebSockServer's async handler and connection-registration race [D:3/B:6/U:6 → Eff:2.0] 🎯 |
+| Task 23 | ⬜ | 🎁 **ci** · Prove AGENTS.md and advisory-mirror freshness without developer-host paths [D:4/B:7/U:5 → Eff:1.5] 🚀 |
 <!-- TASKS:END -->
 
 ### Quick Commands
