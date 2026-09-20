@@ -71,6 +71,7 @@ esac
 CLAUDE_MD="./CLAUDE.md"
 AGENTS_MD="./AGENTS.md"
 MAX_DEPTH=5
+INCLUDE_SNAPSHOT="$(cd "$(dirname "$0")/../priv/agent-includes" && pwd)"
 
 if [[ ! -f "$CLAUDE_MD" ]]; then
   echo "ERROR: $CLAUDE_MD not found in current directory" >&2
@@ -81,7 +82,14 @@ fi
 resolve_path() {
   local raw="$1"
   if [[ "$raw" == "~/"* ]]; then
-    printf '%s' "$HOME/${raw:2}"
+    local host_path="$HOME/${raw:2}"
+    if [[ -r "$host_path" ]]; then
+      printf '%s' "$host_path"
+    elif [[ "$raw" == '~/.claude/includes/'* ]]; then
+      printf '%s' "$INCLUDE_SNAPSHOT/${raw##*/}"
+    else
+      printf '%s' "$host_path"
+    fi
   else
     printf '%s' "$raw"
   fi
