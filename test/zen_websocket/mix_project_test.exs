@@ -100,6 +100,95 @@ defmodule ZenWebsocket.MixProjectTest do
     assert full == precommit
   end
 
+  # Before (origin/main at task start): check.dispatch -> precommit.full;
+  # ci -> precommit.full; agents.check / deps.audit.gated skipped via host_script
+  # when ~/_DATA/code/{claude-marketplace,onchain-stack} were absent.
+  # After: check.dispatch is format+compile; ci still -> precommit.full with
+  # every previous analyzer plus in-repo freshness scripts (no skip).
+  describe "alias graph (dispatch vs full QA)" do
+    test "check.dispatch is format and compile only" do
+      aliases = mix_aliases()
+
+      assert Keyword.fetch!(aliases, :"check.dispatch") == [
+               "format --check-formatted",
+               "compile --warnings-as-errors"
+             ]
+    end
+
+    test "check.dispatch does not run full-QA analyzers or the suite" do
+      joined = mix_aliases() |> Keyword.fetch!(:"check.dispatch") |> Enum.join(" ")
+
+      for needle <- ~w(credo doctor ex_dna reach sobelow cover dialyzer test.json deps.audit agents.check precommit.full) do
+        refute joined =~ needle
+      end
+    end
+
+    test "ci keeps the full QA entry point and does not go through check.dispatch" do
+      aliases = mix_aliases()
+
+      assert Keyword.fetch!(aliases, :ci) == ["precommit.full"]
+      refute "check.dispatch" in Keyword.fetch!(aliases, :"precommit.full")
+    end
+
+    test "precommit.full retains every analyzer removed from dispatch" do
+      full = mix_aliases() |> Keyword.fetch!(:"precommit.full") |> Enum.join(" ")
+
+      assert full =~ "compile --warnings-as-errors"
+      assert full =~ "format --check-formatted"
+      assert full =~ "credo --strict"
+      assert full =~ "doctor --raise"
+      assert full =~ "ex_dna --max-clones 0"
+      assert full =~ "reach.check --arch --smells"
+      assert full =~ "sobelow --skip"
+      assert full =~ "deps.audit.gated"
+      assert full =~ "test.json"
+      assert full =~ "--cover-threshold 90"
+      assert full =~ "dialyzer"
+      assert full =~ "agents.check"
+    end
+
+    test "deps.audit.gated proves freshness before the advisory scan" do
+      gated = Keyword.fetch!(mix_aliases(), :"deps.audit.gated")
+
+      assert match?([fun, "deps.audit --ignore-file .mix_audit_ignore"] when is_function(fun, 1), gated)
+    end
+
+    test "freshness gates use in-repo scripts and have no host-path skip" do
+      source = File.read!("mix.exs")
+
+      refute source =~ "[skip]"
+      refute source =~ "_DATA/code"
+      refute source =~ "host_script"
+      refute source =~ "developer-host script unavailable"
+      assert source =~ "bin/sync-agents-md.sh"
+      assert source =~ "bin/advisory-freshness.sh"
+
+      for name <- ["bin/sync-agents-md.sh", "bin/advisory-freshness.sh"] do
+        path = Path.expand(name)
+        assert File.regular?(path), "#{name} must be a tracked in-repo script"
+        assert executable?(path), "#{name} must be executable"
+      end
+    end
+
+    test "in-repo AGENTS.md check proves freshness without a marketplace host path" do
+      {output, status} =
+        System.cmd(Path.expand("bin/sync-agents-md.sh"), ["--check"], stderr_to_stdout: true)
+
+      assert status == 0, output
+      assert output =~ "OK:"
+      refute output =~ "[skip]"
+    end
+  end
+
+  defp mix_aliases, do: Keyword.fetch!(ZenWebsocket.MixProject.project(), :aliases)
+
+  defp executable?(path) do
+    case File.stat(path) do
+      {:ok, %File.Stat{mode: mode}} -> Bitwise.band(mode, 0o111) != 0
+      _error -> false
+    end
+  end
+
   defp coverage_ignore_modules do
     project = ZenWebsocket.MixProject.project()
     Keyword.fetch!(Keyword.fetch!(project, :test_coverage), :ignore_modules)

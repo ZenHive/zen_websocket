@@ -226,8 +226,8 @@ defmodule ZenWebsocket.MixProject do
         "cmd env MIX_ENV=test mix test.json --quiet --cover --cover-threshold #{@core_cover_threshold} --summary-only --exclude integration --include local_network",
         "sobelow --skip --exit low"
       ],
-      # Comprehensive gate — the harness reviewer's `check_command` and `mix ci`
-      # target.
+      # Comprehensive gate — `mix ci` and post-merge audit QA. Dispatch does
+      # not invoke this alias; slimming `check.dispatch` cannot drop these steps.
       "precommit.full": [
         "compile --warnings-as-errors",
         "format --check-formatted",
@@ -287,10 +287,14 @@ defmodule ZenWebsocket.MixProject do
         "deps.audit --ignore-file .mix_audit_ignore"
       ],
       ci: ["precommit.full"],
-      # Stable name the harness reviewer is told to run (`check_command`).
-      # Aliased rather than registered as `mix ci` so the dispatch gate can
-      # diverge from the local one later without re-registering the project.
-      "check.dispatch": ["precommit.full"],
+      # Dispatch-scale gate (harness `check_command`). Format + compile only;
+      # reviewers add focused behavior tests and risk-relevant live/security
+      # checks. Full suite, coverage, Dialyzer, Reach, Sobelow, Credo, Doctor,
+      # and clone detection stay on `precommit.full` / `ci`.
+      "check.dispatch": [
+        "format --check-formatted",
+        "compile --warnings-as-errors"
+      ],
       # Tidewave MCP server for Claude Code integration (non-Phoenix)
       tidewave: [
         "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4001) end)'"
@@ -321,29 +325,19 @@ defmodule ZenWebsocket.MixProject do
     ]
   end
 
-  # Both gates below shell out to scripts that live OUTSIDE this repo, on the
-  # developer host: the AGENTS.md renderer needs the claude-marketplace
-  # checkout plus ~/.claude/includes, and the advisory-freshness prover needs
-  # the local mix_audit mirror. A portable checkout may lack either path, and
-  # `mix cmd` with an absent path would abort the whole `mix ci` alias before
-  # test.json or dialyzer can run. Skip loudly when a host-only script is absent;
-  # the developer host and harness reviewer still get the full gate.
+  # Both gates shell out to scripts tracked in this repo (`bin/`), so a harness
+  # worktree and any other portable checkout actually run them. A missing
+  # in-repo script is a broken tree and fails that step; it does not skip and
+  # it does not use `mix cmd` against a developer-host path (that abort-before-
+  # tests behaviour is the reason the old skip existed).
   @spec agents_check([String.t()]) :: :ok
   defp agents_check(_args) do
-    host_script(
-      "~/_DATA/code/claude-marketplace/scripts/sync-agents-md.sh",
-      ["--check"],
-      "AGENTS.md freshness check"
-    )
+    repo_script("bin/sync-agents-md.sh", ["--check"], "AGENTS.md freshness check")
   end
 
   @spec advisory_freshness([String.t()]) :: :ok
   defp advisory_freshness(_args) do
-    host_script(
-      "~/_DATA/code/onchain-stack/bin/advisory-freshness.sh",
-      [],
-      "advisory-mirror freshness check"
-    )
+    repo_script("bin/advisory-freshness.sh", [], "advisory-mirror freshness check")
   end
 
   # Mix.Tasks.Test.Coverage matches regexes and atoms (`ignored_any?/2`).
@@ -377,21 +371,34 @@ defmodule ZenWebsocket.MixProject do
     ]
   end
 
-  @spec host_script(String.t(), [String.t()], String.t()) :: :ok
-  defp host_script(path, args, label) do
-    expanded = Path.expand(path)
+  @spec repo_script(String.t(), [String.t()], String.t()) :: :ok
+  defp repo_script(relative, args, label) do
+    expanded = Path.expand(relative, Path.dirname(Mix.Project.project_file()))
 
-    if File.exists?(expanded) do
-      {_out, status} =
-        System.cmd(expanded, args, into: IO.stream(:stdio, :line), stderr_to_stdout: true)
+    cond do
+      not File.regular?(expanded) ->
+        Mix.raise("#{label}: #{expanded} not found (in-repo QA script required)")
 
-      if status != 0 do
-        Mix.raise("#{label} failed (#{expanded} exited #{status})")
-      end
-    else
-      Mix.shell().info("[skip] #{label}: #{expanded} not found (developer-host script unavailable).")
+      not executable?(expanded) ->
+        Mix.raise("#{label}: #{expanded} exists but is not executable")
+
+      true ->
+        {_out, status} =
+          System.cmd(expanded, args, into: IO.stream(:stdio, :line), stderr_to_stdout: true)
+
+        if status != 0 do
+          Mix.raise("#{label} failed (#{expanded} exited #{status})")
+        end
     end
 
     :ok
+  end
+
+  @spec executable?(String.t()) :: boolean()
+  defp executable?(path) do
+    case File.stat(path) do
+      {:ok, %File.Stat{mode: mode}} -> Bitwise.band(mode, 0o111) != 0
+      _error -> false
+    end
   end
 end

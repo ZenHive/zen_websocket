@@ -26,7 +26,10 @@ mix deps.get
 # Fast local pre-commit loop (skips cold dialyzer PLT and full deps audit)
 mix precommit
 
-# Comprehensive gate — run before pushing or creating a PR
+# Dispatch-scale gate (format + compile). Reviewers add focused tests.
+mix check.dispatch
+
+# Full QA entry point (`mix ci`) — post-merge audit and comprehensive local runs
 mix precommit.full
 # This is aliased as 'mix ci' and runs, in order:
 #   - compile --warnings-as-errors
@@ -36,10 +39,10 @@ mix precommit.full
 #   - ex_dna --max-clones 0 (zero-clone duplication budget)
 #   - reach.check --arch --smells (architecture policy)
 #   - sobelow --skip (security scanning)
-#   - deps.audit.gated (advisory freshness + audit)
+#   - deps.audit.gated (in-repo advisory freshness + audit)
 #   - test.json --cover --cover-threshold 90 (90% minimum coverage)
 #   - dialyzer (type checking)
-#   - agents.check (AGENTS.md freshness)
+#   - agents.check (in-repo AGENTS.md freshness)
 ```
 
 ## Documentation
