@@ -1341,7 +1341,7 @@
       "id": "22",
       "phase": 1,
       "bundle": "hygiene",
-      "status": "pending",
+      "status": "in_progress",
       "title": "Close MockWebSockServer's async handler and connection-registration race",
       "scores": {
         "d": 3,
@@ -1381,6 +1381,7 @@
       ],
       "body": "DISCOVERED 2026-09-20 by the post-merge audit of 37db6c1 during cold mix precommit.full. The suite passed only because ex_unit_json retried three local_network failures (confirmed 0, flaky 3). The failures are the same race in MockWebSockServer, not flaky assertions.\n\nCowboy dispatch is compiled with handler: nil. websocket_init/1 sends {:get_handler_request, self()} to the parent GenServer and returns immediately. set_handler/2 only send/2s {:set_handler, handler} to connections already in state.connections, then stores the fun for later. A Client that upgrades and send_message/2 before websocket_info {:set_handler, ...} is processed hits websocket_handle/2's default clause and replies \"echo: \" <> msg. The audit mailbox for basic_usage_test.exs:61 was {:websocket_message, \"echo: test message\"} against assert_receive {:websocket_message, \"test message\"}; the sequence test at line 74 showed the same prefix on \"first\". Retry later won the race, so the gate stayed green.\n\ninject_message/2 in lib/zen_websocket/testing/server.ex has the sibling hole: it enumerates get_connections/1, which is empty until the parent handles {:get_handler_request, ...}. testing_test.exs:68 timed out with an empty mailbox after inject_message of a JSON notification.\n\nShip a handshake so a new connection observes the current handler (and appears in get_connections/1) before Client.connect/2 returns to the caller. Do not paper it with sleep. The default echo: prefix can stay for tests that want it; tests that call set_handler/2 must not observe it.\n\nWHY THIS IS DISPATCHED. It is a real-socket MockWebSockServer race on the local cowboy/websock stack, and it sits on the coverage-gate path (:integration + :local_network). Both are dispatch triggers. The audit does not implement it.\n",
       "created_at": "2026-09-20",
+      "started_at": "2026-09-20",
       "scored_at": "2026-09-20",
       "cross_repo": []
     },
