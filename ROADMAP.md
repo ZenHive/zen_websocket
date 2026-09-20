@@ -49,7 +49,7 @@
 > Managed by `rmap` — source of truth is `roadmap/tasks.toml`. Run `rmap show <id>` for full task detail, `rmap next` to pick the next task.
 
 <!-- FOCUS:BEGIN -->
-**Focus phase:** 1 — Post-v0.6.1 Backlog (24 of 28 done · 0 in progress)
+**Focus phase:** 1 — Post-v0.6.1 Backlog (24 of 28 done · 1 in progress)
 
 **Last shipped:** no recent shipments
 
@@ -86,7 +86,7 @@
 | Task 20 | ⛔ | 🎁 **hygiene** · Replace stale echo-service assumptions in the shipped subscription examples [D:4/B:7/U:6 → Eff:1.62] 🚀 |
 | Task 21 | ✅ | 🎁 **hygiene** · Extend the doc-example contract from @moduledoc to public @doc examples [D:3/B:6/U:3 → Eff:1.5] 🚀 |
 | Task 22 | ⬜ | 🎁 **hygiene** · Close MockWebSockServer's async handler and connection-registration race [D:3/B:6/U:6 → Eff:2.0] 🎯 |
-| Task 23 | ⬜ | 🎁 **ci** · Prove AGENTS.md and advisory-mirror freshness without developer-host paths [D:4/B:7/U:5 → Eff:1.5] 🚀 |
+| Task 23 | 🔄 | 🎁 **ci** · Prove AGENTS.md and advisory-mirror freshness without developer-host paths [D:4/B:7/U:5 → Eff:1.5] 🚀 |
 <!-- TASKS:END -->
 
 ### Quick Commands
