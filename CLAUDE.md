@@ -3,6 +3,7 @@
 @~/.claude/includes/verification-policy.md
 
 @~/.claude/includes/critical-rules.md
+@~/.claude/includes/elixir-security-adjudications.md
 @~/.claude/includes/harness-workflow.md
 
 <!--
