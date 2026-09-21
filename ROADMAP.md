@@ -49,9 +49,9 @@
 > Managed by `rmap` — source of truth is `roadmap/tasks.toml`. Run `rmap show <id>` for full task detail, `rmap next` to pick the next task.
 
 <!-- FOCUS:BEGIN -->
-**Focus phase:** 1 — Post-v0.6.1 Backlog (25 of 28 done · 1 in progress)
+**Focus phase:** 1 — Post-v0.6.1 Backlog (26 of 28 done · 0 in progress)
 
-**Last shipped:** Task 23 — Prove AGENTS.md and advisory-mirror freshness without developer-host paths on 2026-09-20
+**Last shipped:** Task 22 — Close MockWebSockServer's async handler and connection-registration race on 2026-09-21
 
 **Up next:** none — focus phase complete or all blocked
 <!-- FOCUS:END -->
@@ -73,19 +73,19 @@
 | Task 7 | ✅ | 🎁 **hygiene** · 📝 Make CLAUDE.md, README and the docs describe the library that actually ships [D:3/B:9/U:8 → Eff:2.83?] 🎯 |
 | Task 8 | ✅ | 🎁 **hygiene** · Resolve three places where stated policy and shipped code disagree [D:3/B:6/U:5 → Eff:1.83?] 🚀 |
 | Task 9 | ✅ | 🎁 **code-quality** · Extract three cross-module duplications that ex_dna does not catch [D:3/B:6/U:6 → Eff:2.0?] 🎯 |
-| Task 10 | ✅ | 🎁 **correctness** · 🐛 Give pool health a real pressure signal or drop the dead penalty [D:3/B:6/U:5 → Eff:1.83] 🚀 |
-| Task 11 | ✅ | 🎁 **hygiene** · Split mixed internet/mock-server suites so :external_network and :local_network can both be accurate [D:3/B:6/U:6 → Eff:2.0] 🎯 |
-| Task 12 | ✅ | 🎁 **hygiene** · Finish dual-tagging the suites task 11 left mixed or :integration-only [D:2/B:5/U:5 → Eff:2.5] 🎯 |
-| Task 13 | ✅ | 🎁 **hygiene** · Close remaining NetworkTagGuard holes: over-tagging and local sockets that are not MockWebSockServer [D:3/B:5/U:4 → Eff:1.5] 🚀 |
-| Task 14 | ✅ | 🎁 **code-quality** · Decompose Client into responsibility-scoped modules (1227 lines, 3.3x the next-largest module) [D:6/B:7/U:6 → Eff:1.08] 📋 |
-| Task 15 | ✅ | 🎁 **code-quality** · Un-break Client module namespacing by fixing the validate_usage regex that forced flat names [D:3/B:6/U:5 → Eff:1.83] 🚀 |
-| Task 16 | ✅ | 🎁 **hygiene** · Make the 0.7.0 release record correct: four undocumented removals, one false claim, six breaks filed under Fixed [D:4/B:7/U:6 → Eff:1.62] 🚀 |
-| Task 17 | ✅ | 🎁 **correctness** · Decide whether SubscriptionManager's narrowing to Deribit's JSON-RPC dialect is intended, and make the result explicit [D:4/B:6/U:4 → Eff:1.25] 📋 |
+| Task 10 | ✅ | 🎁 **correctness** · 🐛 Give pool health a real pressure signal or drop the dead penalty [D:3/B:6/U:5 → Eff:1.83?] 🚀 |
+| Task 11 | ✅ | 🎁 **hygiene** · Split mixed internet/mock-server suites so :external_network and :local_network can both be accurate [D:3/B:6/U:6 → Eff:2.0?] 🎯 |
+| Task 12 | ✅ | 🎁 **hygiene** · Finish dual-tagging the suites task 11 left mixed or :integration-only [D:2/B:5/U:5 → Eff:2.5?] 🎯 |
+| Task 13 | ✅ | 🎁 **hygiene** · Close remaining NetworkTagGuard holes: over-tagging and local sockets that are not MockWebSockServer [D:3/B:5/U:4 → Eff:1.5?] 🚀 |
+| Task 14 | ✅ | 🎁 **code-quality** · Decompose Client into responsibility-scoped modules (1227 lines, 3.3x the next-largest module) [D:6/B:7/U:6 → Eff:1.08?] 📋 |
+| Task 15 | ✅ | 🎁 **code-quality** · Un-break Client module namespacing by fixing the validate_usage regex that forced flat names [D:3/B:6/U:5 → Eff:1.83?] 🚀 |
+| Task 16 | ✅ | 🎁 **hygiene** · Make the 0.7.0 release record correct: four undocumented removals, one false claim, six breaks filed under Fixed [D:4/B:7/U:6 → Eff:1.62?] 🚀 |
+| Task 17 | ✅ | 🎁 **correctness** · Decide whether SubscriptionManager's narrowing to Deribit's JSON-RPC dialect is intended, and make the result explicit [D:4/B:6/U:4 → Eff:1.25?] 📋 |
 | Task 18 | ✅ | 🎁 **correctness** · Make the descripex agent surface describe the real public API, from one source of truth [D:5/B:7/U:5 → Eff:1.2] 📋 |
 | Task 19 | ✅ | 🎁 **hygiene** · Encode the doc-example contract as a test so the next audit does not find it by hand [D:5/B:7/U:4 → Eff:1.1] 📋 |
 | Task 20 | ⛔ | 🎁 **hygiene** · Replace stale echo-service assumptions in the shipped subscription examples [D:4/B:7/U:6 → Eff:1.62] 🚀 |
 | Task 21 | ✅ | 🎁 **hygiene** · Extend the doc-example contract from @moduledoc to public @doc examples [D:3/B:6/U:3 → Eff:1.5] 🚀 |
-| Task 22 | 🔄 | 🎁 **hygiene** · Close MockWebSockServer's async handler and connection-registration race [D:3/B:6/U:6 → Eff:2.0] 🎯 |
+| Task 22 | ✅ | 🎁 **hygiene** · Close MockWebSockServer's async handler and connection-registration race [D:3/B:6/U:6 → Eff:2.0] 🎯 |
 | Task 23 | ✅ | 🎁 **ci** · Prove AGENTS.md and advisory-mirror freshness without developer-host paths [D:4/B:7/U:5 → Eff:1.5] 🚀 |
 <!-- TASKS:END -->
 

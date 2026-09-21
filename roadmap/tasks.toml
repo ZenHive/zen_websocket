@@ -1007,7 +1007,7 @@ shipped_in = "d35767d1e3fda50f90f014d899c2793a16f24a4d"
 id = "22"
 phase = 1
 bundle = "hygiene"
-status = "in_progress"
+status = "done"
 title = "Close MockWebSockServer's async handler and connection-registration race"
 scores = { d = 3, b = 6, u = 6 }
 acceptance_criteria = ["After MockWebSockServer.set_handler/2, a Client that connects and immediately send_message/2 always receives the custom handler reply, never the compiled-in default echo: prefix", "Testing.inject_message/2 after Client.connect/2 delivers the payload to the connected client; the mailbox is not empty because get_connections/1 was still empty", "Focused tests pin both races without Process.sleep and without depending on ExUnit's flaky retry", "mix test.json --quiet --exclude integration --include local_network of the previously flaky files is green with zero flaky retries", "mix precommit.full is green with core coverage at or above the 90 floor"]
@@ -1027,9 +1027,16 @@ Ship a handshake so a new connection observes the current handler (and appears i
 
 WHY THIS IS DISPATCHED. It is a real-socket MockWebSockServer race on the local cowboy/websock stack, and it sits on the coverage-gate path (:integration + :local_network). Both are dispatch triggers. The audit does not implement it.
 """
+implemented = "Landed by cursor via merge-train; reviewer-approved (run run-1789948504558-db0ac143, a9dcc6af404d9c55906d1a7b23350854ff14be01)."
+delivered_by = "cursor"
+verified = true
+verified_by = "codex"
+verification_ref = "harness-run:run-1789948504558-db0ac143"
 created_at = "2026-09-20"
 started_at = "2026-09-20"
 scored_at = "2026-09-20"
+done_at = "2026-09-21"
+shipped_in = "a9dcc6af404d9c55906d1a7b23350854ff14be01"
 
 [[task]]
 id = "23"
