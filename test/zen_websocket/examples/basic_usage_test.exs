@@ -72,22 +72,23 @@ defmodule ZenWebsocket.Examples.BasicUsageTest do
     end
 
     @tag timeout: 10_000
-    test "custom handler replies on the first frame after connect" do
-      Enum.each(1..12, fn _ ->
-        {:ok, server, port} = MockWebSockServer.start_link()
+    test "custom handler replies on the first frame after connect", %{server: server, mock_url: mock_url} do
+      # Registration must not depend on the parent processing an async request.
+      :ok = :sys.suspend(server)
 
-        MockWebSockServer.set_handler(server, fn
-          {:text, msg} -> {:reply, {:text, msg}}
-        end)
+      try do
+        assert {:ok, client} = Client.connect(mock_url)
 
-        assert {:ok, client} = Client.connect("ws://localhost:#{port}/ws")
-        assert :ok = Client.send_message(client, "race-pin")
-        assert_receive {:websocket_message, "race-pin"}, 5_000
-        refute_received {:websocket_message, "echo: race-pin"}
-
-        assert :ok = Client.close(client)
-        MockWebSockServer.stop(server)
-      end)
+        try do
+          assert :ok = Client.send_message(client, "race-pin")
+          assert_receive {:websocket_message, "race-pin"}, 5_000
+          refute_received {:websocket_message, "echo: race-pin"}
+        after
+          Client.close(client)
+        end
+      after
+        :sys.resume(server)
+      end
     end
 
     @tag timeout: 10_000

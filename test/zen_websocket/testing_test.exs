@@ -89,9 +89,9 @@ defmodule ZenWebsocket.TestingTest do
         {:ok, server} = Testing.start_mock_server()
         {:ok, client} = ZenWebsocket.Client.connect(server.url)
 
-        assert map_size(MockWebSockServer.get_connections(server.pid)) == 1
         :ok = Testing.inject_message(server, ~s({"type": "notification"}))
         assert_receive {:websocket_message, %{"type" => "notification"}}, 1000
+        assert map_size(MockWebSockServer.get_connections(server.pid)) == 1
 
         ZenWebsocket.Client.close(client)
         Testing.stop_server(server)
