@@ -109,16 +109,7 @@ defmodule ZenWebsocket.Testing.Server do
   @doc false
   @spec inject_message(map(), binary()) :: :ok
   def inject_message(%{pid: pid}, message) do
-    connections = apply(@mock_server_module, :get_connections, [pid])
-
-    Enum.each(connections, fn {_ref, ws_pid} ->
-      if Process.alive?(ws_pid) do
-        # Send text frame directly via websocket_info callback
-        send(ws_pid, {:send_text, message})
-      end
-    end)
-
-    :ok
+    apply(@mock_server_module, :broadcast_text, [pid, message])
   end
 
   @doc false

@@ -72,22 +72,21 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
     @moduledoc false
     @behaviour :cowboy_websocket
 
+    alias ZenWebsocket.Test.Support.MockWebSockServer
+
     def init(req, state) do
-      # Capture request path and query for test assertions
       qs = :cowboy_req.qs(req)
       path = :cowboy_req.path(req)
-      {:cowboy_websocket, req, Map.merge(state, %{request_path: path, request_query: qs})}
+      handler = take_handler(state, websocket_pid(req))
+      {:cowboy_websocket, req, Map.merge(state, %{request_path: path, request_query: qs, handler: handler})}
     end
 
-    def websocket_init(%{parent: parent} = state) do
-      # Register with parent and request current handler
-      send(parent, {:get_handler_request, self()})
-      {:ok, state}
+    def websocket_init(state) do
+      {:ok, Map.put(state, :handler, take_handler(state, self()))}
     end
 
-    def websocket_handle({:text, "internal:get_handler"}, %{parent: parent} = state) do
-      send(parent, {:get_handler_request, self()})
-      {:ok, state}
+    def websocket_handle({:text, "internal:get_handler"}, state) do
+      {:ok, Map.put(state, :handler, take_handler(state, self()))}
     end
 
     def websocket_handle({:text, "internal:get_request_info"}, state) do
@@ -147,6 +146,14 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
       Logger.debug("WebSocketHandler terminating: #{inspect(reason)}")
       :ok
     end
+
+    # HTTP/1.1 takeover runs in the connection process (`req.pid`), not the
+    # stream process that executes init/2. HTTP/2 takeover stays on self().
+    defp websocket_pid(%{version: :"HTTP/1.1", pid: pid}) when is_pid(pid), do: pid
+    defp websocket_pid(_req), do: self()
+
+    defp take_handler(%{table: table}, ws_pid), do: MockWebSockServer.handshake(table, ws_pid)
+    defp take_handler(_state, _ws_pid), do: nil
   end
 
   def start_link(options \\ []) do
@@ -174,6 +181,25 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
     GenServer.call(server, :get_connections)
   end
 
+  @doc false
+  @spec broadcast_text(pid(), binary()) :: :ok
+  def broadcast_text(server, message) when is_binary(message) do
+    GenServer.call(server, {:broadcast_text, message})
+  end
+
+  @doc false
+  @spec handshake(:ets.tid(), pid()) :: (term() -> term()) | nil
+  def handshake(table, ws_pid) when is_pid(ws_pid) do
+    :ets.insert(table, {{:conn, ws_pid}, true})
+
+    case :ets.lookup(table, :handler) do
+      [{:handler, handler}] -> handler
+      _ -> nil
+    end
+  rescue
+    ArgumentError -> nil
+  end
+
   def stop(server) do
     if Process.alive?(server) do
       GenServer.call(server, :stop, 10_000)
@@ -190,13 +216,15 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
 
     # Use a unique name for each server instance to avoid conflicts
     server_name = :"mock_websocket_server_#{System.unique_integer([:positive])}"
+    table = :ets.new(:mock_websock_server, [:set, :public])
+    :ets.insert(table, {:handler, nil})
 
     # Define the dispatch rules for cowboy
     dispatch =
       :cowboy_router.compile([
         {:_,
          [
-           {@default_path, WebSocketHandler, %{parent: self(), handler: nil}}
+           {@default_path, WebSocketHandler, %{parent: self(), handler: nil, table: table}}
          ]}
       ])
 
@@ -251,7 +279,8 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
        listener_pid: listener_pid,
        connections: %{},
        handler: nil,
-       server_name: server_name
+       server_name: server_name,
+       table: table
      }, {:continue, {:return_port, actual_port}}}
   end
 
@@ -260,14 +289,21 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
   end
 
   def handle_call({:set_handler, handler}, _from, state) do
-    # Set the handler for all current connections
-    Enum.each(Map.values(state.connections), fn ws_pid ->
-      if Process.alive?(ws_pid) do
-        send(ws_pid, {:set_handler, handler})
-      end
+    :ets.insert(state.table, {:handler, handler})
+
+    Enum.each(live_connection_pids(state), fn ws_pid ->
+      send(ws_pid, {:set_handler, handler})
     end)
 
     {:reply, :ok, %{state | handler: handler}}
+  end
+
+  def handle_call({:broadcast_text, message}, _from, state) do
+    Enum.each(live_connection_pids(state), fn ws_pid ->
+      send(ws_pid, {:send_text, message})
+    end)
+
+    {:reply, :ok, state}
   end
 
   def handle_call(:get_port, _from, state) do
@@ -275,11 +311,10 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
   end
 
   def handle_call(:get_connections, _from, state) do
-    # Filter out dead connections
     live_connections =
-      state.connections
-      |> Enum.filter(fn {_, pid} -> Process.alive?(pid) end)
-      |> Map.new()
+      state
+      |> live_connection_pids()
+      |> Map.new(fn pid -> {make_ref(), pid} end)
 
     {:reply, live_connections, %{state | connections: live_connections}}
   end
@@ -293,16 +328,13 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
   end
 
   def handle_info({:get_handler_request, ws_pid}, state) do
-    # Register the new connection
-    ref = make_ref()
-    updated_connections = Map.put(state.connections, ref, ws_pid)
+    handler = handshake(state.table, ws_pid)
 
-    # Send the current handler to the connection
-    if state.handler != nil do
-      send(ws_pid, {:set_handler, state.handler})
+    if handler != nil do
+      send(ws_pid, {:set_handler, handler})
     end
 
-    {:noreply, %{state | connections: updated_connections}}
+    {:noreply, state}
   end
 
   def handle_info(info, state) do
@@ -315,6 +347,18 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
       :cowboy.stop_listener(state.server_name)
     end
 
+    if table = Map.get(state, :table) do
+      :ets.delete(table)
+    end
+
     :ok
+  end
+
+  defp live_connection_pids(%{table: table}) do
+    table
+    |> :ets.select([{{{:conn, :"$1"}, :_}, [], [:"$1"]}])
+    |> Enum.filter(&Process.alive?/1)
+  rescue
+    ArgumentError -> []
   end
 end

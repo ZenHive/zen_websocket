@@ -1,6 +1,7 @@
 defmodule ZenWebsocket.TestingTest do
   use ExUnit.Case, async: false
 
+  alias ZenWebsocket.Test.Support.MockWebSockServer
   alias ZenWebsocket.Testing
 
   @moduletag :integration
@@ -71,6 +72,8 @@ defmodule ZenWebsocket.TestingTest do
       # Connect a client
       {:ok, client} = ZenWebsocket.Client.connect(server.url)
 
+      assert map_size(MockWebSockServer.get_connections(server.pid)) == 1
+
       # Inject a message from server
       :ok = Testing.inject_message(server, ~s({"type": "notification"}))
 
@@ -79,6 +82,20 @@ defmodule ZenWebsocket.TestingTest do
 
       ZenWebsocket.Client.close(client)
       Testing.stop_server(server)
+    end
+
+    test "delivers immediately after connect without an empty connection table" do
+      Enum.each(1..12, fn _ ->
+        {:ok, server} = Testing.start_mock_server()
+        {:ok, client} = ZenWebsocket.Client.connect(server.url)
+
+        assert map_size(MockWebSockServer.get_connections(server.pid)) == 1
+        :ok = Testing.inject_message(server, ~s({"type": "notification"}))
+        assert_receive {:websocket_message, %{"type" => "notification"}}, 1000
+
+        ZenWebsocket.Client.close(client)
+        Testing.stop_server(server)
+      end)
     end
 
     test "handles no connected clients gracefully" do

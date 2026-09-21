@@ -66,8 +66,28 @@ defmodule ZenWebsocket.Examples.BasicUsageTest do
 
       # Receive the echo
       assert_receive {:websocket_message, "test message"}, 5_000
+      refute_received {:websocket_message, "echo: test message"}
 
       assert :ok = Client.close(client)
+    end
+
+    @tag timeout: 10_000
+    test "custom handler replies on the first frame after connect" do
+      Enum.each(1..12, fn _ ->
+        {:ok, server, port} = MockWebSockServer.start_link()
+
+        MockWebSockServer.set_handler(server, fn
+          {:text, msg} -> {:reply, {:text, msg}}
+        end)
+
+        assert {:ok, client} = Client.connect("ws://localhost:#{port}/ws")
+        assert :ok = Client.send_message(client, "race-pin")
+        assert_receive {:websocket_message, "race-pin"}, 5_000
+        refute_received {:websocket_message, "echo: race-pin"}
+
+        assert :ok = Client.close(client)
+        MockWebSockServer.stop(server)
+      end)
     end
 
     @tag timeout: 10_000
@@ -85,6 +105,8 @@ defmodule ZenWebsocket.Examples.BasicUsageTest do
       for msg <- messages do
         assert_receive {:websocket_message, ^msg}, 5_000
       end
+
+      refute_received {:websocket_message, "echo: " <> _}
 
       assert :ok = Client.close(client)
     end
