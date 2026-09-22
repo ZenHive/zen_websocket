@@ -91,6 +91,27 @@ defmodule ZenWebsocket.Examples.BasicUsageTest do
       end
     end
 
+    test "handler updates and broadcasts use registered connections", %{server: server, mock_url: mock_url} do
+      assert {:ok, client} = Client.connect(mock_url)
+
+      try do
+        assert map_size(MockWebSockServer.get_connections(server)) == 1
+
+        assert :ok =
+                 MockWebSockServer.set_handler(server, fn {:text, message} ->
+                   {:reply, {:text, "updated: " <> message}}
+                 end)
+
+        # The server sends both messages in order, so receipt proves the handler update was applied.
+        assert :ok = MockWebSockServer.broadcast_text(server, "handler ready")
+        assert_receive {:websocket_message, "handler ready"}, 1000
+        assert :ok = Client.send_message(client, "probe")
+        assert_receive {:websocket_message, "updated: probe"}, 1000
+      after
+        Client.close(client)
+      end
+    end
+
     @tag timeout: 10_000
     test "multiple messages in sequence", %{mock_url: mock_url} do
       assert {:ok, client} = Client.connect(mock_url)

@@ -1446,6 +1446,40 @@
       "verified_by": "codex",
       "verification_ref": "harness-run:run-1789946967845-28a49337",
       "cross_repo": []
+    },
+    {
+      "id": "24",
+      "phase": 1,
+      "bundle": "ci",
+      "status": "pending",
+      "title": "Make network-tag validation account for subprocess-owned live calls",
+      "scores": {
+        "d": 3,
+        "b": 5,
+        "u": 5
+      },
+      "eff": 1.67,
+      "dep_layer": 0,
+      "unlocks": 0,
+      "markers": [],
+      "depends_on": [],
+      "assignee": "codex",
+      "model": "gpt-6-astra",
+      "acceptance_criteria": [
+        "NetworkTagGuard accepts the correctly tagged live advisory freshness test, whose System.cmd subprocess executes git against the provider",
+        "Regression coverage preserves rejection of incorrectly tagged pure tests and missing tags on local and external network tests; do not remove network tags or introduce a per-file skip",
+        "The live freshness test still proves cold success plus dirty and offline failures against the actual upstream",
+        "Focused network-tag guard and freshness tests pass without weakening existing assertions or exclusion defaults"
+      ],
+      "files_to_modify": [
+        "test/support/network_tag_guard.ex",
+        "test/zen_websocket/network_tag_guard_test.exs",
+        "test/zen_websocket/freshness_test.exs"
+      ],
+      "body": "Post-merge QA at 799f62c9d9fca650b9bc50411d2e955141144437: mix precommit.full confirmed test/zen_websocket/network_tag_guard_test.exs:8 fails because the live advisory test is classified as external_network without internet socket and integration without network socket. The helper invokes mix deps.audit.gated through System.cmd; the shell script performs real git clone/fetch. An independent live run of freshness_test.exs with integration and external_network included passed all three tests. This is a guard boundary limitation, not incorrect tags. Tasks 12 and 13 covered direct socket classification and are done; task 23 introduced the subprocess boundary and is done. No pending task covers this cause. Preserve provider-owned live verification and the bidirectional tagging invariant; decide how to represent subprocess effects without pretending static syntax proves arbitrary command behavior. See .audit/799f62c.md for QA evidence. The separate AGENTS snapshot drift found in the same audit was repaired inline. This repair requires normal implementation and independent review.",
+      "created_at": "2026-09-22",
+      "scored_at": "2026-09-22",
+      "cross_repo": []
     }
   ]
 }

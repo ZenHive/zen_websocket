@@ -277,8 +277,6 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
      %{
        port: actual_port,
        listener_pid: listener_pid,
-       connections: %{},
-       handler: nil,
        server_name: server_name,
        table: table
      }, {:continue, {:return_port, actual_port}}}
@@ -295,7 +293,7 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
       send(ws_pid, {:set_handler, handler})
     end)
 
-    {:reply, :ok, %{state | handler: handler}}
+    {:reply, :ok, state}
   end
 
   def handle_call({:broadcast_text, message}, _from, state) do
@@ -316,7 +314,7 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
       |> live_connection_pids()
       |> Map.new(fn pid -> {make_ref(), pid} end)
 
-    {:reply, live_connections, %{state | connections: live_connections}}
+    {:reply, live_connections, state}
   end
 
   def handle_call(:stop, _from, state) do
@@ -325,16 +323,6 @@ defmodule ZenWebsocket.Test.Support.MockWebSockServer do
     end
 
     {:stop, :normal, :ok, state}
-  end
-
-  def handle_info({:get_handler_request, ws_pid}, state) do
-    handler = handshake(state.table, ws_pid)
-
-    if handler != nil do
-      send(ws_pid, {:set_handler, handler})
-    end
-
-    {:noreply, state}
   end
 
   def handle_info(info, state) do

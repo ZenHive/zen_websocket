@@ -710,7 +710,7 @@ The two blind classes, both real-correctness, both passing every per-task check:
   - **Report the net backlog delta** (landed − filed) as an explicit number in every wave/session wrap-up. A session trending ±0 or negative-growth is the churn alarm firing — tighten the decline bar, don't normalize it.
 - **Witness notification is sakshi (read-only).** Landing outcomes notify via configured command sink; the sink grants no merge capability. Human operator reviews blocked/conflict outcomes — harness does not silently force-push past conflicts.
 - **`check_command` is a dispatch-scale hint to the reviewer.** Free text (e.g. explicit format + compile commands for Elixir with focused tests chosen by the reviewer) — the reviewer runs and judges it; harness does not execute it mechanically. Use `verification-policy.md` to select scope; a hint that expands to full QA must not impose it on each run. Full-suite commands like `mix precommit.full` belong on `qa_command` for post-merge audit QA. Operator rollout: `mix harness.projects.rollout_dispatch_qa` (dry-run default). For verbose checks, capture to a per-run `mktemp` log on the first execution; never re-run only to recover truncated output.
-- **The cross-family reviewer reads `AGENTS.md`, not your Claude skills/includes.** `AGENTS.md` is generated from `CLAUDE.md` by `claude-marketplace/scripts/sync-agents-md.sh`, which recursively inlines every `@`-import. **Regenerate it after any `CLAUDE.md` change** (`bash ~/_DATA/code/claude-marketplace/scripts/sync-agents-md.sh`, or `--dry-run` to preview) so the reviewer gates against current rules — a stale `AGENTS.md` makes codex/cursor/grok judge against rules you've already changed. **`--check` is the freshness gate** — it re-renders in memory and exits non-zero if `AGENTS.md` has drifted (diffs rendered output, not mtimes, so it catches drift in transitive `@`-imports too); wire it into CI / a pre-commit hook / the `check_command` so staleness fails loudly instead of silently. Consequence under Opus-4.8 skill-on-demand: once `CLAUDE.md` slims to the eager floor, reviewer-critical facts that *were* carried by eager includes (the `check_command` gate; that `mix test.json` / `mix dialyzer.json` emit JSON **by design** — parse for real failures, never flag the envelope; plain `mix dialyzer` is authoritative when the JSON encoder can't serialize a warning) no longer reach `AGENTS.md` via those imports. Put them in a **self-contained `## Toolchain & check commands` section in `CLAUDE.md`** so they survive the slim-down and flow into `AGENTS.md` on regen (ref: `tapakly/CLAUDE.md`, `ccxt_extract/CLAUDE.md`).
+- **The cross-family reviewer reads `AGENTS.md`, not your Claude skills/includes.** `AGENTS.md` is generated from `CLAUDE.md` by recursively inlining every `@`-import. **Regenerate it after any `CLAUDE.md` change** (harness: `bash scripts/sync-agents-md.sh`; other repos: `claude-marketplace/scripts/sync-agents-md.sh`, or `--dry-run` to preview) so the reviewer gates against current rules — a stale `AGENTS.md` makes codex/cursor/grok judge against rules you've already changed. **`--check` is the freshness gate** — it re-renders in memory and exits non-zero if `AGENTS.md` has drifted (diffs rendered output, not mtimes, so it catches drift in transitive `@`-imports too); wire it into CI / a pre-commit hook / the `check_command` so staleness fails loudly instead of silently. Consequence under Opus-4.8 skill-on-demand: once `CLAUDE.md` slims to the eager floor, reviewer-critical facts that *were* carried by eager includes (the `check_command` gate; that `mix test.json` / `mix dialyzer.json` emit JSON **by design** — parse for real failures, never flag the envelope; plain `mix dialyzer` is authoritative when the JSON encoder can't serialize a warning) no longer reach `AGENTS.md` via those imports. Put them in a **self-contained `## Toolchain & check commands` section in `CLAUDE.md`** so they survive the slim-down and flow into `AGENTS.md` on regen (ref: `tapakly/CLAUDE.md`, `ccxt_extract/CLAUDE.md`).
 - **Roster doctrine.** Prefer `codex`, `cursor`, `grok`. `claude` is dispatched only when the operator has enabled it in the Agents settings; the default is off because the orchestrator session already runs on the same Max subscription. `cursor` and `grok` are one family — pair either with a `codex` reviewer. Spread assignees across the enabled agents; a ledger skewed to one adapter is the tell. A repo may override the roster in its own CLAUDE.md.
 - **Model pins.** `model` is required at creation for any non-`human` assignee (`rmap new` rejects a model-less dispatchable task; see `rmap.md` § "Pinning an LLM model"). Read the live standing model per agent from `routing-brief` and the live ids from `model_availability-list_available_models <agent>`; a retired pin fails at dispatch, so re-pin when you touch a task. A newly-probed model lands in the catalog as `selected?: false` — select it before it is dispatchable. New ids carry no ledger data — route to them to *gather* it (`dispatch-compare`), not on a performance claim.
 
@@ -767,6 +767,38 @@ Run records and status/verdict responses expose `dispatch_decision`; durable
 `task_ids` preserves coalesced membership. Deploy migration
 `20260918230000_add_dispatch_decision_to_run_records` before activating this code.
 The driving orchestrator owns runtime activation and installed-skill propagation.
+
+### Graceful shutdown recovery
+
+Application shutdown settles runs in `Harness.Application.prep_stop/1`, before
+Oban, the endpoint, task supervision or storage stop. Stopping
+`Harness.Run.Supervisor` directly uses the same admission fence. Its shutdown
+child closes admission before the inner DynamicSupervisor terminates run children
+concurrently; the admission process remains alive until settlement finishes.
+Run processes trap supervisor exits and persist `state: :failed` with
+`reason: {:shutdown, interrupted_state}`. Dispatch jobs retain that reason in
+their cancellation error; this is an interrupted attempt, not an operator cancel.
+
+Admission is serialized at the agent-driver boundary, including reviewer
+reprompts/rotation, recovery and the in-run grader. Already-admitted invocations
+have five seconds to deliver their spawn handle; no new invocation is admitted
+after the fence closes. A hung pre-spawn driver is killed and logged. The fence
+child has a seven-second shutdown budget, run children have thirty seconds in
+parallel, and admission teardown has one second: a 38-second run-layer budget,
+below the documented 120-second service stop timeout. This budget does not cover
+transport drain or promise persistence when storage/callbacks exceed the budget;
+OTP reports forced termination. Store errors are logged and spill through the
+existing ResultStore dead-letter/replay path. A spill failure remains a visible
+persistence failure, never a successful write.
+
+Retained branches and worktrees are recovery evidence. After restart, inspect the
+shutdown record and compare its branch with `origin`; use `dispatch-rereview` for
+review-ready commits or `dispatch-resume_failed` for incomplete implementation.
+Both operations validate and pin the retained commit through the ordinary queue.
+A missing branch returns `source_unavailable_or_landed`; shutdown does not invent
+a commit or justify a hand-built `start_run`. If persistence spilled, repair the
+store and replay the spill before using record-based recovery. SIGKILL and power
+loss cannot run these callbacks and carry no graceful-cleanup guarantee.
 
 
 <!--

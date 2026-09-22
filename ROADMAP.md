@@ -49,11 +49,11 @@
 > Managed by `rmap` — source of truth is `roadmap/tasks.toml`. Run `rmap show <id>` for full task detail, `rmap next` to pick the next task.
 
 <!-- FOCUS:BEGIN -->
-**Focus phase:** 1 — Post-v0.6.1 Backlog (26 of 28 done · 0 in progress)
+**Focus phase:** 1 — Post-v0.6.1 Backlog (26 of 29 done · 0 in progress)
 
 **Last shipped:** Task 22 — Close MockWebSockServer's async handler and connection-registration race on 2026-09-21
 
-**Up next:** none — focus phase complete or all blocked
+**Up next:** Task 24 — Make network-tag validation account for subprocess-owned live calls [D:3/B:5/U:5 → Eff:1.67] 🚀
 <!-- FOCUS:END -->
 
 <!-- TASKS:BEGIN phase=1 -->
@@ -81,12 +81,13 @@
 | Task 15 | ✅ | 🎁 **code-quality** · Un-break Client module namespacing by fixing the validate_usage regex that forced flat names [D:3/B:6/U:5 → Eff:1.83?] 🚀 |
 | Task 16 | ✅ | 🎁 **hygiene** · Make the 0.7.0 release record correct: four undocumented removals, one false claim, six breaks filed under Fixed [D:4/B:7/U:6 → Eff:1.62?] 🚀 |
 | Task 17 | ✅ | 🎁 **correctness** · Decide whether SubscriptionManager's narrowing to Deribit's JSON-RPC dialect is intended, and make the result explicit [D:4/B:6/U:4 → Eff:1.25?] 📋 |
-| Task 18 | ✅ | 🎁 **correctness** · Make the descripex agent surface describe the real public API, from one source of truth [D:5/B:7/U:5 → Eff:1.2] 📋 |
+| Task 18 | ✅ | 🎁 **correctness** · Make the descripex agent surface describe the real public API, from one source of truth [D:5/B:7/U:5 → Eff:1.2?] 📋 |
 | Task 19 | ✅ | 🎁 **hygiene** · Encode the doc-example contract as a test so the next audit does not find it by hand [D:5/B:7/U:4 → Eff:1.1] 📋 |
 | Task 20 | ⛔ | 🎁 **hygiene** · Replace stale echo-service assumptions in the shipped subscription examples [D:4/B:7/U:6 → Eff:1.62] 🚀 |
 | Task 21 | ✅ | 🎁 **hygiene** · Extend the doc-example contract from @moduledoc to public @doc examples [D:3/B:6/U:3 → Eff:1.5] 🚀 |
 | Task 22 | ✅ | 🎁 **hygiene** · Close MockWebSockServer's async handler and connection-registration race [D:3/B:6/U:6 → Eff:2.0] 🎯 |
 | Task 23 | ✅ | 🎁 **ci** · Prove AGENTS.md and advisory-mirror freshness without developer-host paths [D:4/B:7/U:5 → Eff:1.5] 🚀 |
+| Task 24 | ⬜ | 🎁 **ci** · Make network-tag validation account for subprocess-owned live calls [D:3/B:5/U:5 → Eff:1.67] 🚀 |
 <!-- TASKS:END -->
 
 ### Quick Commands
