@@ -46,3 +46,6 @@ zen_websocket-*.tar
 
 # Machine-local hex-docs fetch cache
 /.hex-docs/
+
+# Machine-local dependency audit timestamp.
+/.dep-audit-watch.json
