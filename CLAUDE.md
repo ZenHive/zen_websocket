@@ -4,7 +4,7 @@
 
 @~/.claude/includes/critical-rules.md
 @~/.claude/includes/elixir-security-adjudications.md
-@~/.claude/includes/harness-workflow.md
+@~/.claude/includes/harness-guardrails.md
 
 <!--
   Selective-load (Opus 4.8): the eager floor is `critical-rules` (hard guardrails
