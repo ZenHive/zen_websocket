@@ -53,7 +53,7 @@
 
 **Last shipped:** no recent shipments
 
-**Up next:** Task 25 — Decouple Client from Gun behind an internal transport seam, keeping Gun behaviour and the public API compatible [D:6/B:6/U:4 → Eff:0.83] ⚠️
+**Up next:** Task 24 — Make network-tag validation account for subprocess-owned live calls [D:3/B:5/U:5 → Eff:1.67] 🚀
 <!-- FOCUS:END -->
 
 <!-- TASKS:BEGIN phase=1 -->
@@ -87,7 +87,7 @@
 | Task 21 | ✅ | 🎁 **hygiene** · Extend the doc-example contract from @moduledoc to public @doc examples [D:3/B:6/U:3 → Eff:1.5?] 🚀 |
 | Task 22 | ✅ | 🎁 **hygiene** · Close MockWebSockServer's async handler and connection-registration race [D:3/B:6/U:6 → Eff:2.0] 🎯 |
 | Task 23 | ✅ | 🎁 **ci** · Prove AGENTS.md and advisory-mirror freshness without developer-host paths [D:4/B:7/U:5 → Eff:1.5] 🚀 |
-| Task 24 | ⛔ | 🎁 **ci** · Make network-tag validation account for subprocess-owned live calls [D:3/B:5/U:5 → Eff:1.67] 🚀 |
+| Task 24 | ⬜ | 🎁 **ci** · Make network-tag validation account for subprocess-owned live calls [D:3/B:5/U:5 → Eff:1.67] 🚀 |
 | Task 25 | ⬜ | 🎁 **transport** · Decouple Client from Gun behind an internal transport seam, keeping Gun behaviour and the public API compatible [D:6/B:6/U:4 → Eff:0.83] ⚠️ |
 | Task 26 | ⬜ | 🎁 **transport** · Add an optional Mint/mint_web_socket transport on the same Client API with a shared local and live behaviour test matrix [D:7/B:5/U:3 → Eff:0.57] ⚠️ |
 <!-- TASKS:END -->

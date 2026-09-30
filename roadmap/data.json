@@ -1456,7 +1456,7 @@
       "id": "24",
       "phase": 1,
       "bundle": "ci",
-      "status": "superseded",
+      "status": "pending",
       "title": "Make network-tag validation account for subprocess-owned live calls",
       "scores": {
         "d": 3,

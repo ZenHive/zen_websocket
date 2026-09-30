@@ -1072,7 +1072,7 @@ shipped_in = "97802a5827b00de273fbc5d3ccb1d83684e34e1f"
 id = "24"
 phase = 1
 bundle = "ci"
-status = "superseded"
+status = "pending"
 title = "Make network-tag validation account for subprocess-owned live calls"
 scores = { d = 3, b = 5, u = 5 }
 acceptance_criteria = ["NetworkTagGuard accepts the correctly tagged live advisory freshness test, whose System.cmd subprocess executes git against the provider", "Regression coverage preserves rejection of incorrectly tagged pure tests and missing tags on local and external network tests; do not remove network tags or introduce a per-file skip", "The live freshness test still proves cold success plus dirty and offline failures against the actual upstream", "Focused network-tag guard and freshness tests pass without weakening existing assertions or exclusion defaults"]
