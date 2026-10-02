@@ -1160,3 +1160,24 @@ WHY THIS IS DISPATCHED. New external-transport semantics with live provider evid
 """
 created_at = "2026-09-23"
 scored_at = "2026-09-23"
+
+[[task]]
+id = "27"
+phase = 1
+bundle = "hygiene"
+status = "pending"
+title = "Ship usage rules under the filename usage_rules reads"
+scores = { d = 2, b = 6, u = 5 }
+acceptance_criteria = ["The published package tarball (mix hex.build --unpack) contains usage-rules.md at its root", "In a scratch project depending on the built package via the local hex cache or a released version, mix usage_rules.list reports usage-rules.md: yes for zen_websocket", "No reference to USAGE_RULES.md remains in the repo", "The dev-only usage_rules dependency is either configured with a non-empty build or removed, with the reason in the commit message", "A patch release with a CHANGELOG entry"]
+out_of_scope = ["Rewriting the content of the usage rules"]
+assignee = "cursor"
+model = "cursor-grok-4.6-high"
+body = """
+The package ships USAGE_RULES.md (mix.exs package files and docs extras), but the usage_rules tool only discovers `usage-rules.md` and `usage-rules/*.md` in a dependency's root (deps/usage_rules/lib/mix/tasks/usage_rules.list.ex:112 and usage_rules.sync.ex:257, usage_rules 1.2.8). So consumers running `mix usage_rules.sync` never see zen_websocket's rules — the file exists for humans on hexdocs but not for agents.
+
+Rename to usage-rules.md, update every reference (package files, docs extras, README/CLAUDE.md links), and release a patch version so consumers pick it up.
+
+The repo's own {:usage_rules, "~> 1.2", only: :dev} dependency has no `usage_rules:` config and builds nothing. Keep it only if `mix usage_rules.list` shows a rule-shipping dependency a current model knows poorly, and then configure it per the `elixir-setup` include; otherwise remove it.
+"""
+created_at = "2026-10-02"
+scored_at = "2026-10-02"

@@ -49,11 +49,11 @@
 > Managed by `rmap` — source of truth is `roadmap/tasks.toml`. Run `rmap show <id>` for full task detail, `rmap next` to pick the next task.
 
 <!-- FOCUS:BEGIN -->
-**Focus phase:** 1 — Post-v0.6.1 Backlog (26 of 31 done · 0 in progress)
+**Focus phase:** 1 — Post-v0.6.1 Backlog (26 of 32 done · 0 in progress)
 
 **Last shipped:** no recent shipments
 
-**Up next:** Task 24 — Make network-tag validation account for subprocess-owned live calls [D:3/B:5/U:5 → Eff:1.67] 🚀
+**Up next:** Task 27 — Ship usage rules under the filename usage_rules reads [D:2/B:6/U:5 → Eff:2.75] 🎯
 <!-- FOCUS:END -->
 
 <!-- TASKS:BEGIN phase=1 -->
@@ -90,6 +90,7 @@
 | Task 24 | ⬜ | 🎁 **ci** · Make network-tag validation account for subprocess-owned live calls [D:3/B:5/U:5 → Eff:1.67] 🚀 |
 | Task 25 | ⬜ | 🎁 **transport** · Decouple Client from Gun behind an internal transport seam, keeping Gun behaviour and the public API compatible [D:6/B:6/U:4 → Eff:0.83] ⚠️ |
 | Task 26 | ⬜ | 🎁 **transport** · Add an optional Mint/mint_web_socket transport on the same Client API with a shared local and live behaviour test matrix [D:7/B:5/U:3 → Eff:0.57] ⚠️ |
+| Task 27 | ⬜ | 🎁 **hygiene** · Ship usage rules under the filename usage_rules reads [D:2/B:6/U:5 → Eff:2.75] 🎯 |
 <!-- TASKS:END -->
 
 ### Quick Commands
