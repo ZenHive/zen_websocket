@@ -35,4 +35,30 @@ defmodule ZenWebsocket.NetworkTagGuardTest do
                message =~ "local socket without :local_network"
            end)
   end
+
+  test "a subprocess justifies network tags but never demands them" do
+    source = """
+    defmodule SubprocessSuite do
+      use ExUnit.Case
+
+      @tag :integration
+      @tag :external_network
+      test "tagged subprocess", do: run()
+
+      test "untagged subprocess", do: System.cmd("true", [])
+
+      @tag :integration
+      @tag :external_network
+      test "tagged pure test", do: :ok
+
+      defp run, do: System.cmd("git", ["fetch"])
+    end
+    """
+
+    messages = NetworkTagGuard.check_source("subprocess_test.exs", source)
+
+    refute Enum.any?(messages, &(&1 =~ "tagged subprocess"))
+    refute Enum.any?(messages, &(&1 =~ "untagged subprocess"))
+    assert Enum.any?(messages, &(&1 =~ "tagged pure test" and &1 =~ ":external_network without internet socket"))
+  end
 end

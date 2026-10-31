@@ -123,6 +123,7 @@ defmodule ZenWebsocket.Test.Support.NetworkTagGuard.Resources do
   @local_socket_calls %{gen_tcp: [:listen], gen_udp: [:open], ssl: [:listen]}
   @socket_functions [:connect, :start_client, :start_connection, :start_link, :start_multiple]
   @socket_reference :socket_reference
+  @subprocess :subprocess
 
   @spec flags(Macro.t(), Ast.context()) :: MapSet.t(atom())
   def flags(ast, context) do
@@ -170,6 +171,12 @@ defmodule ZenWebsocket.Test.Support.NetworkTagGuard.Resources do
        when is_atom(module) and is_atom(function) do
     local_functions = Map.get(@local_socket_calls, module, [])
     {node, if(function in local_functions, do: MapSet.put(resources, @local), else: resources)}
+  end
+
+  # A subprocess may open sockets the AST cannot see (e.g. `git fetch` inside
+  # `mix deps.audit.gated`), so it justifies network tags without requiring them.
+  defp classify({{:., _, [{:__aliases__, _, [:System]}, :cmd]}, _, _args} = node, resources, _context) do
+    {node, MapSet.put(resources, @subprocess)}
   end
 
   defp classify({{:., _, [_module, function]}, _, args} = node, resources, context) when function in @socket_functions do
@@ -290,6 +297,7 @@ defmodule ZenWebsocket.Test.Support.NetworkTagGuard.Scope do
     external_resource? = MapSet.member?(resources, :external_network)
     local_resource? = MapSet.member?(resources, :local_network)
     network_resource? = Enum.any?(@network_tags, &MapSet.member?(resources, &1))
+    subprocess? = MapSet.member?(resources, :subprocess)
 
     for {true, message} <- [
           {external_resource? and :external_network not in tags, "#{prefix}: internet URL without :external_network"},
@@ -297,9 +305,11 @@ defmodule ZenWebsocket.Test.Support.NetworkTagGuard.Scope do
           {Enum.any?(@network_tags, &(&1 in tags)) and :integration not in tags,
            "#{prefix}: network tag without :integration"},
           {local_resource? and :external_network in tags, "#{prefix}: local socket selected by :external_network"},
-          {:external_network in tags and not external_resource?, "#{prefix}: :external_network without internet socket"},
+          {:external_network in tags and not external_resource? and not subprocess?,
+           "#{prefix}: :external_network without internet socket"},
           {:local_network in tags and not local_resource?, "#{prefix}: :local_network without local socket"},
-          {:integration in tags and not network_resource?, "#{prefix}: :integration without network socket"}
+          {:integration in tags and not network_resource? and not subprocess?,
+           "#{prefix}: :integration without network socket"}
         ],
         do: message
   end
