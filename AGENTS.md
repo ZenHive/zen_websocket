@@ -266,9 +266,9 @@ argument above has been made for that specific id.
 enabled anywhere; gun is used as a general HTTP client with caller-supplied header
 values; or a new cowlib advisory appears that is not the id above.
 
-**Affected repos (cowlib in the lock):** `bourse`, `mpp`, `zen_websocket`. As of
-2026-10-31 `mpp` and `zen_websocket` lock cowlib 2.21.0; `bourse` still locks 2.20.0
-and will now report 43969 on `deps.get` until bumped. The `onchain*` repos no longer lock cowlib. Suppression is inconsistent across them — most carry
+**Affected repos (cowlib in the lock):** `bourse`, `mpp`, `zen_mm`, `zen_websocket`. As
+of 2026-10-31 `mpp` and `zen_websocket` lock cowlib 2.21.0; `bourse` and `zen_mm` still
+lock 2.20.0 and will now report 43969 on `deps.get` until bumped. The `onchain*` repos no longer lock cowlib. Suppression is inconsistent across them — most carry
 `.mix_audit_ignore`, bourse uses an `--ignore-advisory-ids` alias in
 `mix.exs`. Standardize on `.mix_audit_ignore` when you touch one.
 
