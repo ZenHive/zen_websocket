@@ -25,55 +25,45 @@ Removing `mix_audit` does **not** silence the `mix deps.get` output — that is 
 every fresh harness worktree runs `deps.get`. That is precisely why every dispatched
 agent sees it.
 
-**The verdict — cowlib reached only via `gun` as a WebSocket client (the
-`zen_websocket` stack): not reachable.** Evidence is a call-graph fact, not a judgment
-call:
-
-| Advisory | Vulnerable function | Reachability |
-|---|---|---|
-| `EEF-CVE-2026-43966` (alias `GHSA-w4f7-4cxr-rv3c`, `CVE-2026-43966`) | `cow_http_struct_hd:escape_string/2` | **0 references** in `deps/gun/src/`; reached only via the structured-header serializers (`cow_http_struct_hd:item/list/dictionary`, `cow_http_hd:variant_key/variants/wt_available_protocols/wt_protocol`), and gun calls only `cow_http_hd:parse_*` |
-| `EEF-CVE-2026-113431` (alias `CVE-2026-113431`, HIGH, published 2026-11-06) | `cow_http2_machine:headers_decode/4` (unbounded decoded HPACK header list) | gun runs `cow_http2_machine` only in `gun_http2`/`gun_http3`; the only `:gun.open` caller, `ZenWebsocket.Reconnection.build_gun_opts/1`, forces `protocols: [:http]` and ALPN `["http/1.1"]`. Bandit (the Phoenix server) does not use cowlib |
-
-**Fixed upstream — bump, never re-ignore.** These were removed from the global Hex
-ignore list once a fixed cowlib shipped. If one reappears, the repo is on an older
-cowlib: bump it.
+**Every cowlib EEF-CVE is fixed upstream — bump, never ignore.** cowlib 2.22.0 fixes the
+last two (OSV, verified 2026-11-25). The global Hex ignore list is empty again
+(`ignore_advisories` removed from `~/.hex/hex.config` 2026-11-25). If one of these ids
+appears, the repo locks an older cowlib: `mix deps.update cowlib gun` (and `cowboy` where
+present — cowboy 2.21.0 fixes HIGH `EEF-CVE-2026-115701`).
 
 | Advisory | Function | Fixed in (OSV range) | Removed from ignore list |
 |---|---|---|---|
 | `EEF-CVE-2026-43971` | `cow_link:link/1` | cowlib 2.20.0 (`>= 2.9.0 < 2.20.0`) | 2026-09-24 |
 | `EEF-CVE-2026-43969` | `cow_cookie:cookie/1` | cowlib 2.21.0 (`>= 2.9.0 < 2.21.0`) | 2026-10-31 |
+| `EEF-CVE-2026-43966` (alias `GHSA-w4f7-4cxr-rv3c`) | `cow_http_struct_hd:escape_string/2` | cowlib 2.22.0 (`>= 2.9.0 < 2.22.0`) | 2026-11-25 |
+| `EEF-CVE-2026-113431` (HIGH) | `cow_http2_machine:headers_decode/4` | cowlib 2.22.0 (`>= 2.7.0 < 2.22.0`) | 2026-11-25 (never globally ignored) |
 
-43966 (cowlib 2.21.0 / gun 2.7.0) and 113431 (cowlib 2.21.0) are still reported
-(verified 2026-11-07, live `mix hex.audit` in tapakly; OSV lists no fixed cowlib release
-for either), so reachability is the only available adjudication. Re-check at the next cowlib release. `hex.audit` in a repo without cowlib
-(e.g. harness) warns the ignore "matches no advisory" — that is expected, not a sign it
-is resolved.
+The former reachability verdict (gun as an HTTP/1.1-only WebSocket client never calls the
+struct-header serializers or `cow_http2_machine`) is history; it applied only while no
+fixed cowlib existed. Do not resurrect it as a reason to ignore instead of bumping.
 
-**The separate `gun 2.5.0` line is a mirror bug, already reported upstream.** gun's real
-vulnerable range is `< 2.4.0`; gun 2.5.0 is patched. The mirego importer groups by
-`ghsaId` alone, collapsing a two-package advisory into `packages/gun/…yml` carrying
-**cowboy's** `< 2.16.0` range, so gun 2.5.0 matches a range that was never gun's. There
-is no gun 2.16.x. Filed as **`mirego/elixir-security-advisories#8`** (issue + PR open);
-`zen_websocket/.mix_audit_ignore` carries the full write-up and the removal condition.
-That gun never calls `cow_http_struct_hd` at all corroborates it independently.
+**The separate `gun` line from `mix deps.audit` is a mirror bug, still open.** gun's real
+vulnerable range for `GHSA-w4f7-4cxr-rv3c` is `< 2.4.0`. The mirego importer groups by
+`ghsaId` alone, collapsing a two-package advisory into `packages/gun/GHSA-w4f7-4cxr-rv3c.yml`
+carrying **cowboy's** `< 2.16.0` range as well, so every real gun release (latest 2.8.0)
+matches a range that was never gun's. There is no gun 2.16.x. Filed as
+**`mirego/elixir-security-advisories#8`** (issue) and **#9** (PR), both still open as of
+2026-11-25 with the mirror at upstream tip. Repos suppress exactly that one id via
+`.mix_audit_ignore`; remove it once the mirror splits the advisory. This is a `mix_audit`
+(mirego) finding only — Hex/OSV does not report it.
 
 **🚨 `bandit` is NOT in this adjudication — it has a real fix.** `EEF-CVE-2026-74836`
 (HIGH) and `EEF-CVE-2026-75484` on bandit 1.12.4 are genuine; **1.12.5 (2026-08-20) is
 the fix**. Bump the dependency; never add a bandit id to an ignore list. Blanket-ignoring
-"all the CVE noise" buries a HIGH — suppress **per id**, only after the reachability
-argument above has been made for that specific id.
+"all the CVE noise" buries a HIGH — suppress **per id**, only after a reachability
+argument has been made for that specific id and no fixed release exists.
 
-**What invalidates this verdict — re-adjudicate if any becomes true:** a repo takes
-`cowboy` as a **runtime** (not `only: :test`) dependency; gun's `cookie_store` option is
-enabled anywhere; gun is used as a general HTTP client with caller-supplied header
-values; any caller opens gun with `http2` / `http3` or advertises `h2` via ALPN
-(invalidates 113431); or a new cowlib advisory appears that is not one of the ids above.
-
-**Affected repos (cowlib in the lock):** `bourse`, `mpp`, `tapakly`, `zen_mm`, `zen_websocket`. As
-of 2026-10-31 `mpp` and `zen_websocket` lock cowlib 2.21.0; `bourse` and `zen_mm` still
-lock 2.20.0 and will now report 43969 on `deps.get` until bumped. The `onchain*` repos no longer lock cowlib. Suppression is inconsistent across them — most carry
-`.mix_audit_ignore`, bourse uses an `--ignore-advisory-ids` alias in
-`mix.exs`. Standardize on `.mix_audit_ignore` when you touch one.
+**cowlib in the lock (2026-11-25):** 2.22.0 in `mpp`, `onchain-stack`, `tapakly`,
+`trading_dashboard`, `zen_websocket`. Older (will report 43966 and 113431 on `deps.get`
+until bumped): `bourse`, `zen_mm` (2.21), `aave_sim`, `bourse_trading`, `zen_macro`,
+`zen_quant` (2.20), and several dormant repos below that. Suppression of the gun mirror bug
+is inconsistent: most carry `.mix_audit_ignore`, bourse uses an `--ignore-advisory-ids`
+alias in `mix.exs`. Standardize on `.mix_audit_ignore` when you touch one.
 
 **tapakly is the exception on the Hex side — global ignores do not reach its gate.**
 `mix tapakly.deps.audit` runs `hex.audit` in a throwaway project with a fresh `HEX_HOME`
