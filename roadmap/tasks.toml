@@ -1181,3 +1181,24 @@ The repo's own {:usage_rules, "~> 1.2", only: :dev} dependency has no `usage_rul
 """
 created_at = "2026-10-02"
 scored_at = "2026-10-02"
+
+[[task]]
+id = "28"
+phase = 1
+bundle = "correctness"
+status = "pending"
+title = "Client accessors exit when a call races a normal transport close: process_down_exit?/1 does not recognise the gun_down termination"
+scores = { d = 2, b = 7, u = 6 }
+markers = ["bug"]
+acceptance_criteria = ["A call that races a normal peer close returns the accessor's disconnected fallback rather than exiting; a test reproduces the race deterministically against a local server that closes the socket, and a live Deribit testnet logout test pins the provider behaviour", "A client that terminates abnormally while a call is in flight still surfaces as an error distinguishable from a normal close; a test asserts the specific result", "CHANGELOG has an Unreleased entry"]
+assignee = "claude"
+model = "claude-opus-5-5"
+body = """
+Reported by zen_mm (its task 8) through bourse's BUGS.md, entry "2026-10-01 — WS.get_state/1 exits during Deribit graceful logout"; zen_websocket 0.9.0.
+
+Repro: connect to Deribit testnet with reconnect_on_error: false, send private/logout (the venue closes the socket without a JSON-RPC reply), then immediately call Client.get_state/1. When the call races transport termination it exits from GenServer.call with {{:gun_down, gun_pid, :ws, :normal, [stream_ref]}, {GenServer, :call, ...}} instead of returning the accessor's disconnected fallback. CallFacade.process_down_exit?/1 recognises noproc, normal and shutdown, but not the client terminating with a gun_down reason on a normal peer close.
+
+Every public accessor that goes through the call facade should answer its documented disconnected fallback when the client process ends because the peer closed normally, including when the call is already in flight. An abnormal termination must stay distinguishable; do not turn every exit into the fallback.
+"""
+created_at = "2026-11-24"
+scored_at = "2026-11-24"
