@@ -49,7 +49,7 @@
 > Managed by `rmap` — source of truth is `roadmap/tasks.toml`. Run `rmap show <id>` for full task detail, `rmap next` to pick the next task.
 
 <!-- FOCUS:BEGIN -->
-**Focus phase:** 1 — Post-v0.6.1 Backlog (26 of 33 done · 0 in progress)
+**Focus phase:** 1 — Post-v0.6.1 Backlog (26 of 34 done · 0 in progress)
 
 **Last shipped:** no recent shipments
 
@@ -92,6 +92,7 @@
 | Task 26 | ⬜ | 🎁 **transport** · Add an optional Mint/mint_web_socket transport on the same Client API with a shared local and live behaviour test matrix [D:7/B:5/U:3 → Eff:0.57?] ⚠️ |
 | Task 27 | ⬜ | 🎁 **hygiene** · Ship usage rules under the filename usage_rules reads [D:2/B:6/U:5 → Eff:2.75?] 🎯 |
 | Task 28 | ⬜ | 🎁 **correctness** · 🐛 Client accessors exit when a call races a normal transport close: process_down_exit?/1 does not recognise the gun_down termination [D:2/B:7/U:6 → Eff:3.25] 🎯 |
+| Task 29 | ⬜ | 🎁 **correctness** · Harden what the client process exposes in status and termination reports [D:3/B:8/U:8 → Eff:2.67] 🎯 |
 <!-- TASKS:END -->
 
 ### Quick Commands
